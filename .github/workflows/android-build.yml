@@ -1,0 +1,46 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'android/**'
+      - '.github/workflows/android-build.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-37" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.5.0'
+      - name: Build debug APK
+        working-directory: android
+        env:
+          API_URL: ${{ secrets.INVESTMENT_API_BASE_URL }}
+          FB_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
+          FB_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+          FB_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FB_SENDER_ID: ${{ secrets.FIREBASE_SENDER_ID }}
+        run: |
+          gradle :app:assembleDebug \
+            -PINVESTMENT_API_BASE_URL="$API_URL" \
+            -PFIREBASE_APP_ID="$FB_APP_ID" \
+            -PFIREBASE_API_KEY="$FB_API_KEY" \
+            -PFIREBASE_PROJECT_ID="$FB_PROJECT_ID" \
+            -PFIREBASE_SENDER_ID="$FB_SENDER_ID"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: investment-radar-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
