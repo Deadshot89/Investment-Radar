@@ -1,0 +1,91 @@
+{
+  "marketLight": "GELB",
+  "budget": 100,
+  "topPickId": "spyi",
+  "items": [
+    {
+      "id": "spyi",
+      "type": "ETF",
+      "name": "SPDR MSCI ACWI IMI UCITS ETF",
+      "ticker": "SPYI",
+      "marketSymbol": "SPYI:XETR",
+      "isin": "IE00B3YLTY66",
+      "tradeRepublicName": "MSCI All Country World Investable Market Unhedged USD (Acc)",
+      "status": "KAUFEN",
+      "allocation": 40,
+      "risk": 2,
+      "reviewDrop1dPct": 6.0,
+      "hardReviewBelow": 9.5
+    },
+    {
+      "id": "msft",
+      "type": "AKTIE",
+      "name": "Microsoft",
+      "ticker": "MSFT",
+      "marketSymbol": "MSFT:NASDAQ",
+      "isin": "US5949181045",
+      "tradeRepublicName": "Microsoft",
+      "status": "KAUFEN",
+      "allocation": 20,
+      "risk": 3,
+      "reviewDrop1dPct": 7.0,
+      "hardReviewBelow": 390
+    },
+    {
+      "id": "is3s",
+      "type": "ETF",
+      "name": "iShares MSCI World Value Factor UCITS ETF",
+      "ticker": "IS3S",
+      "marketSymbol": "IS3S:XETR",
+      "isin": "IE00BP3QZB59",
+      "tradeRepublicName": "Edge World Value USD (Acc)",
+      "status": "KAUFEN",
+      "allocation": 15,
+      "risk": 3,
+      "reviewDrop1dPct": 6.0,
+      "hardReviewBelow": 57
+    },
+    {
+      "id": "googl",
+      "type": "AKTIE",
+      "name": "Alphabet (A)",
+      "ticker": "GOOGL",
+      "marketSymbol": "GOOGL:NASDAQ",
+      "isin": "US02079K3059",
+      "tradeRepublicName": "Alphabet (A)",
+      "status": "KAUFEN",
+      "allocation": 15,
+      "risk": 3,
+      "reviewDrop1dPct": 8.0,
+      "hardReviewBelow": 260
+    },
+    {
+      "id": "is3q",
+      "type": "ETF",
+      "name": "iShares MSCI World Quality Factor UCITS ETF",
+      "ticker": "IS3Q",
+      "marketSymbol": "IS3Q:XETR",
+      "isin": "IE00BP3QZ601",
+      "tradeRepublicName": "Edge World Quality USD (Acc)",
+      "status": "KAUFEN",
+      "allocation": 10,
+      "risk": 3,
+      "reviewDrop1dPct": 6.0,
+      "hardReviewBelow": 64
+    },
+    {
+      "id": "visa",
+      "type": "AKTIE",
+      "name": "Visa",
+      "ticker": "V",
+      "marketSymbol": "V:NYSE",
+      "isin": "US92826C8394",
+      "tradeRepublicName": "Visa",
+      "status": "BEOBACHTEN",
+      "allocation": 0,
+      "risk": 2,
+      "reviewDrop1dPct": 7.0,
+      "hardReviewBelow": 300
+    }
+  ]
+}

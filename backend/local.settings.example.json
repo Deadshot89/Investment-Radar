@@ -1,0 +1,13 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "FUNCTIONS_WORKER_RUNTIME": "node",
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "TWELVE_DATA_API_KEY": "",
+    "FIREBASE_SERVICE_ACCOUNT_JSON": "",
+    "ALERT_TOPIC": "investment-alerts",
+    "ADMIN_API_KEY": "change-me",
+    "GOOGLE_SHEET_ID": "1unFY1i2X_mEYoxYKaP42hDPTl1lmsYhNdhj7Cg6W7xI",
+    "GOOGLE_SERVICE_ACCOUNT_JSON": ""
+  }
+}
