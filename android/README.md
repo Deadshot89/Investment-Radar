@@ -7,7 +7,7 @@
 - AGP 8.13.2
 - Gradle 8.13
 - Kotlin 2.3.21
-- Compose BOM 2026.06.01 (Compose 1.11.4)
+- Compose BOM 2026.06.00 (Compose 1.11.4)
 - FCM Topic: `investment-alerts`
 - Live-Refresh in geoeffneter App: alle 60 Sekunden
 
