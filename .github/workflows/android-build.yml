@@ -23,11 +23,11 @@ jobs:
       - name: Install Android SDK 36
         run: |
           yes | sdkmanager --licenses >/dev/null 2>&1 || true
-          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+          sdkmanager "platform-tools" "platforms;android-36" "build-tools;35.0.0"
 
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '9.5.0'
+          gradle-version: '8.13'
 
       - name: Build debug APK
         working-directory: android
@@ -38,7 +38,7 @@ jobs:
           FB_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
           FB_SENDER_ID: ${{ secrets.FIREBASE_SENDER_ID }}
         run: |
-          gradle :app:assembleDebug \
+          gradle --no-daemon --stacktrace :app:assembleDebug \
             -PINVESTMENT_API_BASE_URL="$API_URL" \
             -PFIREBASE_APP_ID="$FB_APP_ID" \
             -PFIREBASE_API_KEY="$FB_API_KEY" \
