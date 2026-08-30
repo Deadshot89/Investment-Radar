@@ -13,7 +13,7 @@ export async function loadSheetConfig(localConfig) {
   const sheets = google.sheets({ version: "v4", auth });
   const response = await sheets.spreadsheets.values.batchGet({
     spreadsheetId,
-    ranges: ["Rangliste!A2:P50", "Dashboard!A1:B12"]
+    ranges: ["Rangliste!A2:S50", "Dashboard!A1:B12"]
   });
 
   const rankingRows = response.data.valueRanges?.[0]?.values ?? [];
@@ -40,6 +40,9 @@ export async function loadSheetConfig(localConfig) {
         status: normalizeStatus(row[12]),
         allocation: integer(row[13]),
         risk: clamp(integer(row[11], 3), 1, 5),
+        alertStatus: normalizeAlertStatus(row[16]),
+        alertReason: String(row[17] ?? "").trim(),
+        alertUpdatedAt: String(row[18] ?? "").trim(),
         reviewDrop1dPct: existing?.reviewDrop1dPct ?? (type === "ETF" ? 6 : 8),
         hardReviewBelow: existing?.hardReviewBelow,
         rank: integer(row[0], index + 1)
@@ -67,6 +70,14 @@ function normalizeStatus(value) {
   if (v.includes("MEID")) return "MEIDEN";
   return "BEOBACHTEN";
 }
+
+function normalizeAlertStatus(value) {
+  const v = String(value ?? "").trim().toUpperCase().replaceAll("Ü", "UE");
+  if (v.includes("VERKAUF")) return "VERKAUFEN";
+  if (v.includes("DRINGEND") || v.includes("PRUEF")) return "DRINGEND_PRUEFEN";
+  return "";
+}
+
 function parseMarketLight(rows) {
   for (const row of rows) {
     for (const cell of row) {

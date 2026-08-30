@@ -3,13 +3,13 @@ import path from "node:path";
 import os from "node:os";
 import { BlobServiceClient } from "@azure/storage-blob";
 
-const EMPTY = { fingerprints: {}, recent: [] };
+const EMPTY = { activeFingerprints: [], recent: [] };
 const CONTAINER = "investment-radar";
 const BLOB = "alert-state.json";
 
 export async function loadState() {
   const connection = process.env.AzureWebJobsStorage;
-  if (!connection || connection === "UseDevelopmentStorage=true") return loadLocal();
+  if (!connection || connection === "UseDevelopmentStorage=true") return normalize(await loadLocal());
   try {
     const service = BlobServiceClient.fromConnectionString(connection);
     const container = service.getContainerClient(CONTAINER);
@@ -17,25 +17,36 @@ export async function loadState() {
     const blob = container.getBlockBlobClient(BLOB);
     if (!(await blob.exists())) return structuredClone(EMPTY);
     const download = await blob.downloadToBuffer();
-    return JSON.parse(download.toString("utf8"));
+    return normalize(JSON.parse(download.toString("utf8")));
   } catch {
-    return loadLocal();
+    return normalize(await loadLocal());
   }
 }
 
 export async function saveState(state) {
+  const normalized = normalize(state);
   const connection = process.env.AzureWebJobsStorage;
-  if (!connection || connection === "UseDevelopmentStorage=true") return saveLocal(state);
+  if (!connection || connection === "UseDevelopmentStorage=true") return saveLocal(normalized);
   try {
     const service = BlobServiceClient.fromConnectionString(connection);
     const container = service.getContainerClient(CONTAINER);
     await container.createIfNotExists();
     const blob = container.getBlockBlobClient(BLOB);
-    const body = JSON.stringify(state, null, 2);
+    const body = JSON.stringify(normalized, null, 2);
     await blob.upload(body, Buffer.byteLength(body), { blobHTTPHeaders: { blobContentType: "application/json" } });
   } catch {
-    await saveLocal(state);
+    await saveLocal(normalized);
   }
+}
+
+function normalize(value) {
+  const recent = Array.isArray(value?.recent) ? value.recent : [];
+  let activeFingerprints = Array.isArray(value?.activeFingerprints) ? value.activeFingerprints : [];
+  // Migration from v1.0 state format.
+  if (!activeFingerprints.length && value?.fingerprints && typeof value.fingerprints === "object") {
+    activeFingerprints = Object.values(value.fingerprints).filter(Boolean);
+  }
+  return { activeFingerprints: [...new Set(activeFingerprints)], recent: recent.slice(0, 50) };
 }
 
 async function loadLocal() {

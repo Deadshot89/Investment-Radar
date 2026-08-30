@@ -5,19 +5,22 @@ export function evaluateSignals(items, quotes) {
   const result = [];
   for (const item of items) {
     const quote = quotes.get(item.id);
-    if (item.status === "VERKAUFEN") {
-      result.push(make(item, "SELL", `${item.name}: VERKAUFEN prüfen`, "Der Radar-Status wurde auf VERKAUFEN gesetzt. Bitte Investmentthese und Orderentscheidung prüfen.", now, "manual-sell"));
+    const sellStatus = item.alertStatus || item.status;
+    if (sellStatus === "VERKAUFEN") {
+      const reason = item.alertReason || "Der Radar hat ein belastbares Verkaufssignal gesetzt. Bitte Investmentthese und Orderentscheidung prüfen.";
+      result.push(make(item, "SELL", `${item.name}: VERKAUFEN prüfen`, reason, now, `manual-sell-${item.alertUpdatedAt || "current"}`));
       continue;
     }
-    if (item.status === "DRINGEND_PRUEFEN") {
-      result.push(make(item, "REVIEW", `${item.name}: dringend prüfen`, "Der Radar-Status wurde auf DRINGEND PRÜFEN gesetzt.", now, "manual-review"));
+    if (sellStatus === "DRINGEND_PRUEFEN") {
+      const reason = item.alertReason || "Der Radar hat den Wert auf DRINGEND PRÜFEN gesetzt.";
+      result.push(make(item, "REVIEW", `${item.name}: dringend prüfen`, reason, now, `manual-review-${item.alertUpdatedAt || "current"}`));
     }
     if (!quote || quote.price == null) continue;
     if (item.hardReviewBelow != null && quote.price <= item.hardReviewBelow) {
       result.push(make(item, "REVIEW", `${item.name}: Kurs-Schwelle erreicht`, `Kurs ${fmt(quote.price)} ${quote.currency} liegt unter der Prüfschwelle ${fmt(item.hardReviewBelow)}. Kein automatischer Verkauf – Gründe prüfen.`, now, `below-${item.hardReviewBelow}`));
     }
     if (quote.percentChange != null && quote.percentChange <= -Math.abs(item.reviewDrop1dPct)) {
-      result.push(make(item, "REVIEW", `${item.name}: ungewöhnlicher Tagesverlust`, `Tagesbewegung ${quote.percentChange.toFixed(2)} %. Prüfe Nachrichten und Investmentthese; normale Schwankungen unterhalb dieser Schwelle lösen keinen Alarm aus.`, now, `drop-${Math.floor(Math.abs(quote.percentChange))}`));
+      result.push(make(item, "REVIEW", `${item.name}: ungewöhnlicher Tagesverlust`, `Tagesbewegung ${quote.percentChange.toFixed(2)} %. Prüfe Nachrichten und Investmentthese; normale Schwankungen unterhalb dieser Schwelle lösen keinen Alarm aus.`, now, `drop-threshold-${Math.abs(item.reviewDrop1dPct)}`));
     }
   }
   return dedupeByFingerprint(result);

@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ShowChart
@@ -34,6 +35,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         if (FirebaseBootstrap.isConfigured()) {
             FirebaseMessaging.getInstance().subscribeToTopic("investment-alerts")
+            PortfolioStore.read(this).forEach { itemId ->
+                FirebaseMessaging.getInstance().subscribeToTopic(MainViewModel.holdingTopic(itemId))
+            }
         }
         setContent { InvestmentRadarUi() }
     }
@@ -43,6 +47,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun InvestmentRadarUi(vm: MainViewModel = viewModel()) {
     val state by vm.state.collectAsState()
+    val holdingIds by vm.holdingIds.collectAsState()
     val context = LocalContext.current
     var tab by remember { mutableIntStateOf(0) }
     var notificationPermissionAsked by remember { mutableStateOf(false) }
@@ -81,7 +86,8 @@ fun InvestmentRadarUi(vm: MainViewModel = viewModel()) {
                 NavigationBar {
                     NavigationBarItem(selected = tab == 0, onClick = { tab = 0 }, icon = { Icon(Icons.Default.ShowChart, null) }, label = { Text("Live") })
                     NavigationBarItem(selected = tab == 1, onClick = { tab = 1 }, icon = { Icon(Icons.Default.Search, null) }, label = { Text("Radar") })
-                    NavigationBarItem(selected = tab == 2, onClick = { tab = 2 }, icon = { Icon(Icons.Default.Notifications, null) }, label = { Text("Alarme") })
+                    NavigationBarItem(selected = tab == 2, onClick = { tab = 2 }, icon = { Icon(Icons.Default.Favorite, null) }, label = { Text("Portfolio") })
+                    NavigationBarItem(selected = tab == 3, onClick = { tab = 3 }, icon = { Icon(Icons.Default.Notifications, null) }, label = { Text("Alarme") })
                 }
             }
         ) { padding ->
@@ -91,7 +97,15 @@ fun InvestmentRadarUi(vm: MainViewModel = viewModel()) {
                     is UiState.Error -> ErrorView(s.message) { vm.refresh() }
                     is UiState.Ready -> when (tab) {
                         0 -> DashboardScreen(s.data)
-                        1 -> RadarScreen(s.data.items)
+                        1 -> RadarScreen(
+                            items = s.data.items,
+                            holdingIds = holdingIds,
+                            onBought = vm::markBought
+                        )
+                        2 -> PortfolioScreen(
+                            items = s.data.items.filter { it.id in holdingIds },
+                            onRemove = vm::removeHolding
+                        )
                         else -> AlertsScreen((vm.localAlerts() + s.data.alerts).distinctBy { it.id })
                     }
                 }
@@ -143,7 +157,11 @@ private fun DashboardScreen(data: DashboardData) {
 }
 
 @Composable
-private fun RadarScreen(items: List<InvestmentItem>) {
+private fun RadarScreen(
+    items: List<InvestmentItem>,
+    holdingIds: Set<String>,
+    onBought: (String) -> Unit
+) {
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
         contentPadding = PaddingValues(bottom = 24.dp),
@@ -162,6 +180,54 @@ private fun RadarScreen(items: List<InvestmentItem>) {
                     HorizontalDivider(Modifier.padding(vertical = 3.dp))
                     Text("Trade Republic: ${item.tradeRepublicName}")
                     Text("ISIN: ${item.isin}", fontWeight = FontWeight.Bold)
+                    if (item.id in holdingIds) {
+                        Text("✓ In deinem Portfolio · Verkaufsalarm aktiv", color = Color(0xFF176B37), fontWeight = FontWeight.Bold)
+                    } else {
+                        Button(
+                            onClick = { onBought(item.id) },
+                            modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                        ) { Text("Als gekauft markieren") }
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+@Composable
+private fun PortfolioScreen(items: List<InvestmentItem>, onRemove: (String) -> Unit) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+        contentPadding = PaddingValues(bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        item {
+            SectionTitle("❤️ Mein Portfolio")
+            Text(
+                "Nur für diese markierten Positionen bekommst du gezielte Verkaufs- und dringende Prüfsignale.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFF666666)
+            )
+            if (items.isEmpty()) {
+                Spacer(Modifier.height(16.dp))
+                Text("Noch keine Position markiert. Öffne den Radar und tippe bei einem gekauften Wert auf „Als gekauft markieren“.")
+            }
+        }
+        items(items) { item ->
+            Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFD6F2DE)), shape = RoundedCornerShape(16.dp)) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text(item.name, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                        StatusPill(item.status)
+                    }
+                    Text("${item.type} · ${item.ticker} · Risiko ${item.risk}/5")
+                    Text(priceLine(item), fontWeight = FontWeight.SemiBold)
+                    Text("ISIN: ${item.isin}", fontWeight = FontWeight.Bold)
+                    Text("🔔 Verkaufsalarm aktiv", color = Color(0xFF176B37), fontWeight = FontWeight.Bold)
+                    OutlinedButton(onClick = { onRemove(item.id) }, modifier = Modifier.fillMaxWidth()) {
+                        Text("Aus Portfolio entfernen")
+                    }
                 }
             }
         }

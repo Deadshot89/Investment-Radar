@@ -14,9 +14,23 @@ function ensureFirebase() {
   }
 }
 
+function safeTopicPart(value) {
+  return String(value ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9._~%-]+/g, "-")
+    .slice(0, 80);
+}
+
+function targetTopic(alert) {
+  if (["SELL", "REVIEW"].includes(String(alert.level).toUpperCase()) && alert.itemId) {
+    return `holding-${safeTopicPart(alert.itemId)}`;
+  }
+  return process.env.ALERT_TOPIC?.trim() || "investment-alerts";
+}
+
 export async function sendAlert(alert) {
   if (!ensureFirebase()) return false;
-  const topic = process.env.ALERT_TOPIC?.trim() || "investment-alerts";
+  const topic = targetTopic(alert);
   await getMessaging().send({
     topic,
     notification: { title: alert.title, body: alert.message },
@@ -28,7 +42,10 @@ export async function sendAlert(alert) {
       message: alert.message,
       createdAt: alert.createdAt
     },
-    android: { priority: "high", notification: { channelId: "investment_alerts", priority: "high" } }
+    android: {
+      priority: "high",
+      notification: { channelId: "investment_alerts", priority: "high" }
+    }
   });
   return true;
 }
