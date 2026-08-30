@@ -1,4 +1,4 @@
-# Hotfix 1.1.2
+# Hotfix 1.1.3
 
 Behoben:
 
@@ -16,7 +16,7 @@ Behoben:
 
 3. App-Version
    - versionCode 4
-   - versionName 1.1.2
+   - versionName 1.1.3
 
 GitHub:
 - ZIP-Inhalt ueber das bestehende Repository kopieren/ersetzen.
