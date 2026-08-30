@@ -30,6 +30,7 @@ jobs:
           gradle-version: '8.13'
 
       - name: Build debug APK
+        id: apk_build
         working-directory: android
         env:
           API_URL: ${{ secrets.INVESTMENT_API_BASE_URL }}
@@ -37,16 +38,43 @@ jobs:
           FB_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
           FB_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
           FB_SENDER_ID: ${{ secrets.FIREBASE_SENDER_ID }}
+        shell: bash
         run: |
+          set +e
+          set -o pipefail
           gradle --no-daemon --stacktrace :app:assembleDebug \
             -PINVESTMENT_API_BASE_URL="$API_URL" \
             -PFIREBASE_APP_ID="$FB_APP_ID" \
             -PFIREBASE_API_KEY="$FB_API_KEY" \
             -PFIREBASE_PROJECT_ID="$FB_PROJECT_ID" \
-            -PFIREBASE_SENDER_ID="$FB_SENDER_ID"
+            -PFIREBASE_SENDER_ID="$FB_SENDER_ID" 2>&1 | tee android-build.log
+          code=${PIPESTATUS[0]}
 
-      - uses: actions/upload-artifact@v4
+          echo "## Android Build" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$code" -eq 0 ]; then
+            echo "✅ APK erfolgreich gebaut." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "❌ APK-Build fehlgeschlagen (Exit $code)." >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "### Relevante Fehlermeldungen" >> "$GITHUB_STEP_SUMMARY"
+            echo '```text' >> "$GITHUB_STEP_SUMMARY"
+            grep -E "(^e: |^ERROR:|^FAILURE:|What went wrong|Could not resolve|Could not find|Unresolved reference|error: )" android-build.log | tail -n 80 >> "$GITHUB_STEP_SUMMARY" || true
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit "$code"
+
+      - name: Upload APK
+        if: success()
+        uses: actions/upload-artifact@v4
         with:
           name: investment-radar-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-build-log
+          path: android/android-build.log
+          if-no-files-found: warn
