@@ -85,7 +85,7 @@ Ein Alarm wird waehrend derselben Warnphase nur einmal gesendet. Nach Entwarnung
 
 ---
 
-## HOTFIX 1.1.1 – wichtig für GitHub Actions
+## HOTFIX 1.1.2 – wichtig für GitHub Actions
 
 Falls du zuvor `Failed to find package 'platforms;android-37'` gesehen hast: behoben. Die App verwendet jetzt Android API 36.
 
@@ -96,4 +96,4 @@ Für einen echten Azure-Deploy später in GitHub unter `Settings > Secrets and v
 - **Variable:** `AZURE_FUNCTIONAPP_NAME`
 - **Secret:** `AZURE_FUNCTIONAPP_PUBLISH_PROFILE`
 
-Siehe auch `HOTFIX_1.1.1.md`.
+Siehe auch `HOTFIX_1.1.2.md`.
