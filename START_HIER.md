@@ -82,3 +82,18 @@ Es gibt zwei Alarmwege:
    - Push geht nur an Geraete, die diese Position im App-Depot markiert haben
 
 Ein Alarm wird waehrend derselben Warnphase nur einmal gesendet. Nach Entwarnung wird er automatisch wieder scharf geschaltet.
+
+---
+
+## HOTFIX 1.1.1 – wichtig für GitHub Actions
+
+Falls du zuvor `Failed to find package 'platforms;android-37'` gesehen hast: behoben. Die App verwendet jetzt Android API 36.
+
+Falls du zuvor `app-name should not be empty` beim Azure-Deploy gesehen hast: behoben. Ohne Azure-Konfiguration wird der Deploy jetzt sauber übersprungen.
+
+Für einen echten Azure-Deploy später in GitHub unter `Settings > Secrets and variables > Actions` anlegen:
+
+- **Variable:** `AZURE_FUNCTIONAPP_NAME`
+- **Secret:** `AZURE_FUNCTIONAPP_PUBLISH_PROFILE`
+
+Siehe auch `HOTFIX_1.1.1.md`.
