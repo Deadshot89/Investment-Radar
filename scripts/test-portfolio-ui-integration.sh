@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+MAIN="$ROOT/android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt"
+VM="$ROOT/android/app/src/main/java/de/tobias/investmentradar/MainViewModel.kt"
+STORE="$ROOT/android/app/src/main/java/de/tobias/investmentradar/PortfolioStore.kt"
+GRADLE="$ROOT/android/app/build.gradle.kts"
+
+grep -q 'val positions by vm.positions.collectAsState()' "$MAIN"
+grep -q 'InvestmentPositionDialog' "$MAIN"
+grep -q 'Investierter Betrag in €' "$MAIN"
+grep -q 'Stückzahl / Anteile' "$MAIN"
+grep -q 'Investition bearbeiten' "$MAIN"
+grep -q 'Gewinn / Verlust' "$MAIN"
+grep -q 'vm.savePosition' "$MAIN"
+grep -q 'val positions: StateFlow<Map<String, PortfolioPosition>>' "$VM"
+grep -q 'fun savePosition(position: PortfolioPosition)' "$VM"
+grep -q 'fun readPositions(context: Context): Map<String, PortfolioPosition>' "$STORE"
+grep -q 'private const val LEGACY_KEY = "holding_ids"' "$STORE"
+grep -q 'putStringSet(LEGACY_KEY, ids)' "$STORE"
+grep -q 'versionCode = 15' "$GRADLE"
+grep -q 'versionName = "1.1.14"' "$GRADLE"

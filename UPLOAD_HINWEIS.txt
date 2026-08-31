@@ -1,5 +1,7 @@
-Investment Radar 1.1.13 UPDATE
+Investment Radar 1.1.14 UPDATE
 
 Den Inhalt dieses Pakets in die gleichen Pfade des GitHub-Repositories übernehmen/ersetzen.
+Neu hinzugekommen sind insbesondere PortfolioPosition.kt und die erweiterte PortfolioStore.kt.
 Danach: Actions -> Build Android APK -> Run workflow.
-Die bestehende App NICHT deinstallieren; 1.1.13 normal über 1.1.12 installieren.
+Die bestehende App NICHT deinstallieren; 1.1.14 normal über 1.1.13 installieren.
+Portfolio-Daten werden lokal gespeichert und bleiben bei normalen App-Updates erhalten.

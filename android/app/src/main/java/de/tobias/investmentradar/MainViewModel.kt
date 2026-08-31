@@ -21,8 +21,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _state = MutableStateFlow<UiState>(UiState.Loading)
     val state: StateFlow<UiState> = _state.asStateFlow()
 
-    private val _holdingIds = MutableStateFlow(PortfolioStore.read(app))
+    private val initialPositions = PortfolioStore.readPositions(app)
+    private val _holdingIds = MutableStateFlow(initialPositions.keys)
     val holdingIds: StateFlow<Set<String>> = _holdingIds.asStateFlow()
+
+    private val _positions = MutableStateFlow(initialPositions)
+    val positions: StateFlow<Map<String, PortfolioPosition>> = _positions.asStateFlow()
 
     init {
         refresh()
@@ -50,24 +54,35 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun markBought(itemId: String) {
+        savePosition(PortfolioPosition(itemId = itemId))
+    }
+
+    fun savePosition(position: PortfolioPosition) {
         val app = getApplication<Application>()
-        PortfolioStore.add(app, itemId)
-        _holdingIds.value = PortfolioStore.read(app)
-        if (FirebaseBootstrap.isConfigured()) {
-            FirebaseMessaging.getInstance().subscribeToTopic(holdingTopic(itemId))
+        val isNew = position.itemId !in _holdingIds.value
+        PortfolioStore.save(app, position)
+        reloadPortfolio(app)
+        if (isNew && FirebaseBootstrap.isConfigured()) {
+            FirebaseMessaging.getInstance().subscribeToTopic(holdingTopic(position.itemId))
         }
     }
 
     fun removeHolding(itemId: String) {
         val app = getApplication<Application>()
         PortfolioStore.remove(app, itemId)
-        _holdingIds.value = PortfolioStore.read(app)
+        reloadPortfolio(app)
         if (FirebaseBootstrap.isConfigured()) {
             FirebaseMessaging.getInstance().unsubscribeFromTopic(holdingTopic(itemId))
         }
     }
 
     fun localAlerts(): List<SignalAlert> = AlertStore.read(getApplication())
+
+    private fun reloadPortfolio(app: Application) {
+        val next = PortfolioStore.readPositions(app)
+        _positions.value = next
+        _holdingIds.value = next.keys
+    }
 
     companion object {
         fun holdingTopic(itemId: String): String = "holding-" + itemId
