@@ -492,11 +492,16 @@ private fun InvestmentItem.toPlannerItem() = PlannerItem(
 )
 
 private fun openInvestment(context: android.content.Context, item: InvestmentItem) {
-    // Trade Republic veröffentlicht keinen stabil dokumentierten Deep-Link pro Wertpapier.
-    // Deshalb wird gezielt nach der ISIN auf Trade-Republic-Seiten gesucht, statt nur nach dem Firmennamen.
-    val query = Uri.encode("site:traderepublic.com ${item.isin} ${item.name}")
-    val url = "https://www.google.com/search?q=$query"
-    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+    val isin = Uri.encode(item.isin.trim())
+    val uri = Uri.parse("https://app.traderepublic.com/instrument/$isin?timeframe=1d")
+    val tradeRepublicIntent = Intent(Intent.ACTION_VIEW, uri).apply {
+        setPackage("de.traderepublic.app")
+    }
+    if (tradeRepublicIntent.resolveActivity(context.packageManager) != null) {
+        context.startActivity(tradeRepublicIntent)
+    } else {
+        context.startActivity(Intent(Intent.ACTION_VIEW, uri))
+    }
 }
 
 private fun openMarketQuote(context: android.content.Context, item: InvestmentItem) {
