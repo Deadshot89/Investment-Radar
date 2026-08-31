@@ -1,5 +1,8 @@
 name: Build Android APK
 
+permissions:
+  contents: write
+
 on:
   workflow_dispatch:
   push:
@@ -40,6 +43,7 @@ jobs:
           FB_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
           FB_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
           FB_SENDER_ID: ${{ secrets.FIREBASE_SENDER_ID }}
+          REPOSITORY_SLUG: ${{ github.repository }}
         shell: bash
         run: |
           set -euo pipefail
@@ -51,7 +55,7 @@ jobs:
           fi
 
           missing=0
-          for name in KEYSTORE_B64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD FB_APP_ID FB_API_KEY FB_PROJECT_ID FB_SENDER_ID; do
+          for name in KEYSTORE_B64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD FB_APP_ID FB_API_KEY FB_PROJECT_ID FB_SENDER_ID REPOSITORY_SLUG; do
             if [ -z "${!name:-}" ]; then
               echo "❌ $name fehlt" >> "$GITHUB_STEP_SUMMARY"
               missing=1
@@ -86,6 +90,7 @@ jobs:
           FB_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
           FB_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
           FB_SENDER_ID: ${{ secrets.FIREBASE_SENDER_ID }}
+          REPOSITORY_SLUG: ${{ github.repository }}
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
@@ -99,6 +104,7 @@ jobs:
             -PFIREBASE_API_KEY="$FB_API_KEY" \
             -PFIREBASE_PROJECT_ID="$FB_PROJECT_ID" \
             -PFIREBASE_SENDER_ID="$FB_SENDER_ID" \
+            -PGITHUB_REPOSITORY="$REPOSITORY_SLUG" \
             -PANDROID_KEYSTORE_PATH="$ANDROID_KEYSTORE_PATH" \
             -PANDROID_KEYSTORE_PASSWORD="$KEYSTORE_PASSWORD" \
             -PANDROID_KEY_ALIAS="$KEY_ALIAS" \
@@ -127,6 +133,29 @@ jobs:
           test -s "$APK"
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK" | tee apk-signature.txt
           echo "✅ APK-Signatur erfolgreich geprüft." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish APK for in-app updates
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="android/app/build/outputs/apk/release/app-release.apk"
+          VERSION_NAME=$(sed -n 's/.*versionName = "\([^"]*\)".*/\1/p' android/app/build.gradle.kts | head -n 1)
+          test -n "$VERSION_NAME"
+          TAG="v$VERSION_NAME"
+          RELEASE_APK="$RUNNER_TEMP/investment-radar.apk"
+          cp "$APK" "$RELEASE_APK"
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$RELEASE_APK#investment-radar.apk" --clobber
+          else
+            gh release create "$TAG" "$RELEASE_APK#investment-radar.apk" \
+              --title "Investment Radar $VERSION_NAME" \
+              --notes "Automatisch veröffentlichte, dauerhaft signierte Investment-Radar-APK."
+          fi
+          echo "✅ Release $TAG für In-App-Updates veröffentlicht." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload APK
         if: success()
