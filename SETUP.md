@@ -51,3 +51,20 @@ Zusätzlich später setzen:
 5. Artefakt `investment-radar-apk` installieren.
 
 Die App führt keine Orders aus.
+
+
+## 6. Dauerhafte Android-Signierung (ab 1.1.9)
+
+Einmalig auf Windows `scripts\create-android-signing-key.ps1` ausführen. Java/JDK muss installiert sein. Das Script erzeugt lokal:
+- `investment-radar-release.jks` – dauerhaft und sicher sichern, niemals in GitHub hochladen
+- `ANDROID_KEYSTORE_BASE64.txt` – Inhalt als GitHub Secret verwenden
+
+GitHub Secrets:
+- `ANDROID_KEYSTORE_BASE64`
+- `ANDROID_KEYSTORE_PASSWORD`
+- `ANDROID_KEY_ALIAS` = `investment-radar`
+- `ANDROID_KEY_PASSWORD`
+
+Der Workflow bricht ab, wenn eines dieser Secrets fehlt. Nach dem Build wird die Release-APK mit `apksigner verify` geprüft.
+
+Wichtig: Die alte Debug-APK vor der ersten 1.1.9-Installation einmal deinstallieren. Ab 1.1.9 denselben Keystore für jede Version weiterverwenden.

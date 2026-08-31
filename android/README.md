@@ -12,3 +12,6 @@
 - Live-Refresh in geoeffneter App: alle 60 Sekunden
 
 Wenn Firebase-Werte fehlen, startet die App trotzdem; Push wird dann als `SETUP` angezeigt.
+
+- Ab 1.1.9: signierte Release-APK mit dauerhaftem Keystore aus GitHub Secrets
+- versionCode 10 / versionName 1.1.9

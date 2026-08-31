@@ -1,4 +1,4 @@
-# START HIER – Investment Radar Live 1.1.8
+# START HIER – Investment Radar Live 1.1.9
 
 ## A. Azure Flex Consumption
 
@@ -36,3 +36,16 @@ Für den ersten Health-Test noch nicht zwingend nötig. Für Live-Kurse und Push
 - `TWELVE_DATA_API_KEY` in Azure
 - `FIREBASE_SERVICE_ACCOUNT_JSON` in Azure
 - `FIREBASE_APP_ID`, `FIREBASE_API_KEY`, `FIREBASE_PROJECT_ID`, `FIREBASE_SENDER_ID` in GitHub Secrets
+
+
+## E. Einmalige Android-Signierung
+
+Vor dem ersten 1.1.9-Build auf Windows im Projektordner PowerShell öffnen und `scripts\create-android-signing-key.ps1` ausführen. Die dabei abgefragten Passwörter sicher notieren und den erzeugten `investment-radar-release.jks` außerhalb des Repositories sichern.
+
+Danach GitHub -> Settings -> Secrets and variables -> Actions -> Secrets:
+- `ANDROID_KEYSTORE_BASE64` = kompletter Inhalt von `ANDROID_KEYSTORE_BASE64.txt`
+- `ANDROID_KEYSTORE_PASSWORD` = beim Erstellen gewähltes Keystore-Passwort
+- `ANDROID_KEY_ALIAS` = `investment-radar`
+- `ANDROID_KEY_PASSWORD` = beim Erstellen gewähltes Schlüssel-Passwort
+
+Die alte, vor 1.1.9 installierte Investment-Radar-App einmal deinstallieren. Anschließend die signierte 1.1.9-Release-APK installieren. Danach künftig nicht mehr deinstallieren, sondern einfach über die bestehende App aktualisieren.
