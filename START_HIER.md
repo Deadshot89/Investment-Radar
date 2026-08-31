@@ -1,4 +1,4 @@
-# START HIER – Investment Radar Live 1.1.7
+# START HIER – Investment Radar Live 1.1.8
 
 ## A. Azure Flex Consumption
 
