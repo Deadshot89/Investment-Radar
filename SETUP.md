@@ -1,70 +1,53 @@
 # Einrichtung
 
-## 1. Marktdaten
+## 1. GitHub + Azure Flex Consumption
+
+Repository Settings -> Secrets and variables -> Actions:
+
+**Variables**
+- `AZURE_FUNCTIONAPP_NAME` = exakter Azure Ressourcenname der Function App, z. B. `InvestmentRadar`
+- `INVESTMENT_API_BASE_URL` = vollständige **Standarddomäne** aus Azure inklusive `https://`, z. B. `https://investmentradar-....germanywestcentral-01.azurewebsites.net`
+
+**Secret**
+- `AZURE_FUNCTIONAPP_PUBLISH_PROFILE` = kompletter Inhalt des heruntergeladenen Azure Publish Profiles
+
+Wichtig: Bei Flex Consumption darf die API-URL **nicht** als `https://<APP_NAME>.azurewebsites.net` geraten werden. Verwende immer die in Azure angezeigte Standarddomäne.
+
+Der Backend-Workflow verwendet für Flex Consumption `sku: flexconsumption` und `remote-build: true`.
+
+## 2. Marktdaten
 
 Ein Twelve-Data-Konto anlegen und einen API-Key erzeugen. Der Key wird als Azure-App-Setting gespeichert:
-
 - `TWELVE_DATA_API_KEY`
 
-Die App fragt den Key niemals direkt ab.
+## 3. Firebase Push
 
-## 2. Firebase Push
-
-In Firebase ein Projekt anlegen und Cloud Messaging aktivieren.
-
-Android-App-Konfiguration als GitHub Secrets oder lokal in `android/gradle.properties` setzen:
-
-- `AZURE_FUNCTIONAPP_NAME` (Android-API-URL wird daraus automatisch abgeleitet)
+GitHub Secrets für den Android-Build:
 - `FIREBASE_APP_ID`
 - `FIREBASE_API_KEY`
 - `FIREBASE_PROJECT_ID`
 - `FIREBASE_SENDER_ID`
 
-Fuer Push wird spaeter das Firebase Service Account JSON als **eine Zeile JSON** in Azure gespeichert:
-
+Azure App Setting für serverseitige Pushs:
 - `FIREBASE_SERVICE_ACCOUNT_JSON`
 
-Die Android-App abonniert automatisch das Topic `investment-alerts`.
+## 4. Azure App Settings
 
-## 3. Azure Functions
-
-Benötigte App Settings:
-
+Zusätzlich später setzen:
 - `TWELVE_DATA_API_KEY`
 - `FIREBASE_SERVICE_ACCOUNT_JSON`
 - `AzureWebJobsStorage`
 - optional `ALERT_TOPIC=investment-alerts`
 - optional `ADMIN_API_KEY=<langes-zufaelliges-passwort>`
+- optional `GOOGLE_SHEET_ID=1unFY1i2X_mEYoxYKaP42hDPTl1lmsYhNdhj7Cg6W7xI`
+- optional `GOOGLE_SERVICE_ACCOUNT_JSON`
 
-Der Timer prueft standardmaessig alle 15 Minuten.
+## 5. Reihenfolge
 
-## 4. Android APK ueber GitHub bauen
+1. GitHub Variablen/Secret setzen.
+2. `Deploy Backend` starten.
+3. Prüfen, dass `${INVESTMENT_API_BASE_URL}/api/health` erreichbar ist.
+4. `Build Android APK` starten.
+5. Artefakt `investment-radar-apk` installieren.
 
-Der Workflow installiert Android SDK 37, Build Tools 36.0.0 und Gradle 9.5.0 automatisch.
-
-Repo nach GitHub hochladen. Unter Repository Settings -> Secrets and variables -> Actions die folgenden Repository Secrets anlegen:
-
-- `AZURE_FUNCTIONAPP_NAME` (Android-API-URL wird daraus automatisch abgeleitet)
-- `FIREBASE_APP_ID`
-- `FIREBASE_API_KEY`
-- `FIREBASE_PROJECT_ID`
-- `FIREBASE_SENDER_ID`
-
-Danach Actions -> `Build Android APK` -> Run workflow.
-
-Die fertige Debug-APK liegt im Workflow-Artefakt `investment-radar-apk`.
-
-## 5. Backend deployen
-
-Fuer Azure Functions den Secret `AZURE_FUNCTIONAPP_PUBLISH_PROFILE` setzen und optional die Variable `AZURE_FUNCTIONAPP_NAME`.
-Dann den Workflow `Deploy Backend` starten.
-
-## Signalregeln v1
-
-Ein Alarm wird erzeugt, wenn eine Regel aus `backend/data/investments.json` ausloest, z. B.:
-
-- Tagesverlust groesser/gleich `reviewDrop1dPct`
-- Kurs unter `hardReviewBelow`
-- manueller Status `VERKAUFEN` oder `DRINGEND_PRUEFEN`
-
-Normale Tagesbewegungen erzeugen keinen Alarm.
+Die App führt keine Orders aus.
