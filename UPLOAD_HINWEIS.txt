@@ -1,0 +1,5 @@
+Investment Radar 1.1.13 UPDATE
+
+Den Inhalt dieses Pakets in die gleichen Pfade des GitHub-Repositories übernehmen/ersetzen.
+Danach: Actions -> Build Android APK -> Run workflow.
+Die bestehende App NICHT deinstallieren; 1.1.13 normal über 1.1.12 installieren.

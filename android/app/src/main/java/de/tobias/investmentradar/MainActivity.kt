@@ -492,15 +492,28 @@ private fun InvestmentItem.toPlannerItem() = PlannerItem(
 )
 
 private fun openInvestment(context: android.content.Context, item: InvestmentItem) {
-    val isin = Uri.encode(item.isin.trim())
-    val uri = Uri.parse("https://app.traderepublic.com/instrument/$isin?timeframe=1d")
-    val tradeRepublicIntent = Intent(Intent.ACTION_VIEW, uri).apply {
+    val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+    clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Trade Republic ISIN", item.isin.trim()))
+
+    val tradeRepublicIntent = Intent(Intent.ACTION_MAIN).apply {
+        addCategory(Intent.CATEGORY_LAUNCHER)
         setPackage("de.traderepublic.app")
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     }
+
     try {
         context.startActivity(tradeRepublicIntent)
+        android.widget.Toast.makeText(
+            context,
+            "ISIN kopiert – in Trade Republic in die Suche einfügen",
+            android.widget.Toast.LENGTH_LONG
+        ).show()
     } catch (_: android.content.ActivityNotFoundException) {
-        context.startActivity(Intent(Intent.ACTION_VIEW, uri))
+        android.widget.Toast.makeText(
+            context,
+            "Trade Republic konnte nicht geöffnet werden. ISIN wurde kopiert.",
+            android.widget.Toast.LENGTH_LONG
+        ).show()
     }
 }
 
