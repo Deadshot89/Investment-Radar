@@ -1,68 +1,185 @@
 package de.tobias.investmentradar
 
+import android.app.DownloadManager
+import android.content.ActivityNotFoundException
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.net.Uri
 import android.os.Build
+import android.os.Environment
+import android.provider.Settings
+import android.widget.Toast
+import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 
 data class AppUpdateInfo(
-    val versionCode: Long,
     val versionName: String,
-    val apkUrl: String,
-    val notes: String = ""
+    val notes: String,
+    val apkUrl: String
 )
 
 object AppUpdateManager {
+    private const val RELEASE_ASSET_NAME = "investment-radar.apk"
+    private const val APK_MIME = "application/vnd.android.package-archive"
+
     suspend fun check(context: Context): AppUpdateInfo? = withContext(Dispatchers.IO) {
-        val endpoint = apiBaseUrl()?.trimEnd('/')?.plus("/app-update") ?: return@withContext null
-        runCatching {
-            val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
-                requestMethod = "GET"
-                connectTimeout = 7_000
-                readTimeout = 7_000
-                setRequestProperty("Accept", "application/json")
-                setRequestProperty("Cache-Control", "no-cache")
-            }
-            try {
-                if (connection.responseCode !in 200..299) return@runCatching null
-                val body = connection.inputStream.bufferedReader().use { it.readText() }
-                val json = JSONObject(body)
-                val info = AppUpdateInfo(
-                    versionCode = json.optLong("versionCode", 0L),
-                    versionName = UpdatePolicy.displayVersion(json.optString("versionName")),
-                    apkUrl = json.optString("apkUrl").trim(),
-                    notes = json.optString("notes").trim()
-                )
-                if (info.versionCode <= 0L || info.apkUrl.isBlank()) return@runCatching null
-                if (UpdatePolicy.isNewer(installedVersionCode(context), info.versionCode)) info else null
-            } finally {
-                connection.disconnect()
-            }
-        }.getOrNull()
-    }
+        val repository = BuildConfig.GITHUB_REPOSITORY.trim()
+        if (repository.isBlank() || !repository.contains('/')) return@withContext null
 
-    fun openUpdate(context: Context, info: AppUpdateInfo) {
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(info.apkUrl)).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        val connection = (URL("https://api.github.com/repos/$repository/releases/latest").openConnection() as HttpURLConnection).apply {
+            requestMethod = "GET"
+            connectTimeout = 10_000
+            readTimeout = 10_000
+            setRequestProperty("Accept", "application/vnd.github+json")
+            setRequestProperty("User-Agent", "InvestmentRadar/${BuildConfig.VERSION_NAME}")
         }
-        context.startActivity(intent)
+
+        try {
+            if (connection.responseCode !in 200..299) return@withContext null
+            val payload = connection.inputStream.bufferedReader().use { it.readText() }
+            val json = JSONObject(payload)
+            val latestVersion = json.optString("tag_name").removePrefix("v").trim()
+            if (latestVersion.isBlank() || !isNewerVersion(latestVersion, BuildConfig.VERSION_NAME)) {
+                return@withContext null
+            }
+
+            val assets = json.optJSONArray("assets") ?: return@withContext null
+            var apkUrl = ""
+            for (index in 0 until assets.length()) {
+                val asset = assets.optJSONObject(index) ?: continue
+                if (asset.optString("name") == RELEASE_ASSET_NAME) {
+                    apkUrl = asset.optString("browser_download_url")
+                    break
+                }
+            }
+            if (apkUrl.isBlank()) return@withContext null
+
+            AppUpdateInfo(
+                versionName = latestVersion,
+                notes = json.optString("body").trim(),
+                apkUrl = apkUrl
+            )
+        } catch (_: Exception) {
+            null
+        } finally {
+            connection.disconnect()
+        }
     }
 
-    private fun apiBaseUrl(): String? = runCatching {
-        val field = BuildConfig::class.java.getField("API_BASE_URL")
-        (field.get(null) as? String)?.takeIf { it.isNotBlank() }
-    }.getOrNull()
+    fun openUpdate(context: Context, update: AppUpdateInfo) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !context.packageManager.canRequestPackageInstalls()) {
+            Toast.makeText(
+                context,
+                "Einmal 'Aus dieser Quelle zulassen' aktivieren. Danach Update erneut drücken.",
+                Toast.LENGTH_LONG
+            ).show()
+            context.startActivity(
+                Intent(
+                    Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                    Uri.parse("package:${context.packageName}")
+                ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+            return
+        }
 
-    private fun installedVersionCode(context: Context): Long {
-        val info = context.packageManager.getPackageInfo(context.packageName, 0)
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) info.longVersionCode else {
+        val updatesDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+        if (updatesDir == null) {
+            Toast.makeText(context, "Update-Speicher ist nicht verfügbar.", Toast.LENGTH_LONG).show()
+            return
+        }
+        val apkFile = File(updatesDir, "investment-radar-${update.versionName}.apk")
+        if (apkFile.exists()) apkFile.delete()
+
+        val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+        val request = DownloadManager.Request(Uri.parse(update.apkUrl))
+            .setTitle("Investment Radar ${update.versionName}")
+            .setDescription("Update wird heruntergeladen")
+            .setMimeType(APK_MIME)
+            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+            .setDestinationInExternalFilesDir(
+                context,
+                Environment.DIRECTORY_DOWNLOADS,
+                apkFile.name
+            )
+            .setAllowedOverMetered(true)
+            .setAllowedOverRoaming(false)
+
+        val downloadId = manager.enqueue(request)
+        Toast.makeText(context, "Update ${update.versionName} wird heruntergeladen …", Toast.LENGTH_LONG).show()
+
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(receiverContext: Context?, intent: Intent?) {
+                if (intent?.action != DownloadManager.ACTION_DOWNLOAD_COMPLETE) return
+                if (intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1L) != downloadId) return
+
+                runCatching { context.unregisterReceiver(this) }
+
+                val query = DownloadManager.Query().setFilterById(downloadId)
+                manager.query(query)?.use { cursor ->
+                    if (!cursor.moveToFirst()) return
+                    val status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
+                    if (status != DownloadManager.STATUS_SUCCESSFUL) {
+                        Toast.makeText(context, "Update-Download fehlgeschlagen.", Toast.LENGTH_LONG).show()
+                        return
+                    }
+                }
+
+                installDownloadedApk(context, apkFile)
+            }
+        }
+
+        val filter = IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
             @Suppress("DEPRECATION")
-            info.versionCode.toLong()
+            context.registerReceiver(receiver, filter)
+        }
+    }
+
+    internal fun isNewerVersion(candidate: String, current: String): Boolean {
+        val candidateParts = versionParts(candidate)
+        val currentParts = versionParts(current)
+        val max = maxOf(candidateParts.size, currentParts.size)
+        for (index in 0 until max) {
+            val left = candidateParts.getOrElse(index) { 0 }
+            val right = currentParts.getOrElse(index) { 0 }
+            if (left != right) return left > right
+        }
+        return false
+    }
+
+    private fun versionParts(value: String): List<Int> = value
+        .removePrefix("v")
+        .split('.')
+        .map { part -> part.takeWhile(Char::isDigit).toIntOrNull() ?: 0 }
+
+    private fun installDownloadedApk(context: Context, apkFile: File) {
+        if (!apkFile.exists() || apkFile.length() == 0L) {
+            Toast.makeText(context, "Heruntergeladene APK wurde nicht gefunden.", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        val apkUri = FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.updateprovider",
+            apkFile
+        )
+        val installIntent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(apkUri, APK_MIME)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        try {
+            context.startActivity(installIntent)
+        } catch (_: ActivityNotFoundException) {
+            Toast.makeText(context, "Android-Installer konnte nicht geöffnet werden.", Toast.LENGTH_LONG).show()
         }
     }
 }

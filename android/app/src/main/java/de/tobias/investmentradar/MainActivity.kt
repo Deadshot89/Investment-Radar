@@ -193,7 +193,7 @@ fun InvestmentRadarUi(vm: MainViewModel = viewModel()) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Neue Version ${update.versionName} ist verfügbar.", fontWeight = FontWeight.Bold)
                     if (update.notes.isNotBlank()) Text(update.notes, color = RadarMuted)
-                    Text("Die APK wird geöffnet. Android fragt dich anschließend nur noch, ob die bestehende App aktualisiert werden soll.", color = RadarMuted)
+                    Text("Die App lädt die neue APK selbst herunter. Android fragt dich danach nur noch, ob Investment Radar aktualisiert werden soll.", color = RadarMuted)
                 }
             },
             confirmButton = {
