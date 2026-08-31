@@ -33,8 +33,7 @@ jobs:
         id: apk_build
         working-directory: android
         env:
-          AZURE_APP_NAME: ${{ vars.AZURE_FUNCTIONAPP_NAME }}
-          API_URL_OVERRIDE: ${{ vars.INVESTMENT_API_BASE_URL }}
+          API_URL: ${{ vars.INVESTMENT_API_BASE_URL }}
           FB_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
           FB_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
           FB_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
@@ -44,17 +43,12 @@ jobs:
           set +e
           set -o pipefail
 
-          API_URL="$API_URL_OVERRIDE"
-          if [ -z "$API_URL" ] && [ -n "$AZURE_APP_NAME" ]; then
-            API_URL="https://${AZURE_APP_NAME}.azurewebsites.net"
-          fi
-
           if [[ ! "$API_URL" =~ ^https://[^/]+ ]]; then
             echo "## Android Build" >> "$GITHUB_STEP_SUMMARY"
             echo "❌ Backend-URL fehlt. Es wird bewusst keine nicht funktionsfähige APK erzeugt." >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "Setze zuerst die Repository-Variable **AZURE_FUNCTIONAPP_NAME** unter Settings > Secrets and variables > Actions > Variables." >> "$GITHUB_STEP_SUMMARY"
-            echo "Alternativ kann **INVESTMENT_API_BASE_URL** als Variable mit einer vollständigen https://-URL gesetzt werden." >> "$GITHUB_STEP_SUMMARY"
+            echo "Setze die Repository-Variable **INVESTMENT_API_BASE_URL** auf die vollständige Azure-Flex-Standarddomain inklusive https://." >> "$GITHUB_STEP_SUMMARY"
+            echo "Bei Flex Consumption darf die URL nicht aus dem App-Namen abgeleitet werden." >> "$GITHUB_STEP_SUMMARY"
             exit 2
           fi
 

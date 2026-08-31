@@ -31,8 +31,9 @@ jobs:
         env:
           APP_NAME: ${{ vars.AZURE_FUNCTIONAPP_NAME }}
           PUBLISH_PROFILE: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
+          BASE_URL: ${{ vars.INVESTMENT_API_BASE_URL }}
         run: |
-          if [ -n "$APP_NAME" ] && [ -n "$PUBLISH_PROFILE" ]; then
+          if [ -n "$APP_NAME" ] && [ -n "$PUBLISH_PROFILE" ] && [[ "$BASE_URL" =~ ^https://[^/]+ ]]; then
             echo "configured=true" >> "$GITHUB_OUTPUT"
             echo "Azure deployment configuration found."
           else
@@ -43,6 +44,7 @@ jobs:
             echo "Benötigt:" >> "$GITHUB_STEP_SUMMARY"
             echo "- Variable: AZURE_FUNCTIONAPP_NAME" >> "$GITHUB_STEP_SUMMARY"
             echo "- Secret: AZURE_FUNCTIONAPP_PUBLISH_PROFILE" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Variable: INVESTMENT_API_BASE_URL (vollstaendige Flex-Standarddomain mit https://)" >> "$GITHUB_STEP_SUMMARY"
             echo "Azure configuration missing; stopping before a misleading green deploy."
             exit 2
           fi
@@ -54,24 +56,26 @@ jobs:
           app-name: ${{ vars.AZURE_FUNCTIONAPP_NAME }}
           package: backend
           publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
+          sku: flexconsumption
+          remote-build: true
 
       - name: Verify live backend
         if: steps.azure_config.outputs.configured == 'true'
         shell: bash
         env:
-          APP_NAME: ${{ vars.AZURE_FUNCTIONAPP_NAME }}
+          BASE_URL: ${{ vars.INVESTMENT_API_BASE_URL }}
         run: |
-          URL="https://${APP_NAME}.azurewebsites.net/api/health"
+          URL="${BASE_URL%/}/api/health"
           echo "Checking $URL"
           for attempt in 1 2 3 4 5 6; do
             if curl --fail --silent --show-error --max-time 20 "$URL"; then
               echo ""
               echo "## Backend Deploy" >> "$GITHUB_STEP_SUMMARY"
-              echo "✅ Backend ist live: https://${APP_NAME}.azurewebsites.net" >> "$GITHUB_STEP_SUMMARY"
+              echo "✅ Backend ist live: ${BASE_URL%/}" >> "$GITHUB_STEP_SUMMARY"
               exit 0
             fi
             sleep 10
           done
-          echo "❌ Deploy wurde ausgeführt, aber /api/health ist nicht erreichbar." >> "$GITHUB_STEP_SUMMARY"
+          echo "❌ Deploy wurde ausgeführt, aber /api/health ist unter der konfigurierten Flex-URL nicht erreichbar." >> "$GITHUB_STEP_SUMMARY"
           exit 1
 
