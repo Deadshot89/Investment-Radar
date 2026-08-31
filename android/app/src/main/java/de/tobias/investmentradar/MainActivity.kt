@@ -72,7 +72,13 @@ fun InvestmentRadarUi(vm: MainViewModel = viewModel()) {
     var tab by remember { mutableIntStateOf(0) }
     var budgetDialog by remember { mutableStateOf(false) }
     var notificationPermissionAsked by remember { mutableStateOf(false) }
+    var availableUpdate by remember { mutableStateOf<AppUpdateInfo?>(null) }
+    var updateCheckRequested by remember { mutableIntStateOf(0) }
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
+    LaunchedEffect(updateCheckRequested) {
+        availableUpdate = AppUpdateManager.check(context)
+    }
 
     LaunchedEffect(Unit) {
         if (Build.VERSION.SDK_INT >= 33 &&
@@ -108,6 +114,7 @@ fun InvestmentRadarUi(vm: MainViewModel = viewModel()) {
                     },
                     actions = {
                         IconButton(onClick = { budgetDialog = true }) { Icon(Icons.Default.Edit, contentDescription = "Budget ändern") }
+                        TextButton(onClick = { updateCheckRequested++ }) { Text("Update") }
                         IconButton(onClick = { vm.refresh() }) { Icon(Icons.Default.Refresh, contentDescription = "Aktualisieren") }
                     }
                 )
@@ -145,6 +152,27 @@ fun InvestmentRadarUi(vm: MainViewModel = viewModel()) {
                 prefs.edit().putInt("monthly_budget", budget).apply()
                 budgetDialog = false
             }
+        )
+    }
+
+    availableUpdate?.let { update ->
+        AlertDialog(
+            onDismissRequest = { availableUpdate = null },
+            title = { Text("Update verfügbar") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Neue Version ${update.versionName} ist verfügbar.", fontWeight = FontWeight.Bold)
+                    if (update.notes.isNotBlank()) Text(update.notes, color = RadarMuted)
+                    Text("Die APK wird geöffnet. Android fragt dich anschließend nur noch, ob die bestehende App aktualisiert werden soll.", color = RadarMuted)
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    AppUpdateManager.openUpdate(context, update)
+                    availableUpdate = null
+                }) { Text("Jetzt aktualisieren") }
+            },
+            dismissButton = { TextButton(onClick = { availableUpdate = null }) { Text("Später") } }
         )
     }
 }
