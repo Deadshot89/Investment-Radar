@@ -29,7 +29,55 @@ jobs:
         with:
           gradle-version: '8.13'
 
-      - name: Build debug APK
+      - name: Validate build and signing configuration
+        env:
+          API_URL: ${{ vars.INVESTMENT_API_BASE_URL }}
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          FB_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
+          FB_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+          FB_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FB_SENDER_ID: ${{ secrets.FIREBASE_SENDER_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$API_URL" =~ ^https://[^/]+ ]]; then
+            echo "## Android Build" >> "$GITHUB_STEP_SUMMARY"
+            echo "❌ INVESTMENT_API_BASE_URL fehlt oder ist ungültig." >> "$GITHUB_STEP_SUMMARY"
+            exit 2
+          fi
+
+          missing=0
+          for name in KEYSTORE_B64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD FB_APP_ID FB_API_KEY FB_PROJECT_ID FB_SENDER_ID; do
+            if [ -z "${!name:-}" ]; then
+              echo "❌ $name fehlt" >> "$GITHUB_STEP_SUMMARY"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Es wird bewusst keine nicht updatefähige APK erzeugt." >> "$GITHUB_STEP_SUMMARY"
+            exit 3
+          fi
+
+      - name: Restore permanent Android signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          KEYSTORE_PATH="$RUNNER_TEMP/investment-radar-release.jks"
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$KEYSTORE_PATH"
+          test -s "$KEYSTORE_PATH"
+          keytool -list -keystore "$KEYSTORE_PATH" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
+          echo "ANDROID_KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
+
+      - name: Build signed release APK
         id: apk_build
         working-directory: android
         env:
@@ -38,32 +86,28 @@ jobs:
           FB_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
           FB_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
           FB_SENDER_ID: ${{ secrets.FIREBASE_SENDER_ID }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         shell: bash
         run: |
           set +e
           set -o pipefail
-
-          if [[ ! "$API_URL" =~ ^https://[^/]+ ]]; then
-            echo "## Android Build" >> "$GITHUB_STEP_SUMMARY"
-            echo "❌ Backend-URL fehlt. Es wird bewusst keine nicht funktionsfähige APK erzeugt." >> "$GITHUB_STEP_SUMMARY"
-            echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "Setze die Repository-Variable **INVESTMENT_API_BASE_URL** auf die vollständige Azure-Flex-Standarddomain inklusive https://." >> "$GITHUB_STEP_SUMMARY"
-            echo "Bei Flex Consumption darf die URL nicht aus dem App-Namen abgeleitet werden." >> "$GITHUB_STEP_SUMMARY"
-            exit 2
-          fi
-
-          echo "Backend für APK: $API_URL"
-          gradle --no-daemon --stacktrace :app:assembleDebug \
+          gradle --no-daemon --stacktrace :app:assembleRelease \
             -PINVESTMENT_API_BASE_URL="$API_URL" \
             -PFIREBASE_APP_ID="$FB_APP_ID" \
             -PFIREBASE_API_KEY="$FB_API_KEY" \
             -PFIREBASE_PROJECT_ID="$FB_PROJECT_ID" \
-            -PFIREBASE_SENDER_ID="$FB_SENDER_ID" 2>&1 | tee android-build.log
+            -PFIREBASE_SENDER_ID="$FB_SENDER_ID" \
+            -PANDROID_KEYSTORE_PATH="$ANDROID_KEYSTORE_PATH" \
+            -PANDROID_KEYSTORE_PASSWORD="$KEYSTORE_PASSWORD" \
+            -PANDROID_KEY_ALIAS="$KEY_ALIAS" \
+            -PANDROID_KEY_PASSWORD="$KEY_PASSWORD" 2>&1 | tee android-build.log
           code=${PIPESTATUS[0]}
 
           echo "## Android Build" >> "$GITHUB_STEP_SUMMARY"
           if [ "$code" -eq 0 ]; then
-            echo "✅ APK erfolgreich gebaut." >> "$GITHUB_STEP_SUMMARY"
+            echo "✅ Signierte Release-APK erfolgreich gebaut." >> "$GITHUB_STEP_SUMMARY"
           else
             echo "❌ APK-Build fehlgeschlagen (Exit $code)." >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
@@ -74,18 +118,30 @@ jobs:
           fi
           exit "$code"
 
+      - name: Verify APK signature
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="android/app/build/outputs/apk/release/app-release.apk"
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK" | tee apk-signature.txt
+          echo "✅ APK-Signatur erfolgreich geprüft." >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload APK
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: investment-radar-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
 
-      - name: Upload build log
+      - name: Upload build diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: android-build-log
-          path: android/android-build.log
+          path: |
+            android/android-build.log
+            apk-signature.txt
           if-no-files-found: warn
