@@ -497,9 +497,9 @@ private fun openInvestment(context: android.content.Context, item: InvestmentIte
     val tradeRepublicIntent = Intent(Intent.ACTION_VIEW, uri).apply {
         setPackage("de.traderepublic.app")
     }
-    if (tradeRepublicIntent.resolveActivity(context.packageManager) != null) {
+    try {
         context.startActivity(tradeRepublicIntent)
-    } else {
+    } catch (_: android.content.ActivityNotFoundException) {
         context.startActivity(Intent(Intent.ACTION_VIEW, uri))
     }
 }
