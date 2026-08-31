@@ -36,12 +36,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun refresh(silent: Boolean = false) {
         viewModelScope.launch {
-            if (!silent) _state.value = UiState.Loading
+            val previousState = _state.value
+            val hadReadyData = previousState is UiState.Ready
+            if (!silent && !hadReadyData) _state.value = UiState.Loading
             runCatching { ApiClient.loadDashboard() }
                 .onSuccess { _state.value = UiState.Ready(it) }
                 .onFailure { e ->
-                    if (!silent || _state.value !is UiState.Ready) {
-                        _state.value = UiState.Error(e.message ?: "Unbekannter Fehler")
+                    if (!hadReadyData) {
+                        _state.value = UiState.Error(e.message ?: "Verbindung zum Server fehlgeschlagen. Bitte erneut versuchen.")
                     }
                 }
         }

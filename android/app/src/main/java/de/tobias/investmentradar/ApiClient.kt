@@ -9,6 +9,12 @@ import java.net.URL
 
 object ApiClient {
     suspend fun loadDashboard(): DashboardData = withContext(Dispatchers.IO) {
+        NetworkRetryPolicy.execute {
+            loadDashboardOnce()
+        }
+    }
+
+    private fun loadDashboardOnce(): DashboardData {
         val baseUrl = BuildConfig.API_BASE_URL.trim().trimEnd('/')
         require(baseUrl.startsWith("https://") && !baseUrl.contains("YOUR-FUNCTION-APP")) {
             "Backend noch nicht eingerichtet. Azure Function App zuerst verbinden."
@@ -16,8 +22,8 @@ object ApiClient {
         val endpoint = "$baseUrl/api/dashboard"
         val conn = (URL(endpoint).openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
-            connectTimeout = 10_000
-            readTimeout = 12_000
+            connectTimeout = NetworkRetryPolicy.CONNECT_TIMEOUT_MS
+            readTimeout = NetworkRetryPolicy.READ_TIMEOUT_MS
             setRequestProperty("Accept", "application/json")
         }
         try {
@@ -25,7 +31,7 @@ object ApiClient {
             val stream = if (code in 200..299) conn.inputStream else conn.errorStream
             val body = stream.bufferedReader().use { it.readText() }
             if (code !in 200..299) error("Serverfehler $code: $body")
-            parseDashboard(JSONObject(body))
+            return parseDashboard(JSONObject(body))
         } finally {
             conn.disconnect()
         }
