@@ -82,6 +82,24 @@ object InvestmentPlanner {
         return InvestmentRecommendation(status, score, reason)
     }
 
+    fun actionHeadline(item: PlannerItem, amount: Int): String {
+        val label = recommendation(item).label
+        return when (label) {
+            "KAUFEN" -> "KAUFEN · ${amount.coerceAtLeast(0)} €"
+            "BEOBACHTEN" -> "BEOBACHTEN · 0 €"
+            "NICHT KAUFEN" -> "NICHT KAUFEN · 0 €"
+            "VERKAUF PRÜFEN" -> "VERKAUF PRÜFEN"
+            else -> label
+        }
+    }
+
+    fun confidenceLabel(score: Int): String = when {
+        score >= 85 -> "SEHR STARK"
+        score >= 70 -> "STARK"
+        score >= 55 -> "MITTEL"
+        else -> "SCHWACH"
+    }
+
     private fun normalizeStatus(status: String): String = when (status.trim().uppercase()) {
         "KAUFEN", "BUY" -> "KAUFEN"
         "BEOBACHTEN", "WATCH" -> "BEOBACHTEN"

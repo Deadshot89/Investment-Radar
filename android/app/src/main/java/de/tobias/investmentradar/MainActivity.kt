@@ -196,17 +196,37 @@ private fun DashboardScreen(data: DashboardData, budget: Int, onEditBudget: () -
                         }
                         ScoreRing(reco.score)
                     }
-                    Text(if (amount > 0) "$amount € einplanen" else "Heute kein Neukauf", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = RadarGreen)
+                    Text(
+                        InvestmentPlanner.actionHeadline(top.toPlannerItem(), amount),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Black,
+                        color = recommendationColor(reco.label)
+                    )
+                    Text(
+                        "Empfehlungsstärke: ${InvestmentPlanner.confidenceLabel(reco.score)}",
+                        color = recommendationColor(reco.label),
+                        fontWeight = FontWeight.Bold
+                    )
                     Text(reco.reason, color = RadarText)
                     Text(priceLine(top), color = RadarMuted)
-                    Button(
-                        onClick = { openInvestment(context, top) },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = RadarGreen, contentColor = Color(0xFF05150E))
-                    ) {
-                        Icon(Icons.Default.OpenInNew, null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Wertpapier öffnen", fontWeight = FontWeight.Bold)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = { openInvestment(context, top) },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(containerColor = RadarGreen, contentColor = Color(0xFF05150E))
+                        ) {
+                            Icon(Icons.Default.OpenInNew, null)
+                            Spacer(Modifier.width(6.dp))
+                            Text("Trade Republic", fontWeight = FontWeight.Bold)
+                        }
+                        OutlinedButton(
+                            onClick = { openMarketQuote(context, top) },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Default.ShowChart, null)
+                            Spacer(Modifier.width(6.dp))
+                            Text("Kurs")
+                        }
                     }
                 }
             }
@@ -267,6 +287,7 @@ private fun RadarScreen(items: List<InvestmentItem>, holdingIds: Set<String>, on
                     Text(priceLine(item), color = RadarMuted)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text("Score ${reco.score}/100", fontWeight = FontWeight.Bold, color = recommendationColor(reco.label))
+                        Text(InvestmentPlanner.confidenceLabel(reco.score), fontWeight = FontWeight.Bold, color = recommendationColor(reco.label))
                         Text("Risiko ${item.risk}/5", color = RadarMuted)
                     }
                     Text(reco.reason, style = MaterialTheme.typography.bodySmall)
@@ -354,7 +375,7 @@ private fun RecommendationRow(item: InvestmentItem, amount: Int, onOpen: () -> U
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(item.name, fontWeight = FontWeight.Black)
                 Text("${item.ticker} · Score ${reco.score}/100 · Risiko ${item.risk}/5", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
-                Text(reco.label, color = recommendationColor(reco.label), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
+                Text(InvestmentPlanner.actionHeadline(item.toPlannerItem(), amount), color = recommendationColor(reco.label), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(if (amount > 0) "$amount €" else "0 €", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium, color = if (amount > 0) RadarGreen else RadarMuted)
@@ -443,8 +464,16 @@ private fun InvestmentItem.toPlannerItem() = PlannerItem(
 )
 
 private fun openInvestment(context: android.content.Context, item: InvestmentItem) {
-    val query = Uri.encode("Trade Republic ${item.isin} ${item.name}")
+    // Trade Republic veröffentlicht keinen stabil dokumentierten Deep-Link pro Wertpapier.
+    // Deshalb wird gezielt nach der ISIN auf Trade-Republic-Seiten gesucht, statt nur nach dem Firmennamen.
+    val query = Uri.encode("site:traderepublic.com ${item.isin} ${item.name}")
     val url = "https://www.google.com/search?q=$query"
+    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+}
+
+private fun openMarketQuote(context: android.content.Context, item: InvestmentItem) {
+    val ticker = Uri.encode(item.ticker.trim())
+    val url = "https://finance.yahoo.com/quote/$ticker"
     context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
 }
 
