@@ -33,3 +33,8 @@ Geheime API-Schluessel liegen nur im Backend, nicht in der Android-App.
 ## Wichtiger Hinweis
 
 Die App fuehrt keine Orders aus. Signale sind Entscheidungshilfen, keine Renditegarantie und keine automatische Anlageberatung.
+
+
+### Wichtig vor dem APK-Build
+
+Die Live-App benötigt eine echte Azure-Backend-Adresse. Version 1.1.6 baut deshalb bewusst keine APK mehr, solange `AZURE_FUNCTIONAPP_NAME` (oder optional `INVESTMENT_API_BASE_URL`) nicht gesetzt ist. Der Backend-Workflow ist erst grün, wenn der Deploy erfolgt ist und `/api/health` erreichbar ist.

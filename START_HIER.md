@@ -25,38 +25,47 @@ Die App initialisiert Firebase programmgesteuert; `google-services.json` muss de
 
 ## C. Azure Function App
 
-Eine Node.js Azure Function App mit Functions Runtime 4 und Node.js 22 oder 24 anlegen.
+Für die einfachste Einrichtung mit diesem Projekt:
 
-App Settings:
+1. Azure Portal -> **Create a resource** -> **Function App**.
+2. Hosting: **Consumption** wählen (Windows). Nicht Flex Consumption für diesen Publish-Profile-Workflow.
+3. Runtime stack: **Node.js**.
+4. Version: **22**.
+5. Functions Runtime: **4.x**.
+6. Einen weltweit eindeutigen Function-App-Namen vergeben und merken.
+7. Function App erstellen.
+
+Für den ersten Verbindungstest sind noch keine Twelve-Data-/Firebase-Schlüssel nötig. `/api/health` funktioniert bereits ohne sie; das Dashboard liefert dann zunächst die Radar-Daten ohne Live-Kurse.
+
+Später unter Function App -> Settings/Configuration als App Settings ergänzen:
 - `TWELVE_DATA_API_KEY`
 - `FIREBASE_SERVICE_ACCOUNT_JSON`
-- `AzureWebJobsStorage`
 - `GOOGLE_SHEET_ID=1unFY1i2X_mEYoxYKaP42hDPTl1lmsYhNdhj7Cg6W7xI`
-- optional `GOOGLE_SERVICE_ACCOUNT_JSON` (wenn nicht derselbe Service Account wie Firebase genutzt wird)
+- optional `GOOGLE_SERVICE_ACCOUNT_JSON`
 - optional `ALERT_TOPIC=investment-alerts`
 - `ADMIN_API_KEY=<langes-zufaelliges-passwort>`
 
-Die Google-Tabelle muss dem verwendeten Service-Account-E-Mailkonto mindestens als **Leser** freigegeben werden. Der Server liest:
-- `Rangliste!A:S`
-- Dashboard-Marktampel
+Die Google-Tabelle muss dem verwendeten Google-Service-Account mindestens als Leser freigegeben werden. Der Server liest `Rangliste!A:S` und die Marktampel.
 
-Die Spalten Q:S der Rangliste sind fuer die Live-App reserviert:
-- Q = Alarmstatus
-- R = Alarmgrund
-- S = Alarmstand
+## D. GitHub mit Azure verbinden
 
-## D. GitHub Secrets fuer die Android-App
+Repository -> **Settings -> Secrets and variables -> Actions**:
 
-Repository -> Settings -> Secrets and variables -> Actions:
-- `INVESTMENT_API_BASE_URL` = z. B. `https://DEINE-APP.azurewebsites.net`
+**Variable**
+- `AZURE_FUNCTIONAPP_NAME` = exakt der Azure Function-App-Name
+
+**Secret**
+- `AZURE_FUNCTIONAPP_PUBLISH_PROFILE` = kompletter Inhalt der aus Azure heruntergeladenen Publish-Profile-Datei
+
+Den Publish Profile in Azure bei der Function App herunterladen und den XML-Inhalt vollständig als GitHub Secret einfügen.
+
+Für Push später zusätzlich als GitHub Secrets:
 - `FIREBASE_APP_ID`
 - `FIREBASE_API_KEY`
 - `FIREBASE_PROJECT_ID`
 - `FIREBASE_SENDER_ID`
 
-Fuer Backend-Deploy zusaetzlich:
-- Secret `AZURE_FUNCTIONAPP_PUBLISH_PROFILE`
-- Variable `AZURE_FUNCTIONAPP_NAME`
+Eine separate `INVESTMENT_API_BASE_URL` ist normalerweise nicht mehr nötig: Der Android-Build leitet `https://<AZURE_FUNCTIONAPP_NAME>.azurewebsites.net` automatisch aus der Azure-Variable ab. Optional kann die Variable `INVESTMENT_API_BASE_URL` für einen eigenen Hostnamen gesetzt werden.
 
 ## E. Reihenfolge
 
@@ -85,15 +94,12 @@ Ein Alarm wird waehrend derselben Warnphase nur einmal gesendet. Nach Entwarnung
 
 ---
 
-## HOTFIX 1.1.5 – wichtig für GitHub Actions
+## HOTFIX 1.1.6 – wichtig für GitHub Actions
 
 Falls du zuvor `Failed to find package 'platforms;android-37'` gesehen hast: behoben. Die App verwendet jetzt Android API 36.
 
-Falls du zuvor `app-name should not be empty` beim Azure-Deploy gesehen hast: behoben. Ohne Azure-Konfiguration wird der Deploy jetzt sauber übersprungen.
+Ohne echte Azure-Konfiguration wird der Backend-Deploy jetzt absichtlich rot und erklärt genau, welche Variable bzw. welches Secret fehlt. Grün bedeutet danach: Deployment plus `/api/health` waren erfolgreich.
 
-Für einen echten Azure-Deploy später in GitHub unter `Settings > Secrets and variables > Actions` anlegen:
+Für den echten Azure-Deploy werden `AZURE_FUNCTIONAPP_NAME` und `AZURE_FUNCTIONAPP_PUBLISH_PROFILE` wie oben beschrieben benötigt.
 
-- **Variable:** `AZURE_FUNCTIONAPP_NAME`
-- **Secret:** `AZURE_FUNCTIONAPP_PUBLISH_PROFILE`
-
-Siehe auch `HOTFIX_1.1.5.md`.
+Siehe auch `HOTFIX_1.1.6.md`.

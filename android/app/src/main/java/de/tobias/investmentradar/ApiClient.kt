@@ -9,7 +9,11 @@ import java.net.URL
 
 object ApiClient {
     suspend fun loadDashboard(): DashboardData = withContext(Dispatchers.IO) {
-        val endpoint = "${BuildConfig.API_BASE_URL}/api/dashboard"
+        val baseUrl = BuildConfig.API_BASE_URL.trim().trimEnd('/')
+        require(baseUrl.startsWith("https://") && !baseUrl.contains("YOUR-FUNCTION-APP")) {
+            "Backend noch nicht eingerichtet. Azure Function App zuerst verbinden."
+        }
+        val endpoint = "$baseUrl/api/dashboard"
         val conn = (URL(endpoint).openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
             connectTimeout = 10_000

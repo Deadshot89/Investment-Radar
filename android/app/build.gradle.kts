@@ -7,7 +7,7 @@ plugins {
 }
 
 fun prop(name: String, fallback: String = ""): String =
-    providers.gradleProperty(name).orNull ?: fallback
+    providers.gradleProperty(name).orNull?.takeIf { it.isNotBlank() } ?: fallback
 
 android {
     namespace = "de.tobias.investmentradar"
@@ -17,8 +17,8 @@ android {
         applicationId = "de.tobias.investmentradar"
         minSdk = 23
         targetSdk = 36
-        versionCode = 7
-        versionName = "1.1.5"
+        versionCode = 8
+        versionName = "1.1.6"
 
         buildConfigField("String", "API_BASE_URL", "\"${prop("INVESTMENT_API_BASE_URL", "https://YOUR-FUNCTION-APP.azurewebsites.net").trimEnd('/')}\"")
         buildConfigField("String", "FIREBASE_APP_ID", "\"${prop("FIREBASE_APP_ID")}\"")

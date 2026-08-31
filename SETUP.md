@@ -14,13 +14,13 @@ In Firebase ein Projekt anlegen und Cloud Messaging aktivieren.
 
 Android-App-Konfiguration als GitHub Secrets oder lokal in `android/gradle.properties` setzen:
 
-- `INVESTMENT_API_BASE_URL`
+- `AZURE_FUNCTIONAPP_NAME` (Android-API-URL wird daraus automatisch abgeleitet)
 - `FIREBASE_APP_ID`
 - `FIREBASE_API_KEY`
 - `FIREBASE_PROJECT_ID`
 - `FIREBASE_SENDER_ID`
 
-Fuer das Backend wird das Firebase Service Account JSON als **eine Zeile JSON** in Azure gespeichert:
+Fuer Push wird spaeter das Firebase Service Account JSON als **eine Zeile JSON** in Azure gespeichert:
 
 - `FIREBASE_SERVICE_ACCOUNT_JSON`
 
@@ -44,7 +44,7 @@ Der Workflow installiert Android SDK 37, Build Tools 36.0.0 und Gradle 9.5.0 aut
 
 Repo nach GitHub hochladen. Unter Repository Settings -> Secrets and variables -> Actions die folgenden Repository Secrets anlegen:
 
-- `INVESTMENT_API_BASE_URL`
+- `AZURE_FUNCTIONAPP_NAME` (Android-API-URL wird daraus automatisch abgeleitet)
 - `FIREBASE_APP_ID`
 - `FIREBASE_API_KEY`
 - `FIREBASE_PROJECT_ID`
