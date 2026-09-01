@@ -13,6 +13,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -36,7 +38,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.firebase.messaging.FirebaseMessaging
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
+import java.util.UUID
 
 private val RadarBg = Color(0xFF08111F)
 private val RadarSurface = Color(0xFF101C2D)
@@ -168,20 +173,12 @@ fun InvestmentRadarUi(vm: MainViewModel = viewModel()) {
     }
 
     investmentDialogItem?.let { item ->
-        InvestmentPositionDialog(
+        PurchaseHistoryDialog(
             item = item,
-            current = positions[item.id],
+            current = positions[item.id] ?: PortfolioPosition(item.id),
             onDismiss = { investmentDialogItem = null },
-            onSave = { investedAmount, shares ->
-                vm.savePosition(
-                    PortfolioPosition(
-                        itemId = item.id,
-                        investedAmount = investedAmount,
-                        shares = shares
-                    )
-                )
-                investmentDialogItem = null
-            }
+            onUpsert = { purchase -> vm.upsertPurchase(item.id, purchase) },
+            onDelete = { purchaseId -> vm.removePurchase(item.id, purchaseId) }
         )
     }
 
@@ -362,7 +359,7 @@ private fun RadarScreen(
                     if (item.id in holdingIds) {
                         Text("✓ Im Portfolio · Verkaufsalarm aktiv", color = RadarGreen, fontWeight = FontWeight.Bold)
                         FilledTonalButton(onClick = { onEditInvestment(item) }, modifier = Modifier.fillMaxWidth()) {
-                            Text("Investition bearbeiten")
+                            Text("Käufe verwalten")
                         }
                     } else {
                         Button(onClick = { onBought(item) }, modifier = Modifier.fillMaxWidth()) { Text("Als gekauft markieren") }
@@ -432,6 +429,7 @@ private fun PortfolioScreen(
                     PortfolioValueRow("Investiert", formatMoney(position.investedAmount), RadarText)
                     PortfolioValueRow("Stückzahl", formatShares(position.shares), RadarText)
                     PortfolioValueRow("Ø Einstand", averageBuyPrice?.let(::formatMoney) ?: "–", RadarMuted)
+                    PortfolioValueRow("Käufe", position.purchases.size.toString(), RadarMuted)
                     PortfolioValueRow("Aktueller Wert", currentValue?.let(::formatMoney) ?: "–", RadarText)
                     PortfolioValueRow(
                         "Gewinn / Verlust",
@@ -460,7 +458,7 @@ private fun PortfolioScreen(
 
                     Text("Score ${reco.score}/100 · Risiko ${item.risk}/5", color = recommendationColor(reco.label), fontWeight = FontWeight.Bold)
                     Text(reco.reason, style = MaterialTheme.typography.bodySmall)
-                    Button(onClick = { onEdit(item) }, modifier = Modifier.fillMaxWidth()) { Text("Investition bearbeiten") }
+                    Button(onClick = { onEdit(item) }, modifier = Modifier.fillMaxWidth()) { Text("Käufe verwalten") }
                     OutlinedButton(onClick = { openInvestment(context, item) }, modifier = Modifier.fillMaxWidth()) { Text("Wertpapier öffnen") }
                     OutlinedButton(onClick = { onRemove(item.id) }, modifier = Modifier.fillMaxWidth()) { Text("Aus Portfolio entfernen") }
                 }
@@ -478,30 +476,69 @@ private fun PortfolioValueRow(label: String, value: String, valueColor: Color) {
 }
 
 @Composable
-private fun InvestmentPositionDialog(
+private fun PurchaseHistoryDialog(
     item: InvestmentItem,
-    current: PortfolioPosition?,
+    current: PortfolioPosition,
     onDismiss: () -> Unit,
-    onSave: (Double, Double) -> Unit
+    onUpsert: (PortfolioPurchase) -> Unit,
+    onDelete: (String) -> Unit
 ) {
-    var investedText by remember(item.id, current) {
-        mutableStateOf(current?.investedAmount?.takeIf { it > 0.0 }?.let(::formatEditableNumber) ?: "")
+    var editingPurchaseId by remember(item.id) { mutableStateOf<String?>(null) }
+    var dateText by remember(item.id) { mutableStateOf(todayPurchaseDate()) }
+    var investedText by remember(item.id) { mutableStateOf("") }
+    var sharesText by remember(item.id) { mutableStateOf("") }
+
+    fun resetEditor() {
+        editingPurchaseId = null
+        dateText = todayPurchaseDate()
+        investedText = ""
+        sharesText = ""
     }
-    var sharesText by remember(item.id, current) {
-        mutableStateOf(current?.shares?.takeIf { it > 0.0 }?.let(::formatEditableNumber) ?: "")
+
+    fun editPurchase(purchase: PortfolioPurchase) {
+        editingPurchaseId = purchase.id
+        dateText = purchase.date.ifBlank { todayPurchaseDate() }
+        investedText = formatEditableNumber(purchase.investedAmount)
+        sharesText = formatEditableNumber(purchase.shares)
     }
+
     val invested = parseDecimal(investedText)
     val shares = parseDecimal(sharesText)
-    val averageBuyPrice = if (invested != null && shares != null && shares > 0.0) invested / shares else null
-    val valid = invested != null && invested > 0.0 && shares != null && shares > 0.0
+    val buyPrice = if (invested != null && shares != null && shares > 0.0) invested / shares else null
+    val valid = isValidPurchaseDate(dateText) && invested != null && invested > 0.0 && shares != null && shares > 0.0
+    val sortedPurchases = current.purchases.asReversed()
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (current == null) "Investition erfassen" else "Investition bearbeiten") },
+        title = { Text("Kaufhistorie") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                modifier = Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 Text(item.name, fontWeight = FontWeight.Black)
                 Text("${item.ticker} · ${item.isin}", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
+
+                Card(colors = CardDefaults.cardColors(containerColor = RadarSurface2), shape = RoundedCornerShape(16.dp)) {
+                    Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        PortfolioValueRow("Gesamt investiert", formatMoney(current.investedAmount), RadarText)
+                        PortfolioValueRow("Gesamtstückzahl", formatShares(current.shares), RadarText)
+                        PortfolioValueRow("Ø Einstand", current.averageBuyPrice()?.let(::formatMoney) ?: "–", RadarGreen)
+                    }
+                }
+
+                Text(
+                    if (editingPurchaseId == null) "Nachkauf hinzufügen" else "Kauf bearbeiten",
+                    fontWeight = FontWeight.Black,
+                    style = MaterialTheme.typography.titleMedium
+                )
+                OutlinedTextField(
+                    value = dateText,
+                    onValueChange = { dateText = it.filter { ch -> ch.isDigit() || ch == '.' }.take(10) },
+                    label = { Text("Kaufdatum (TT.MM.JJJJ)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
                 OutlinedTextField(
                     value = investedText,
                     onValueChange = { investedText = sanitizeDecimalInput(it) },
@@ -517,20 +554,65 @@ private fun InvestmentPositionDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
                 Text(
-                    "Ø Einstand: ${averageBuyPrice?.let(::formatMoney) ?: "–"}",
-                    color = if (averageBuyPrice != null) RadarGreen else RadarMuted,
+                    "Kaufkurs: ${buyPrice?.let(::formatMoney) ?: "–"}",
+                    color = if (buyPrice != null) RadarGreen else RadarMuted,
                     fontWeight = FontWeight.Bold
                 )
-                Text("Betrag und Stückzahl kannst du später jederzeit ändern.", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
+                Button(
+                    onClick = {
+                        val purchase = PortfolioPurchase(
+                            id = editingPurchaseId ?: UUID.randomUUID().toString(),
+                            date = dateText,
+                            investedAmount = invested!!,
+                            shares = shares!!
+                        )
+                        onUpsert(purchase)
+                        resetEditor()
+                    },
+                    enabled = valid,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(if (editingPurchaseId == null) "Nachkauf speichern" else "Kauf aktualisieren")
+                }
+                if (editingPurchaseId != null) {
+                    TextButton(onClick = { resetEditor() }, modifier = Modifier.fillMaxWidth()) { Text("Bearbeitung abbrechen") }
+                }
+
+                HorizontalDivider(color = RadarSurface2)
+                Text("Bisherige Käufe", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
+                if (sortedPurchases.isEmpty()) {
+                    Text("Noch kein Kauf erfasst.", color = RadarMuted)
+                } else {
+                    sortedPurchases.forEach { purchase ->
+                        Card(colors = CardDefaults.cardColors(containerColor = RadarSurface2), shape = RoundedCornerShape(14.dp)) {
+                            Column(Modifier.fillMaxWidth().padding(11.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(
+                                    purchase.date.ifBlank { "Bestand übernommen" },
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    "${formatMoney(purchase.investedAmount)} · ${formatShares(purchase.shares)} Anteile · Kaufkurs ${purchase.buyPrice()?.let(::formatMoney) ?: "–"}",
+                                    color = RadarMuted,
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    TextButton(onClick = { editPurchase(purchase) }, modifier = Modifier.weight(1f)) { Text("Ändern") }
+                                    TextButton(
+                                        onClick = {
+                                            if (editingPurchaseId == purchase.id) resetEditor()
+                                            onDelete(purchase.id)
+                                        },
+                                        modifier = Modifier.weight(1f)
+                                    ) { Text("Löschen", color = RadarRed) }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         },
-        confirmButton = {
-            Button(
-                onClick = { onSave(invested!!, shares!!) },
-                enabled = valid
-            ) { Text("Speichern") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } }
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Fertig") } },
+        dismissButton = {}
     )
 }
 
@@ -703,6 +785,16 @@ private fun priceLine(item: InvestmentItem): String {
 
 private fun euroComparablePrice(item: InvestmentItem): Double? =
     item.priceEur ?: item.price?.takeIf { item.currency.isBlank() || item.currency.equals("EUR", ignoreCase = true) }
+
+private fun todayPurchaseDate(): String =
+    SimpleDateFormat("dd.MM.yyyy", Locale.GERMANY).format(Date())
+
+private fun isValidPurchaseDate(value: String): Boolean {
+    if (!value.matches(Regex("\\d{2}\\.\\d{2}\\.\\d{4}"))) return false
+    val format = SimpleDateFormat("dd.MM.yyyy", Locale.GERMANY).apply { isLenient = false }
+    val parsed = runCatching { format.parse(value) }.getOrNull() ?: return false
+    return format.format(parsed) == value
+}
 
 private fun parseDecimal(value: String): Double? = value.trim().replace(',', '.').toDoubleOrNull()
 

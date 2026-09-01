@@ -67,6 +67,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun upsertPurchase(itemId: String, purchase: PortfolioPurchase) {
+        val current = _positions.value[itemId] ?: PortfolioPosition(itemId)
+        savePosition(current.upsertPurchase(purchase))
+    }
+
+    fun removePurchase(itemId: String, purchaseId: String) {
+        val current = _positions.value[itemId] ?: return
+        savePosition(current.removePurchase(purchaseId))
+    }
+
     fun removeHolding(itemId: String) {
         val app = getApplication<Application>()
         PortfolioStore.remove(app, itemId)
