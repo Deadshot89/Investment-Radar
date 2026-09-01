@@ -67,14 +67,31 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun upsertPurchase(itemId: String, purchase: PortfolioPurchase) {
+    fun upsertPurchase(itemId: String, purchase: PortfolioPurchase): Boolean {
         val current = _positions.value[itemId] ?: PortfolioPosition(itemId)
-        savePosition(current.upsertPurchase(purchase))
+        val next = current.upsertPurchaseIfValid(purchase) ?: return false
+        savePosition(next)
+        return true
     }
 
-    fun removePurchase(itemId: String, purchaseId: String) {
-        val current = _positions.value[itemId] ?: return
-        savePosition(current.removePurchase(purchaseId))
+    fun removePurchase(itemId: String, purchaseId: String): Boolean {
+        val current = _positions.value[itemId] ?: return false
+        val next = current.removePurchaseIfValid(purchaseId) ?: return false
+        savePosition(next)
+        return true
+    }
+
+    fun upsertSale(itemId: String, sale: PortfolioSale): Boolean {
+        val current = _positions.value[itemId] ?: PortfolioPosition(itemId)
+        val next = current.upsertSale(sale) ?: return false
+        savePosition(next)
+        return true
+    }
+
+    fun removeSale(itemId: String, saleId: String): Boolean {
+        val current = _positions.value[itemId] ?: return false
+        savePosition(current.removeSale(saleId))
+        return true
     }
 
     fun removeHolding(itemId: String) {

@@ -21,8 +21,11 @@ object PortfolioStore {
             val storedPurchases = prefs.getString(purchasesKey(itemId), null)
                 ?.let(::decodePurchases)
                 .orEmpty()
-            if (storedPurchases.isNotEmpty()) {
-                PortfolioPosition(itemId = itemId, purchases = storedPurchases)
+            val storedSales = prefs.getString(salesKey(itemId), null)
+                ?.let(::decodeSales)
+                .orEmpty()
+            if (storedPurchases.isNotEmpty() || storedSales.isNotEmpty()) {
+                PortfolioPosition(itemId = itemId, purchases = storedPurchases, sales = storedSales)
             } else {
                 val invested = prefs.getString(investedKey(itemId), null)?.toDoubleOrNull() ?: 0.0
                 val shares = prefs.getString(sharesKey(itemId), null)?.toDoubleOrNull() ?: 0.0
@@ -57,6 +60,7 @@ object PortfolioStore {
             .putString(investedKey(position.itemId), position.investedAmount.toString())
             .putString(sharesKey(position.itemId), position.shares.toString())
             .putString(purchasesKey(position.itemId), encodePurchases(position.purchases))
+            .putString(salesKey(position.itemId), encodeSales(position.sales))
             .apply()
     }
 
@@ -69,6 +73,7 @@ object PortfolioStore {
             .remove(investedKey(itemId))
             .remove(sharesKey(itemId))
             .remove(purchasesKey(itemId))
+            .remove(salesKey(itemId))
             .apply()
     }
 
@@ -107,7 +112,44 @@ object PortfolioStore {
         }
     }.getOrDefault(emptyList())
 
+
+    private fun encodeSales(sales: List<PortfolioSale>): String {
+        val array = JSONArray()
+        sales.forEach { sale ->
+            array.put(
+                JSONObject()
+                    .put("id", sale.id)
+                    .put("date", sale.date)
+                    .put("proceeds", sale.proceeds.coerceAtLeast(0.0))
+                    .put("shares", sale.shares.coerceAtLeast(0.0))
+            )
+        }
+        return array.toString()
+    }
+
+    private fun decodeSales(raw: String): List<PortfolioSale> = runCatching {
+        val array = JSONArray(raw)
+        buildList {
+            for (index in 0 until array.length()) {
+                val item = array.optJSONObject(index) ?: continue
+                val id = item.optString("id").trim()
+                val proceeds = item.optDouble("proceeds", Double.NaN)
+                val shares = item.optDouble("shares", Double.NaN)
+                if (id.isBlank() || !proceeds.isFinite() || !shares.isFinite() || proceeds < 0.0 || shares <= 0.0) continue
+                add(
+                    PortfolioSale(
+                        id = id,
+                        date = item.optString("date").trim(),
+                        proceeds = proceeds,
+                        shares = shares
+                    )
+                )
+            }
+        }
+    }.getOrDefault(emptyList())
+
     private fun investedKey(itemId: String) = "position.$itemId.invested"
     private fun sharesKey(itemId: String) = "position.$itemId.shares"
     private fun purchasesKey(itemId: String) = "position.$itemId.purchases"
+    private fun salesKey(itemId: String) = "position.$itemId.sales"
 }
