@@ -1,12 +1,12 @@
 {
   "name": "investment-radar-backend",
-  "version": "1.1.9",
+  "version": "1.1.19",
   "private": true,
   "type": "module",
   "main": "src/index.mjs",
   "scripts": {
     "start": "func start",
-    "check": "node --check src/index.mjs && node --check src/lib/config.mjs && node --check src/lib/envDiagnostics.mjs && node --check src/lib/sheets.mjs && node --check src/lib/market.mjs && node --check src/lib/signals.mjs && node --check src/lib/state.mjs && node --check src/lib/push.mjs && node --check src/lib/dashboard.mjs && node --check src/functions/dashboard.mjs && node --check src/functions/health.mjs && node --check src/functions/marketWatch.mjs && node --check src/functions/testPush.mjs",
+    "check": "node --check src/index.mjs && node --check src/lib/config.mjs && node --check src/lib/envDiagnostics.mjs && node --check src/lib/sheets.mjs && node --check src/lib/market.mjs && node --check src/lib/marketSupport.mjs && node --check src/lib/quoteCache.mjs && node --check src/lib/fxCache.mjs && node --check src/lib/signals.mjs && node --check src/lib/state.mjs && node --check src/lib/push.mjs && node --check src/lib/dashboard.mjs && node --check src/functions/dashboard.mjs && node --check src/functions/health.mjs && node --check src/functions/marketWatch.mjs && node --check src/functions/testPush.mjs",
     "test": "node --test test/*.test.mjs"
   },
   "dependencies": {

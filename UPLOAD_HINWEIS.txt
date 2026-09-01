@@ -1,7 +1,9 @@
-Investment Radar 1.1.14 UPDATE
+Investment Radar 1.1.19 UPDATE
 
-Den Inhalt dieses Pakets in die gleichen Pfade des GitHub-Repositories übernehmen/ersetzen.
-Neu hinzugekommen sind insbesondere PortfolioPosition.kt und die erweiterte PortfolioStore.kt.
-Danach: Actions -> Build Android APK -> Run workflow.
-Die bestehende App NICHT deinstallieren; 1.1.14 normal über 1.1.13 installieren.
-Portfolio-Daten werden lokal gespeichert und bleiben bei normalen App-Updates erhalten.
+Den kompletten Inhalt dieses Ordners in das bestehende GitHub-Repository übernehmen.
+Wichtig: Diesmal enthält das Paket wieder die verbindlichen Backend-Einstiegsdateien und backend-deploy.yml.
+
+Danach zuerst:
+1. Actions -> Deploy Backend
+2. Der Deploy muss /api/health = 200 UND /api/admin/test-push ohne Admin-Key = 401 bestätigen.
+3. Danach optional Build Android APK und per App-Update auf 1.1.19 aktualisieren.
