@@ -444,8 +444,9 @@ private fun PortfolioScreen(
                     } else if (comparablePrice == null) {
                         Text("EUR-Umrechnung für ${item.currency} fehlt – Performance wird berechnet, sobald der Wechselkurs verfügbar ist.", color = RadarYellow, style = MaterialTheme.typography.bodySmall)
                     }
-                    if (item.dataDelayed && item.dataSource.isNotBlank()) {
-                        Text("Kursquelle ${item.dataSource} · verzögert", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
+                    if (item.price != null && item.dataSource.isNotBlank()) {
+                        val quality = if (item.dataDelayed) "verzögert" else "Live"
+                        Text("Kursquelle ${item.dataSource} · $quality", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
                     }
 
                     Text("Score ${reco.score}/100 · Risiko ${item.risk}/5", color = recommendationColor(reco.label), fontWeight = FontWeight.Bold)
@@ -687,8 +688,8 @@ private fun priceLine(item: InvestmentItem): String {
         ?.takeIf { item.price != null && !item.currency.equals("EUR", ignoreCase = true) }
         ?.let { " · ≈ ${formatMoney(it)}" }
         .orEmpty()
-    val delayed = if (item.dataDelayed) " · verzögert" else ""
-    return "Kurs $price ${item.currency}$eur · Heute $change$delayed"
+    val quality = if (item.price == null) "" else if (item.dataDelayed) " · verzögert" else " · Live"
+    return "Kurs $price ${item.currency}$eur · Heute $change$quality"
 }
 
 private fun euroComparablePrice(item: InvestmentItem): Double? =

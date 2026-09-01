@@ -2,10 +2,17 @@ import { loadConfig } from "./config.mjs";
 import { loadEurRates, loadQuotes, priceInEur } from "./market.mjs";
 import { evaluateSignals } from "./signals.mjs";
 import { loadState } from "./state.mjs";
+import { cacheFromQuotes, loadQuoteCache, mergeQuotesWithCache, saveQuoteCache } from "./quoteCache.mjs";
 
 export async function buildDashboard() {
   const config = await loadConfig();
-  const quotes = await loadQuotes(config.items);
+  const providerQuotes = await loadQuotes(config.items);
+  const quoteCache = await loadQuoteCache();
+  const quotes = mergeQuotesWithCache(providerQuotes, quoteCache);
+  const freshCache = cacheFromQuotes(providerQuotes);
+  if (Object.keys(freshCache).length > 0) {
+    await saveQuoteCache({ ...quoteCache, ...freshCache });
+  }
   const eurRates = await loadEurRates(quotes);
   const state = await loadState();
   const liveAlerts = evaluateSignals(config.items, quotes);

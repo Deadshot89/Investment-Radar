@@ -1,7 +1,10 @@
 import { convertPriceToEur, normalizeYahooChart } from "./marketSupport.mjs";
 
 const BASE = "https://api.twelvedata.com";
-const YAHOO_BASE = "https://query1.finance.yahoo.com/v8/finance/chart";
+const YAHOO_BASES = [
+  "https://query1.finance.yahoo.com/v8/finance/chart",
+  "https://query2.finance.yahoo.com/v8/finance/chart"
+];
 
 export async function loadQuotes(items) {
   const key = process.env.TWELVE_DATA_API_KEY?.trim();
@@ -75,29 +78,48 @@ async function loadTwelveQuotes(items, key) {
 }
 
 async function loadYahooQuote(symbol) {
-  const url = new URL(`${YAHOO_BASE}/${encodeURIComponent(symbol)}`);
-  url.searchParams.set("range", "5d");
-  url.searchParams.set("interval", "1d");
-  url.searchParams.set("includePrePost", "false");
-  try {
-    const response = await fetch(url, {
-      headers: { Accept: "application/json", "User-Agent": "InvestmentRadar/1.1" },
-      signal: AbortSignal.timeout(10_000)
-    });
-    if (!response.ok) throw new Error(`Yahoo HTTP ${response.status}`);
-    return normalizeYahooChart(await response.json(), symbol);
-  } catch (error) {
-    return {
-      symbol,
-      price: null,
-      currency: "",
-      percentChange: null,
-      marketOpen: null,
-      source: "Yahoo Finance",
-      delayed: true,
-      error: error instanceof Error ? error.message : "Yahoo-Marktdatenfehler"
-    };
+  const attempts = [
+    { range: "1d", interval: "5m" },
+    { range: "1d", interval: "5m" },
+    { range: "5d", interval: "1d" },
+    { range: "5d", interval: "1d" }
+  ];
+  let lastError = "Yahoo-Marktdatenfehler";
+
+  for (let index = 0; index < attempts.length; index++) {
+    const base = YAHOO_BASES[index % YAHOO_BASES.length];
+    const { range, interval } = attempts[index];
+    const url = new URL(`${base}/${encodeURIComponent(symbol)}`);
+    url.searchParams.set("range", range);
+    url.searchParams.set("interval", interval);
+    url.searchParams.set("includePrePost", "false");
+    try {
+      const response = await fetch(url, {
+        headers: { Accept: "application/json", "User-Agent": "Mozilla/5.0 InvestmentRadar/1.1" },
+        signal: AbortSignal.timeout(10_000)
+      });
+      if (!response.ok) {
+        lastError = `Yahoo HTTP ${response.status}`;
+        continue;
+      }
+      const quote = normalizeYahooChart(await response.json(), symbol);
+      if (quote.price != null) return quote;
+      lastError = quote.error || "Kein Yahoo-Kurs gefunden";
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : "Yahoo-Marktdatenfehler";
+    }
   }
+
+  return {
+    symbol,
+    price: null,
+    currency: "",
+    percentChange: null,
+    marketOpen: null,
+    source: "Yahoo Finance",
+    delayed: true,
+    error: lastError
+  };
 }
 
 async function loadExchangeRateToEur(currency, key) {
