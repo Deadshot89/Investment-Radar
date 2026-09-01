@@ -4,6 +4,8 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.messaging.FirebaseMessaging
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,6 +30,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _positions = MutableStateFlow(initialPositions)
     val positions: StateFlow<Map<String, PortfolioPosition>> = _positions.asStateFlow()
 
+    private val _customItems = MutableStateFlow(CustomInvestmentStore.read(app))
+    val customItems: StateFlow<List<CustomInvestment>> = _customItems.asStateFlow()
+
     init {
         refresh()
         viewModelScope.launch {
@@ -43,7 +48,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val previousState = _state.value
             val hadReadyData = previousState is UiState.Ready
             if (!silent && !hadReadyData) _state.value = UiState.Loading
-            runCatching { ApiClient.loadDashboard() }
+            runCatching {
+                val dashboard = ApiClient.loadDashboard()
+                val customQuotes = _customItems.value.map { custom ->
+                    async {
+                        runCatching { ApiClient.loadCustomQuote(custom) }
+                            .getOrElse { custom.fallbackItem(it.message ?: "Kursdaten fehlen") }
+                    }
+                }.awaitAll()
+                dashboard.copy(items = (dashboard.items + customQuotes).distinctBy { it.id })
+            }
                 .onSuccess { _state.value = UiState.Ready(it) }
                 .onFailure { e ->
                     if (!hadReadyData) {
@@ -92,6 +106,31 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val current = _positions.value[itemId] ?: return false
         savePosition(current.removeSale(saleId))
         return true
+    }
+
+    fun addCustomInvestment(item: CustomInvestment, initialPurchase: PortfolioPurchase?) {
+        val app = getApplication<Application>()
+        CustomInvestmentStore.save(app, item)
+        _customItems.value = CustomInvestmentStore.read(app)
+        val current = _positions.value[item.id] ?: PortfolioPosition(item.id)
+        val next = if (initialPurchase != null) current.upsertPurchaseIfValid(initialPurchase) ?: current else current
+        savePosition(next)
+        refresh(silent = true)
+    }
+
+    fun updateCustomInvestment(item: CustomInvestment) {
+        val app = getApplication<Application>()
+        CustomInvestmentStore.save(app, item)
+        _customItems.value = CustomInvestmentStore.read(app)
+        refresh(silent = true)
+    }
+
+    fun removeCustomInvestment(itemId: String) {
+        val app = getApplication<Application>()
+        CustomInvestmentStore.remove(app, itemId)
+        _customItems.value = CustomInvestmentStore.read(app)
+        removeHolding(itemId)
+        refresh(silent = true)
     }
 
     fun removeHolding(itemId: String) {
