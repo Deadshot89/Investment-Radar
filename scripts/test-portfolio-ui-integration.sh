@@ -22,5 +22,5 @@ grep -q 'fun readPositions(context: Context): Map<String, PortfolioPosition>' "$
 grep -q 'private const val LEGACY_KEY = "holding_ids"' "$STORE"
 grep -q 'putStringSet(LEGACY_KEY, ids)' "$STORE"
 grep -q 'purchasesKey' "$STORE"
-grep -q 'versionCode = 23' "$GRADLE"
-grep -q 'versionName = "1.1.22"' "$GRADLE"
+grep -q 'versionCode = 25' "$GRADLE"
+grep -q 'versionName = "1.1.24"' "$GRADLE"

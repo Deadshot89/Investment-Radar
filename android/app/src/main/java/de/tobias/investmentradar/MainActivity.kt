@@ -11,6 +11,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -52,6 +53,10 @@ private val RadarYellow = Color(0xFFFFC857)
 private val RadarRed = Color(0xFFFF6577)
 private val RadarText = Color(0xFFF2F6FC)
 private val RadarMuted = Color(0xFF91A1B7)
+private val RadarPurple = Color(0xFF9F7BFF)
+private val RadarCyan = Color(0xFF4DE6FF)
+private val RadarPink = Color(0xFFFF5EDB)
+private val RadarGlow = Color(0x332EE59D)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -135,7 +140,10 @@ fun InvestmentRadarUi(vm: MainViewModel = viewModel()) {
                 }
             }
         ) { padding ->
-            Box(Modifier.padding(padding).fillMaxSize().background(RadarBg)) {
+            Box(Modifier
+                .padding(padding)
+                .fillMaxSize()
+                .background(Brush.verticalGradient(listOf(Color(0xFF050B14), Color(0xFF0B1628), RadarBg)))) {
                 when (val s = state) {
                     UiState.Loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
                     is UiState.Error -> ErrorView(s.message) { vm.refresh() }
@@ -224,6 +232,13 @@ private fun DashboardScreen(data: DashboardData, budget: Int, onEditBudget: () -
     ) {
         item { Spacer(Modifier.height(2.dp)) }
         item {
+            NeonPanel(accent = RadarCyan) {
+                Text("LIVE DASHBOARD", style = MaterialTheme.typography.labelLarge, color = RadarCyan, fontWeight = FontWeight.Black)
+                Text("Schneller Überblick für deinen nächsten Schritt", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
+                Text("Premium Dark Mode mit klaren Lichtakzenten und direktem Fokus auf die wichtigsten Signale.", color = RadarMuted)
+            }
+        }
+        item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 DarkMetricCard("MARKT", data.marketLight.uppercase(), marketAccent(data.marketLight), Modifier.weight(1f))
                 DarkMetricCard("BUDGET", "$budget €", RadarBlue, Modifier.weight(1f), onClick = onEditBudget)
@@ -235,55 +250,47 @@ private fun DashboardScreen(data: DashboardData, budget: Int, onEditBudget: () -
             val reco = InvestmentPlanner.recommendation(top.toPlannerItem())
             val amount = allocations[top.id] ?: 0
             Text("HEUTIGE EMPFEHLUNG", style = MaterialTheme.typography.labelLarge, color = RadarMuted, fontWeight = FontWeight.Bold)
-            Card(
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.Transparent)
-            ) {
-                Column(
-                    Modifier
-                        .background(Brush.linearGradient(listOf(Color(0xFF133326), Color(0xFF112A3D))))
-                        .padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(9.dp)
-                ) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(reco.label, color = recommendationColor(reco.label), fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
-                            Text(top.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
-                            Text("${top.ticker} · ${top.type} · Risiko ${top.risk}/5", color = RadarMuted)
-                        }
-                        ScoreRing(reco.score)
+            NeonPanel(accent = recommendationColor(reco.label)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text(reco.label, color = recommendationColor(reco.label), fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
+                        Text(top.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
+                        Text("${top.ticker} · ${top.type} · Risiko ${top.risk}/5", color = RadarMuted)
                     }
-                    Text(
-                        InvestmentPlanner.actionHeadline(top.toPlannerItem(), amount),
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Black,
-                        color = recommendationColor(reco.label)
+                    ScoreRing(reco.score)
+                }
+                PortfolioBadgeRow(
+                    listOf(
+                        "Monatskauf" to if (amount > 0) "$amount €" else "0 €",
+                        "Score" to "${reco.score}/100",
+                        "Signal" to InvestmentPlanner.confidenceLabel(reco.score)
                     )
-                    Text(
-                        "Empfehlungsstärke: ${InvestmentPlanner.confidenceLabel(reco.score)}",
-                        color = recommendationColor(reco.label),
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(reco.reason, color = RadarText)
-                    Text(priceLine(top), color = RadarMuted)
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(
-                            onClick = { openInvestment(context, top) },
-                            modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(containerColor = RadarGreen, contentColor = Color(0xFF05150E))
-                        ) {
-                            Icon(Icons.Default.OpenInNew, null)
-                            Spacer(Modifier.width(6.dp))
-                            Text("Trade Republic", fontWeight = FontWeight.Bold)
-                        }
-                        OutlinedButton(
-                            onClick = { openMarketQuote(context, top) },
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Icon(Icons.Default.ShowChart, null)
-                            Spacer(Modifier.width(6.dp))
-                            Text("Kurs")
-                        }
+                )
+                Text(
+                    InvestmentPlanner.actionHeadline(top.toPlannerItem(), amount),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Black,
+                    color = recommendationColor(reco.label)
+                )
+                Text(reco.reason, color = RadarText)
+                Text(priceLine(top), color = RadarMuted)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = { openInvestment(context, top) },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = RadarGreen, contentColor = Color(0xFF05150E))
+                    ) {
+                        Icon(Icons.Default.OpenInNew, null)
+                        Spacer(Modifier.width(6.dp))
+                        Text("Trade Republic", fontWeight = FontWeight.Bold)
+                    }
+                    OutlinedButton(
+                        onClick = { openMarketQuote(context, top) },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Default.ShowChart, null)
+                        Spacer(Modifier.width(6.dp))
+                        Text("Kurs")
                     }
                 }
             }
@@ -309,7 +316,7 @@ private fun DashboardScreen(data: DashboardData, budget: Int, onEditBudget: () -
 
         item {
             Text(
-                "Der Kaufplan verwendet die Live-Signale der App. Werte ohne KAUFEN-Signal erhalten kein neues Budget. Keine automatische Order.",
+                "Der Kaufplan verwendet die Signale der App. Werte ohne KAUFEN-Signal erhalten kein neues Budget. Keine automatische Order.",
                 style = MaterialTheme.typography.bodySmall,
                 color = RadarMuted,
                 modifier = Modifier.padding(top = 6.dp)
@@ -326,46 +333,99 @@ private fun RadarScreen(
     onEditInvestment: (InvestmentItem) -> Unit
 ) {
     val context = LocalContext.current
+    var query by remember { mutableStateOf("") }
+    var filter by remember { mutableStateOf("ALLE") }
+
+    val filteredItems = items
+        .sortedByDescending { InvestmentPlanner.recommendation(it.toPlannerItem()).score }
+        .filter { item ->
+            val reco = InvestmentPlanner.recommendation(item.toPlannerItem())
+            val matchesQuery = query.isBlank() ||
+                item.name.contains(query, ignoreCase = true) ||
+                item.ticker.contains(query, ignoreCase = true) ||
+                item.isin.contains(query, ignoreCase = true)
+            val matchesFilter = when (filter) {
+                "KAUFEN" -> reco.label == "KAUFEN"
+                "PORTFOLIO" -> item.id in holdingIds
+                "ETF" -> item.type.equals("ETF", ignoreCase = true)
+                "PRÜFEN" -> reco.label.contains("PRÜFEN", ignoreCase = true) || reco.label.contains("VERKAUF", ignoreCase = true)
+                else -> true
+            }
+            matchesQuery && matchesFilter
+        }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
         contentPadding = PaddingValues(bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         item {
-            Text("RADAR", style = MaterialTheme.typography.labelLarge, color = RadarMuted, fontWeight = FontWeight.Bold)
-            Text("Klare Signale für Aktien & ETFs", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+            NeonPanel(accent = RadarPurple) {
+                Text("RADAR", style = MaterialTheme.typography.labelLarge, color = RadarPurple, fontWeight = FontWeight.Bold)
+                Text("Klare Signale für Aktien & ETFs", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    label = { Text("Suchen nach Name, Ticker oder ISIN") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(selected = filter == "ALLE", onClick = { filter = "ALLE" }, label = { Text("Alle") }, modifier = Modifier.weight(1f))
+                        FilterChip(selected = filter == "KAUFEN", onClick = { filter = "KAUFEN" }, label = { Text("Kaufen") }, modifier = Modifier.weight(1f))
+                        FilterChip(selected = filter == "PORTFOLIO", onClick = { filter = "PORTFOLIO" }, label = { Text("Portfolio") }, modifier = Modifier.weight(1f))
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(selected = filter == "ETF", onClick = { filter = "ETF" }, label = { Text("ETF") }, modifier = Modifier.weight(1f))
+                        FilterChip(selected = filter == "PRÜFEN", onClick = { filter = "PRÜFEN" }, label = { Text("Prüfen") }, modifier = Modifier.weight(1f))
+                    }
+                }
+                Text("${filteredItems.size} Treffer", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
+            }
         }
-        items(items.sortedByDescending { InvestmentPlanner.recommendation(it.toPlannerItem()).score }) { item ->
+        if (filteredItems.isEmpty()) {
+            item {
+                NeonPanel(accent = RadarYellow) {
+                    Text("Keine Treffer", fontWeight = FontWeight.Black)
+                    Text("Passe die Suche oder den Filter an.", color = RadarMuted)
+                }
+            }
+        }
+        items(filteredItems) { item ->
             val reco = InvestmentPlanner.recommendation(item.toPlannerItem())
-            Card(colors = CardDefaults.cardColors(containerColor = RadarSurface), shape = RoundedCornerShape(20.dp)) {
-                Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(item.name, fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
-                            Text("${item.ticker} · ${item.isin}", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
-                        }
-                        StatusPill(reco.label)
+            NeonPanel(accent = recommendationColor(reco.label)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(item.name, fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
+                        Text("${item.ticker} · ${item.isin}", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
                     }
-                    Text(priceLine(item), color = RadarMuted)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("Score ${reco.score}/100", fontWeight = FontWeight.Bold, color = recommendationColor(reco.label))
-                        Text(InvestmentPlanner.confidenceLabel(reco.score), fontWeight = FontWeight.Bold, color = recommendationColor(reco.label))
-                        Text("Risiko ${item.risk}/5", color = RadarMuted)
+                    StatusPill(reco.label)
+                }
+                Text(priceLine(item), color = RadarMuted)
+                PortfolioBadgeRow(
+                    listOf(
+                        "Score" to "${reco.score}/100",
+                        "Risiko" to "${item.risk}/5",
+                        "Typ" to item.type
+                    )
+                )
+                Text(reco.reason, style = MaterialTheme.typography.bodySmall)
+                if (item.price != null && item.dataSource.isNotBlank()) {
+                    Text("Kursquelle ${item.dataSource}${if (item.dataDelayed) " · verzögert" else " · Live"}", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
+                }
+                OutlinedButton(onClick = { openInvestment(context, item) }, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Default.OpenInNew, null)
+                    Spacer(Modifier.width(7.dp))
+                    Text("Wertpapier öffnen")
+                }
+                if (item.id in holdingIds) {
+                    Text("✓ Im Portfolio · Verkaufsalarm aktiv", color = RadarGreen, fontWeight = FontWeight.Bold)
+                    FilledTonalButton(onClick = { onEditInvestment(item) }, modifier = Modifier.fillMaxWidth()) {
+                        Text("Transaktionen verwalten")
                     }
-                    Text(reco.reason, style = MaterialTheme.typography.bodySmall)
-                    OutlinedButton(onClick = { openInvestment(context, item) }, modifier = Modifier.fillMaxWidth()) {
-                        Icon(Icons.Default.OpenInNew, null)
-                        Spacer(Modifier.width(7.dp))
-                        Text("Wertpapier öffnen")
-                    }
-                    if (item.id in holdingIds) {
-                        Text("✓ Im Portfolio · Verkaufsalarm aktiv", color = RadarGreen, fontWeight = FontWeight.Bold)
-                        FilledTonalButton(onClick = { onEditInvestment(item) }, modifier = Modifier.fillMaxWidth()) {
-                            Text("Transaktionen verwalten")
-                        }
-                    } else {
-                        Button(onClick = { onBought(item) }, modifier = Modifier.fillMaxWidth()) { Text("Als gekauft markieren") }
-                    }
+                } else {
+                    Button(onClick = { onBought(item) }, modifier = Modifier.fillMaxWidth()) { Text("Als gekauft markieren") }
                 }
             }
         }
@@ -389,6 +449,16 @@ private fun PortfolioScreen(
     val currentTotal = currentValues.takeIf { it.size == items.size }?.sum()
     val totalUnrealized = currentTotal?.minus(totalInvested)
     val totalProfit = totalUnrealized?.plus(totalRealized)
+    val transactionCount = items.sumOf { item ->
+        positions[item.id]?.let { it.purchases.size + it.sales.size } ?: 0
+    }
+    val performanceRows = items.mapNotNull { item ->
+        val position = positions[item.id] ?: return@mapNotNull null
+        val profit = position.totalProfitLoss(euroComparablePrice(item)) ?: return@mapNotNull null
+        item to profit
+    }
+    val bestPerformer = performanceRows.maxByOrNull { it.second }
+    val worstPerformer = performanceRows.minByOrNull { it.second }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
@@ -407,6 +477,34 @@ private fun PortfolioScreen(
                     DarkMetricCard("AKTUELL", currentTotal?.let(::formatMoney) ?: "–", RadarGreen, Modifier.weight(1f))
                     DarkMetricCard("G/V", totalProfit?.let(::formatSignedMoney) ?: "–", profitColor(totalProfit), Modifier.weight(1f))
                 }
+                Spacer(Modifier.height(8.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    DarkMetricCard("REALISIERT", formatSignedMoney(totalRealized), profitColor(totalRealized), Modifier.weight(1f))
+                    DarkMetricCard("OFFEN", totalUnrealized?.let(::formatSignedMoney) ?: "–", profitColor(totalUnrealized), Modifier.weight(1f))
+                }
+            }
+        }
+        if (items.isNotEmpty()) {
+            item {
+                NeonPanel(accent = RadarPink) {
+                    Text("PORTFOLIO ANALYSE", color = RadarPink, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black)
+                    Text("Performance & Aktivität", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+                    NeonStatStrip(
+                        entries = listOf(
+                            "Positionen" to items.size.toString(),
+                            "Transaktionen gesamt" to transactionCount.toString(),
+                            "Bester Wert" to (bestPerformer?.first?.ticker ?: "–"),
+                            "Schwächster Wert" to (worstPerformer?.first?.ticker ?: "–")
+                        ),
+                        accent = RadarPink
+                    )
+                    if (bestPerformer != null || worstPerformer != null) {
+                        val bestText = bestPerformer?.let { "${it.first.name}: ${formatSignedMoney(it.second)}" } ?: "–"
+                        val worstText = worstPerformer?.let { "${it.first.name}: ${formatSignedMoney(it.second)}" } ?: "–"
+                        Text("Bester Wert · $bestText", color = RadarGreen, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                        Text("Schwächster Wert · $worstText", color = if ((worstPerformer?.second ?: 0.0) < 0.0) RadarRed else RadarMuted, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
             }
         }
         items(items) { item ->
@@ -420,63 +518,73 @@ private fun PortfolioScreen(
             val unrealizedProfitPercent = position.unrealizedProfitLossPercent(comparablePrice)
             val totalPositionProfit = position.totalProfitLoss(comparablePrice)
             val totalPositionProfitPercent = position.totalProfitLossPercent(comparablePrice)
+            val weightBase = currentTotal ?: totalInvested
+            val weightValue = currentValue ?: position.investedAmount
+            val portfolioWeight = if (weightBase > 0.0) (weightValue / weightBase) * 100.0 else 0.0
 
-            Card(colors = CardDefaults.cardColors(containerColor = RadarSurface), shape = RoundedCornerShape(20.dp)) {
-                Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Text(item.name, fontWeight = FontWeight.Black, modifier = Modifier.weight(1f))
-                        StatusPill(reco.label)
-                    }
-                    Text("${item.ticker} · ${item.isin}", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
-                    Text(priceLine(item), color = RadarMuted)
-
-                    HorizontalDivider(color = RadarSurface2)
-                    PortfolioValueRow("Investiert", formatMoney(position.investedAmount), RadarText)
-                    PortfolioValueRow("Stückzahl", formatShares(position.shares), RadarText)
-                    PortfolioValueRow("Ø Einstand", averageBuyPrice?.let(::formatMoney) ?: "–", RadarMuted)
-                    PortfolioValueRow("Käufe", position.purchases.size.toString(), RadarMuted)
-                    PortfolioValueRow("Verkäufe", position.sales.size.toString(), RadarMuted)
-                    if (position.sales.isNotEmpty()) {
-                        PortfolioValueRow("Verkaufserlöse", formatMoney(position.totalSaleProceeds), RadarMuted)
-                    }
-                    PortfolioValueRow("Aktueller Wert", currentValue?.let(::formatMoney) ?: "–", RadarText)
-                    PortfolioValueRow("Realisierter G/V", formatSignedMoney(realizedProfit), profitColor(realizedProfit))
-                    PortfolioValueRow(
-                        "Unrealisierter G/V",
-                        if (unrealizedProfit != null && unrealizedProfitPercent != null) "${formatSignedMoney(unrealizedProfit)} · ${formatSignedPercent(unrealizedProfitPercent)}" else "–",
-                        profitColor(unrealizedProfit)
-                    )
-                    PortfolioValueRow(
-                        "Gesamt G/V",
-                        if (totalPositionProfit != null && totalPositionProfitPercent != null) "${formatSignedMoney(totalPositionProfit)} · ${formatSignedPercent(totalPositionProfitPercent)}" else "–",
-                        profitColor(totalPositionProfit)
-                    )
-                    if (item.price == null) {
-                        val detail = item.dataError?.takeIf { it.isNotBlank() }?.let { ": $it" }.orEmpty()
-                        Text("Kursdaten fehlen$detail", color = RadarYellow, style = MaterialTheme.typography.bodySmall)
-                    } else if (comparablePrice == null) {
-                        Text("EUR-Umrechnung für ${item.currency} fehlt – Performance wird berechnet, sobald der Wechselkurs verfügbar ist.", color = RadarYellow, style = MaterialTheme.typography.bodySmall)
-                    }
-                    if (item.price != null && item.dataSource.isNotBlank()) {
-                        val quality = if (item.dataDelayed) "verzögert" else "Live"
-                        Text("Kursquelle ${item.dataSource} · $quality", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
-                    }
-                    if (item.price != null && !item.currency.equals("EUR", ignoreCase = true) && item.fxRateToEur != null && item.fxSource.isNotBlank()) {
-                        val fxQuality = when {
-                            item.fxSource.contains("ECB", ignoreCase = true) && !item.fxSource.startsWith("Cache") -> "Tageskurs"
-                            item.fxDelayed -> "verzögert"
-                            else -> "Live"
-                        }
-                        val fxStand = item.fxAsOf?.takeIf { it.isNotBlank() }?.let { " · Stand $it" }.orEmpty()
-                        Text("FX ${item.fxSource} · $fxQuality$fxStand", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
-                    }
-
-                    Text("Score ${reco.score}/100 · Risiko ${item.risk}/5", color = recommendationColor(reco.label), fontWeight = FontWeight.Bold)
-                    Text(reco.reason, style = MaterialTheme.typography.bodySmall)
-                    Button(onClick = { onEdit(item) }, modifier = Modifier.fillMaxWidth()) { Text("Transaktionen verwalten") }
-                    OutlinedButton(onClick = { openInvestment(context, item) }, modifier = Modifier.fillMaxWidth()) { Text("Wertpapier öffnen") }
-                    OutlinedButton(onClick = { onRemove(item.id) }, modifier = Modifier.fillMaxWidth()) { Text("Aus Portfolio entfernen") }
+            NeonPanel(accent = recommendationColor(reco.label)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text(item.name, fontWeight = FontWeight.Black, modifier = Modifier.weight(1f))
+                    StatusPill(reco.label)
                 }
+                Text("${item.ticker} · ${item.isin}", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
+                Text(priceLine(item), color = RadarMuted)
+
+                PortfolioBadgeRow(
+                    listOf(
+                        "Bestand" to formatShares(position.shares),
+                        "Gewichtung" to String.format(Locale.GERMANY, "%.1f%%", portfolioWeight),
+                        "Transaktionen" to (position.purchases.size + position.sales.size).toString()
+                    )
+                )
+
+                HorizontalDivider(color = RadarSurface2)
+                PortfolioValueRow("Investiert", formatMoney(position.investedAmount), RadarText)
+                PortfolioValueRow("Stückzahl", formatShares(position.shares), RadarText)
+                PortfolioValueRow("Ø Einstand", averageBuyPrice?.let(::formatMoney) ?: "–", RadarMuted)
+                PortfolioValueRow("Gewichtung", String.format(Locale.GERMANY, "%.1f%%", portfolioWeight), RadarCyan)
+                PortfolioValueRow("Käufe", position.purchases.size.toString(), RadarMuted)
+                PortfolioValueRow("Verkäufe", position.sales.size.toString(), RadarMuted)
+                if (position.sales.isNotEmpty()) {
+                    PortfolioValueRow("Verkaufserlöse", formatMoney(position.totalSaleProceeds), RadarMuted)
+                }
+                PortfolioValueRow("Aktueller Wert", currentValue?.let(::formatMoney) ?: "–", RadarText)
+                PortfolioValueRow("Realisierter G/V", formatSignedMoney(realizedProfit), profitColor(realizedProfit))
+                PortfolioValueRow(
+                    "Unrealisierter G/V",
+                    if (unrealizedProfit != null && unrealizedProfitPercent != null) "${formatSignedMoney(unrealizedProfit)} · ${formatSignedPercent(unrealizedProfitPercent)}" else "–",
+                    profitColor(unrealizedProfit)
+                )
+                PortfolioValueRow(
+                    "Gesamt G/V",
+                    if (totalPositionProfit != null && totalPositionProfitPercent != null) "${formatSignedMoney(totalPositionProfit)} · ${formatSignedPercent(totalPositionProfitPercent)}" else "–",
+                    profitColor(totalPositionProfit)
+                )
+                if (item.price == null) {
+                    val detail = item.dataError?.takeIf { it.isNotBlank() }?.let { ": $it" }.orEmpty()
+                    Text("Kursdaten fehlen$detail", color = RadarYellow, style = MaterialTheme.typography.bodySmall)
+                } else if (comparablePrice == null) {
+                    Text("EUR-Umrechnung für ${item.currency} fehlt – Performance wird berechnet, sobald der Wechselkurs verfügbar ist.", color = RadarYellow, style = MaterialTheme.typography.bodySmall)
+                }
+                if (item.price != null && item.dataSource.isNotBlank()) {
+                    val quality = if (item.dataDelayed) "verzögert" else "Live"
+                    Text("Kursquelle ${item.dataSource} · $quality", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
+                }
+                if (item.price != null && !item.currency.equals("EUR", ignoreCase = true) && item.fxRateToEur != null && item.fxSource.isNotBlank()) {
+                    val fxQuality = when {
+                        item.fxSource.contains("ECB", ignoreCase = true) && !item.fxSource.startsWith("Cache") -> "Tageskurs"
+                        item.fxDelayed -> "verzögert"
+                        else -> "Live"
+                    }
+                    val fxStand = item.fxAsOf?.takeIf { it.isNotBlank() }?.let { " · Stand $it" }.orEmpty()
+                    Text("FX ${item.fxSource} · $fxQuality$fxStand", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
+                }
+
+                Text("Score ${reco.score}/100 · Risiko ${item.risk}/5", color = recommendationColor(reco.label), fontWeight = FontWeight.Bold)
+                Text(reco.reason, style = MaterialTheme.typography.bodySmall)
+                Button(onClick = { onEdit(item) }, modifier = Modifier.fillMaxWidth()) { Text("Transaktionen verwalten") }
+                OutlinedButton(onClick = { openInvestment(context, item) }, modifier = Modifier.fillMaxWidth()) { Text("Wertpapier öffnen") }
+                OutlinedButton(onClick = { onRemove(item.id) }, modifier = Modifier.fillMaxWidth()) { Text("Aus Portfolio entfernen") }
             }
         }
     }
@@ -552,13 +660,18 @@ private fun PurchaseHistoryDialog(
                 Text(item.name, fontWeight = FontWeight.Black)
                 Text("${item.ticker} · ${item.isin}", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
 
-                Card(colors = CardDefaults.cardColors(containerColor = RadarSurface2), shape = RoundedCornerShape(16.dp)) {
-                    Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                        PortfolioValueRow("Verbleibend investiert", formatMoney(current.investedAmount), RadarText)
-                        PortfolioValueRow("Verbleibende Stückzahl", formatShares(current.shares), RadarText)
-                        PortfolioValueRow("Ø Einstand", current.averageBuyPrice()?.let(::formatMoney) ?: "–", RadarGreen)
-                        PortfolioValueRow("Realisierter G/V", formatSignedMoney(current.realizedProfitLoss()), profitColor(current.realizedProfitLoss()))
-                    }
+                NeonPanel(accent = RadarPurple) {
+                    PortfolioBadgeRow(
+                        listOf(
+                            "Bestand" to formatShares(current.shares),
+                            "Käufe" to current.purchases.size.toString(),
+                            "Verkäufe" to current.sales.size.toString()
+                        )
+                    )
+                    PortfolioValueRow("Verbleibend investiert", formatMoney(current.investedAmount), RadarText)
+                    PortfolioValueRow("Verbleibende Stückzahl", formatShares(current.shares), RadarText)
+                    PortfolioValueRow("Ø Einstand", current.averageBuyPrice()?.let(::formatMoney) ?: "–", RadarGreen)
+                    PortfolioValueRow("Realisierter G/V", formatSignedMoney(current.realizedProfitLoss()), profitColor(current.realizedProfitLoss()))
                 }
 
                 Text("Transaktion hinzufügen", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
@@ -670,8 +783,7 @@ private fun PurchaseHistoryDialog(
                     Text("Noch kein Kauf erfasst.", color = RadarMuted)
                 } else {
                     current.purchases.asReversed().forEach { purchase ->
-                        Card(colors = CardDefaults.cardColors(containerColor = RadarSurface2), shape = RoundedCornerShape(14.dp)) {
-                            Column(Modifier.fillMaxWidth().padding(11.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        NeonPanel(accent = RadarGreen) {
                                 Text(purchase.date.ifBlank { "Bestand übernommen" }, fontWeight = FontWeight.Bold)
                                 Text(
                                     "${formatMoney(purchase.investedAmount)} · ${formatShares(purchase.shares)} Anteile · Kaufkurs ${purchase.buyPrice()?.let(::formatMoney) ?: "–"}",
@@ -694,7 +806,6 @@ private fun PurchaseHistoryDialog(
                             }
                         }
                     }
-                }
 
                 HorizontalDivider(color = RadarSurface2)
                 Text("Bisherige Verkäufe", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
@@ -702,8 +813,7 @@ private fun PurchaseHistoryDialog(
                     Text("Noch kein Verkauf erfasst.", color = RadarMuted)
                 } else {
                     current.sales.asReversed().forEach { sale ->
-                        Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF2A1B22)), shape = RoundedCornerShape(14.dp)) {
-                            Column(Modifier.fillMaxWidth().padding(11.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        NeonPanel(accent = RadarYellow) {
                                 Text(sale.date.ifBlank { "Verkauf" }, fontWeight = FontWeight.Bold, color = RadarYellow)
                                 Text(
                                     "${formatMoney(sale.proceeds)} Erlös · ${formatShares(sale.shares)} Anteile · Verkaufspreis ${sale.salePrice()?.let(::formatMoney) ?: "–"}",
@@ -723,7 +833,6 @@ private fun PurchaseHistoryDialog(
                             }
                         }
                     }
-                }
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Fertig") } },
@@ -758,12 +867,11 @@ private fun AlertsScreen(alerts: List<SignalAlert>) {
 @Composable
 private fun RecommendationRow(item: InvestmentItem, amount: Int, onOpen: () -> Unit) {
     val reco = InvestmentPlanner.recommendation(item.toPlannerItem())
-    Card(
+    NeonPanel(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen),
-        colors = CardDefaults.cardColors(containerColor = RadarSurface),
-        shape = RoundedCornerShape(18.dp)
+        accent = recommendationColor(reco.label)
     ) {
-        Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(item.name, fontWeight = FontWeight.Black)
                 Text("${item.ticker} · Score ${reco.score}/100 · Risiko ${item.risk}/5", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
@@ -771,7 +879,7 @@ private fun RecommendationRow(item: InvestmentItem, amount: Int, onOpen: () -> U
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(if (amount > 0) "$amount €" else "0 €", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium, color = if (amount > 0) RadarGreen else RadarMuted)
-                Icon(Icons.Default.OpenInNew, null, tint = RadarMuted, modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.OpenInNew, null, tint = RadarCyan, modifier = Modifier.size(18.dp))
             }
         }
     }
@@ -780,18 +888,21 @@ private fun RecommendationRow(item: InvestmentItem, amount: Int, onOpen: () -> U
 @Composable
 private fun DarkMetricCard(label: String, value: String, accent: Color, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null) {
     val clickModifier = if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
-    Card(modifier.then(clickModifier), colors = CardDefaults.cardColors(containerColor = RadarSurface), shape = RoundedCornerShape(16.dp)) {
-        Column(Modifier.fillMaxWidth().padding(vertical = 13.dp, horizontal = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(label, style = MaterialTheme.typography.labelSmall, color = RadarMuted)
-            Text(value, fontWeight = FontWeight.Black, color = accent)
-        }
+    NeonPanel(modifier.then(clickModifier), accent) {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = RadarMuted)
+        Text(value, fontWeight = FontWeight.Black, color = accent, style = MaterialTheme.typography.titleLarge)
+        Text("Live Übersicht", style = MaterialTheme.typography.labelSmall, color = accent.copy(alpha = 0.78f))
     }
 }
 
 @Composable
 private fun ScoreRing(score: Int) {
-    Surface(color = Color(0x221FFFFFF), shape = RoundedCornerShape(50)) {
-        Column(Modifier.padding(horizontal = 13.dp, vertical = 9.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+    Surface(
+        color = Color(0x141FFFFFF),
+        shape = RoundedCornerShape(18.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, RadarGreen.copy(alpha = 0.45f))
+    ) {
+        Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(score.toString(), fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleLarge, color = RadarGreen)
             Text("/100", color = RadarMuted, style = MaterialTheme.typography.labelSmall)
         }
@@ -800,8 +911,97 @@ private fun ScoreRing(score: Int) {
 
 @Composable
 private fun StatusPill(status: String) {
-    Surface(color = recommendationColor(status).copy(alpha = 0.16f), shape = RoundedCornerShape(50)) {
+    Surface(
+        color = recommendationColor(status).copy(alpha = 0.14f),
+        shape = RoundedCornerShape(50),
+        border = androidx.compose.foundation.BorderStroke(1.dp, recommendationColor(status).copy(alpha = 0.40f))
+    ) {
         Text(status, Modifier.padding(horizontal = 10.dp, vertical = 5.dp), color = recommendationColor(status), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black)
+    }
+}
+
+@Composable
+private fun NeonPanel(
+    modifier: Modifier = Modifier,
+    accent: Color = RadarBlue,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        shape = RoundedCornerShape(22.dp)
+    ) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .background(Brush.linearGradient(listOf(accent.copy(alpha = 0.10f), RadarSurface.copy(alpha = 0.99f), RadarSurface2.copy(alpha = 0.96f))))
+                .border(1.dp, accent.copy(alpha = 0.34f), RoundedCornerShape(22.dp))
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            content = {
+                Box(
+                    Modifier
+                        .fillMaxWidth(0.32f)
+                        .height(3.dp)
+                        .background(brush = Brush.horizontalGradient(listOf(accent.copy(alpha = 0.18f), accent, RadarPurple)), shape = RoundedCornerShape(50))
+                )
+                content()
+            }
+        )
+    }
+}
+
+@Composable
+private fun PortfolioBadgeRow(entries: List<Pair<String, String>>) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            entries.take(2).forEach { (label, value) ->
+                MetricBadge(label, value, Modifier.weight(1f))
+            }
+        }
+        if (entries.size > 2) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                entries.drop(2).take(2).forEach { (label, value) ->
+                    MetricBadge(label, value, Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MetricBadge(label: String, value: String, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier,
+        color = Color(0x12FFFFFF),
+        shape = RoundedCornerShape(16.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, RadarGlow)
+    ) {
+        Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(label.uppercase(), style = MaterialTheme.typography.labelSmall, color = RadarMuted)
+            Text(value, fontWeight = FontWeight.Bold, color = RadarText)
+        }
+    }
+}
+
+@Composable
+private fun NeonStatStrip(entries: List<Pair<String, String>>, accent: Color) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(accent.copy(alpha = 0.06f), RoundedCornerShape(18.dp))
+            .border(1.dp, accent.copy(alpha = 0.24f), RoundedCornerShape(18.dp))
+            .padding(10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        entries.chunked(2).forEach { rowEntries ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                rowEntries.forEach { (label, value) ->
+                    MetricBadge(label, value, Modifier.weight(1f))
+                }
+                if (rowEntries.size == 1) Spacer(Modifier.weight(1f))
+            }
+        }
     }
 }
 
@@ -837,12 +1037,12 @@ private fun BudgetDialog(current: Int, onDismiss: () -> Unit, onSave: (Int) -> U
 
 @Composable
 private fun ErrorView(message: String, retry: () -> Unit) {
-    Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("Keine Live-Verbindung", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleLarge)
-        Spacer(Modifier.height(8.dp))
-        Text(message, color = RadarMuted)
-        Spacer(Modifier.height(16.dp))
-        Button(onClick = retry) { Text("Erneut versuchen") }
+    Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+        NeonPanel(accent = RadarRed, modifier = Modifier.fillMaxWidth()) {
+            Text("Keine Live-Verbindung", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleLarge)
+            Text(message, color = RadarMuted)
+            Button(onClick = retry, modifier = Modifier.fillMaxWidth()) { Text("Erneut versuchen") }
+        }
     }
 }
 

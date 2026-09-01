@@ -1,10 +1,10 @@
-Investment Radar 1.1.22 UPDATE
+Investment Radar 1.1.24 UPDATE
 
 Dieses Paket erweitert ausschließlich die Android-App um Verkäufe/Teilverkauf und Performance aus Käufen + Verkäufen. Das Backend bleibt auf 1.1.20 und muss für dieses Update nicht neu deployt werden.
 
 Vorgehen:
 1. Inhalt dieses Pakets ins GitHub-Repository übernehmen.
 2. Actions -> Build Android APK starten.
-3. Warten, bis der Build grün ist und Release v1.1.22 veröffentlicht wurde.
+3. Warten, bis der Build grün ist und Release v1.1.24 veröffentlicht wurde.
 4. In der installierten Investment-Radar-App auf Update drücken.
 5. Bestehende App nicht deinstallieren, damit Portfolio- und Transaktionsdaten erhalten bleiben.
