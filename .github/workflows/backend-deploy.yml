@@ -49,12 +49,34 @@ jobs:
             exit 2
           fi
 
+      - name: Create immutable deploy package
+        if: steps.azure_config.outputs.configured == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          DEPLOY_ID="${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          echo "DEPLOY_ID=$DEPLOY_ID" >> "$GITHUB_ENV"
+          echo "=== Backend evidence before packaging ==="
+          echo "Commit: $GITHUB_SHA"
+          echo "Deploy ID: $DEPLOY_ID"
+          echo "package.json version: $(node -p "require('./backend/package.json').version")"
+          echo "health.mjs backendVersion: $(grep -o 'backendVersion: "[^"]*"' backend/src/functions/health.mjs | head -1 || true)"
+          printf '%s\n' "$DEPLOY_ID" > backend/.deploy-id
+          rm -f backend-deploy.zip
+          (cd backend && zip -qr ../backend-deploy.zip . -x 'node_modules/*')
+          echo "Deploy package SHA-256:"
+          sha256sum backend-deploy.zip
+          echo "Deploy package contents (diagnostic files):"
+          unzip -p backend-deploy.zip package.json | head -40
+          unzip -p backend-deploy.zip src/functions/health.mjs | head -80
+          unzip -p backend-deploy.zip .deploy-id
+
       - name: Deploy Azure Functions
         if: steps.azure_config.outputs.configured == 'true'
         uses: Azure/functions-action@v1
         with:
           app-name: ${{ vars.AZURE_FUNCTIONAPP_NAME }}
-          package: backend
+          package: backend-deploy.zip
           publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
           sku: flexconsumption
           remote-build: true
@@ -74,7 +96,9 @@ jobs:
 
           HEALTH_OK=false
           LAST_VERSION=""
-          for attempt in 1 2 3 4 5 6; do
+          echo "Deploy ID submitted to Azure: ${DEPLOY_ID:-<missing>}"
+          echo "Waiting up to 6 minutes for the Flex host to activate the new package..."
+          for attempt in $(seq 1 24); do
             STATUS=$(curl --silent --show-error --max-time 20 --output /tmp/health-body.json --write-out "%{http_code}" "$HEALTH_URL" || true)
             echo "Health status: $STATUS"
             if [ "$STATUS" = "200" ]; then
@@ -85,12 +109,15 @@ jobs:
                 break
               fi
             fi
-            sleep 10
+            sleep 15
           done
 
           if [ "$HEALTH_OK" != "true" ]; then
             echo "❌ /api/health ist erreichbar, aber nicht mit Backend-Version $EXPECTED_BACKEND_VERSION." >> "$GITHUB_STEP_SUMMARY"
             echo "Gefundene Version: ${LAST_VERSION:-<fehlt>}" >> "$GITHUB_STEP_SUMMARY"
+            echo "Deploy-ID: ${DEPLOY_ID:-<fehlt>}" >> "$GITHUB_STEP_SUMMARY"
+            echo "Azure hat das Deployment akzeptiert, liefert aber weiterhin einen anderen Backend-Stand aus." >> "$GITHUB_STEP_SUMMARY"
+            echo "Das ist jetzt als Aktivierungs-/Deploymentproblem eingegrenzt, nicht als Quellcode-Versionsproblem." >> "$GITHUB_STEP_SUMMARY"
             echo "Letzte Health-Antwort:" >> "$GITHUB_STEP_SUMMARY"
             cat /tmp/health-body.json >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
             exit 1
