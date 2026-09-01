@@ -64,11 +64,12 @@ jobs:
         shell: bash
         env:
           BASE_URL: ${{ vars.INVESTMENT_API_BASE_URL }}
-          EXPECTED_BACKEND_VERSION: 1.1.20
+          EXPECTED_BACKEND_VERSION: 1.1.25
         run: |
           set -euo pipefail
           HEALTH_URL="${BASE_URL%/}/api/health"
           PUSH_URL="${BASE_URL%/}/api/test-push"
+          CUSTOM_URL="${BASE_URL%/}/api/custom-quote"
           echo "Checking $HEALTH_URL for backendVersion=$EXPECTED_BACKEND_VERSION"
 
           HEALTH_OK=false
@@ -117,6 +118,17 @@ jobs:
             exit 1
           fi
 
+          echo "Checking custom quote route $CUSTOM_URL"
+          CUSTOM_STATUS=$(curl --silent --show-error --max-time 20 --output /tmp/custom-route-body.txt --write-out "%{http_code}" "$CUSTOM_URL" || true)
+          echo "Custom quote route status: $CUSTOM_STATUS"
+          if [ "$CUSTOM_STATUS" != "400" ]; then
+            echo "❌ /api/custom-quote ist nicht korrekt registriert. Erwartet: HTTP 400 ohne Ticker." >> "$GITHUB_STEP_SUMMARY"
+            echo "Letzte Antwort:" >> "$GITHUB_STEP_SUMMARY"
+            cat /tmp/custom-route-body.txt >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+            exit 1
+          fi
+
           echo "## Backend Deploy" >> "$GITHUB_STEP_SUMMARY"
           echo "✅ Backend-Version $EXPECTED_BACKEND_VERSION ist live: ${BASE_URL%/}" >> "$GITHUB_STEP_SUMMARY"
           echo "✅ Push-Test-Route /api/test-push ist registriert und geschützt (HTTP 401 ohne Admin-Key)." >> "$GITHUB_STEP_SUMMARY"
+          echo "✅ Eigene-Werte-Route /api/custom-quote ist registriert." >> "$GITHUB_STEP_SUMMARY"
