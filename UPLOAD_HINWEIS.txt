@@ -1,9 +1,9 @@
-Investment Radar 1.1.19 UPDATE
+Investment Radar 1.1.20 UPDATE
 
 Den kompletten Inhalt dieses Ordners in das bestehende GitHub-Repository übernehmen.
-Wichtig: Diesmal enthält das Paket wieder die verbindlichen Backend-Einstiegsdateien und backend-deploy.yml.
 
 Danach zuerst:
 1. Actions -> Deploy Backend
-2. Der Deploy muss /api/health = 200 UND /api/admin/test-push ohne Admin-Key = 401 bestätigen.
-3. Danach optional Build Android APK und per App-Update auf 1.1.19 aktualisieren.
+2. Der Deploy muss /api/health mit backendVersion 1.1.20 bestätigen.
+3. /api/test-push muss ohne Admin-Key HTTP 401 liefern.
+4. Erst danach optional Build Android APK und per App-Update auf 1.1.20 aktualisieren.

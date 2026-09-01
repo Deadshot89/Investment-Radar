@@ -2,7 +2,7 @@ import { app } from "@azure/functions";
 import { sendAlert } from "../lib/push.mjs";
 
 app.http("testPush", {
-  methods: ["POST"], authLevel: "anonymous", route: "admin/test-push",
+  methods: ["POST"], authLevel: "anonymous", route: "test-push",
   handler: async (request) => {
     const configuredKey = process.env.ADMIN_API_KEY?.trim();
     const supplied = request.headers.get("x-admin-key")?.trim();

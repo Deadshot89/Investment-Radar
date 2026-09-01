@@ -27,8 +27,8 @@ grep -q 'androidx.core.content.FileProvider' "$MANIFEST" || fail "FileProvider f
 grep -q 'update_file_paths' "$MANIFEST" || fail "FileProvider paths fehlen"
 
 grep -q 'GITHUB_REPOSITORY' "$GRADLE" || fail "GITHUB_REPOSITORY BuildConfig fehlt"
-grep -q 'versionCode = 20' "$GRADLE" || fail "versionCode 20 fehlt"
-grep -q 'versionName = "1.1.19"' "$GRADLE" || fail "versionName 1.1.19 fehlt"
+grep -q 'versionCode = 21' "$GRADLE" || fail "versionCode 21 fehlt"
+grep -q 'versionName = "1.1.20"' "$GRADLE" || fail "versionName 1.1.20 fehlt"
 
 grep -q '^permissions:' "$WORKFLOW" || fail "Workflow permissions fehlen"
 grep -q 'contents: write' "$WORKFLOW" || fail "contents write permission fehlt"
