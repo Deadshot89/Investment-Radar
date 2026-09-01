@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+MAIN="$ROOT/android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt"
+VM="$ROOT/android/app/src/main/java/de/tobias/investmentradar/MainViewModel.kt"
+STORE="$ROOT/android/app/src/main/java/de/tobias/investmentradar/PortfolioStore.kt"
+GRADLE="$ROOT/android/app/build.gradle.kts"
+
+grep -q 'PortfolioSale' "$MAIN"
+grep -q 'Verkauf hinzufügen' "$MAIN"
+grep -q 'Verkaufserlös' "$MAIN"
+grep -q 'Realisierter G/V' "$MAIN"
+grep -q 'Unrealisierter G/V' "$MAIN"
+grep -q 'Verkauf nicht möglich' "$MAIN"
+grep -q 'fun upsertSale' "$VM"
+grep -q 'fun removeSale' "$VM"
+grep -q 'salesKey' "$STORE"
+grep -q 'encodeSales' "$STORE"
+grep -q 'decodeSales' "$STORE"
+grep -q 'versionCode = 26' "$GRADLE"
+grep -q 'versionName = "1.1.25"' "$GRADLE"

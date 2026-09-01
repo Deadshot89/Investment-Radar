@@ -1,0 +1,134 @@
+name: Deploy Backend
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-deploy.yml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        working-directory: backend
+        run: npm install --no-audit --no-fund
+
+      - name: Syntax check
+        working-directory: backend
+        run: npm run check
+
+      - name: Check Azure configuration
+        id: azure_config
+        shell: bash
+        env:
+          APP_NAME: ${{ vars.AZURE_FUNCTIONAPP_NAME }}
+          PUBLISH_PROFILE: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
+          BASE_URL: ${{ vars.INVESTMENT_API_BASE_URL }}
+        run: |
+          if [ -n "$APP_NAME" ] && [ -n "$PUBLISH_PROFILE" ] && [[ "$BASE_URL" =~ ^https://[^/]+ ]]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+            echo "Azure deployment configuration found."
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "## Backend Deploy" >> "$GITHUB_STEP_SUMMARY"
+            echo "❌ Azure ist noch nicht eingerichtet. Es wurde kein Backend veröffentlicht." >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Benötigt:" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Variable: AZURE_FUNCTIONAPP_NAME" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Secret: AZURE_FUNCTIONAPP_PUBLISH_PROFILE" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Variable: INVESTMENT_API_BASE_URL (vollstaendige Flex-Standarddomain mit https://)" >> "$GITHUB_STEP_SUMMARY"
+            echo "Azure configuration missing; stopping before a misleading green deploy."
+            exit 2
+          fi
+
+      - name: Deploy Azure Functions
+        if: steps.azure_config.outputs.configured == 'true'
+        uses: Azure/functions-action@v1
+        with:
+          app-name: ${{ vars.AZURE_FUNCTIONAPP_NAME }}
+          package: backend
+          publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
+          sku: flexconsumption
+          remote-build: true
+
+      - name: Verify live backend
+        if: steps.azure_config.outputs.configured == 'true'
+        shell: bash
+        env:
+          BASE_URL: ${{ vars.INVESTMENT_API_BASE_URL }}
+          EXPECTED_BACKEND_VERSION: 1.1.25
+        run: |
+          set -euo pipefail
+          HEALTH_URL="${BASE_URL%/}/api/health"
+          PUSH_URL="${BASE_URL%/}/api/test-push"
+          CUSTOM_URL="${BASE_URL%/}/api/custom-quote"
+          echo "Checking $HEALTH_URL for backendVersion=$EXPECTED_BACKEND_VERSION"
+
+          HEALTH_OK=false
+          LAST_VERSION=""
+          for attempt in 1 2 3 4 5 6; do
+            STATUS=$(curl --silent --show-error --max-time 20 --output /tmp/health-body.json --write-out "%{http_code}" "$HEALTH_URL" || true)
+            echo "Health status: $STATUS"
+            if [ "$STATUS" = "200" ]; then
+              LAST_VERSION=$(node -e 'const fs=require("fs"); try { const j=JSON.parse(fs.readFileSync("/tmp/health-body.json","utf8")); process.stdout.write(String(j.backendVersion ?? "")); } catch { process.stdout.write(""); }')
+              echo "Live backendVersion: ${LAST_VERSION:-<missing>}"
+              if [ "$LAST_VERSION" = "$EXPECTED_BACKEND_VERSION" ]; then
+                HEALTH_OK=true
+                break
+              fi
+            fi
+            sleep 10
+          done
+
+          if [ "$HEALTH_OK" != "true" ]; then
+            echo "❌ /api/health ist erreichbar, aber nicht mit Backend-Version $EXPECTED_BACKEND_VERSION." >> "$GITHUB_STEP_SUMMARY"
+            echo "Gefundene Version: ${LAST_VERSION:-<fehlt>}" >> "$GITHUB_STEP_SUMMARY"
+            echo "Letzte Health-Antwort:" >> "$GITHUB_STEP_SUMMARY"
+            cat /tmp/health-body.json >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+            exit 1
+          fi
+
+          echo "Checking protected push route $PUSH_URL"
+          PUSH_OK=false
+          for attempt in 1 2 3 4 5 6; do
+            STATUS=$(curl --silent --show-error --max-time 20 --output /tmp/push-route-body.txt --write-out "%{http_code}" -X POST \
+              -H "Content-Type: application/json" \
+              --data '{"level":"INFO","itemId":"deploy-check"}' \
+              "$PUSH_URL" || true)
+            echo "Push route status: $STATUS"
+            if [ "$STATUS" = "401" ]; then
+              PUSH_OK=true
+              break
+            fi
+            sleep 10
+          done
+
+          if [ "$PUSH_OK" != "true" ]; then
+            echo "❌ /api/test-push ist nicht korrekt registriert. Erwartet: HTTP 401 ohne Admin-Key." >> "$GITHUB_STEP_SUMMARY"
+            echo "Letzte Antwort:" >> "$GITHUB_STEP_SUMMARY"
+            cat /tmp/push-route-body.txt >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+            exit 1
+          fi
+
+          echo "Checking custom quote route $CUSTOM_URL"
+          CUSTOM_STATUS=$(curl --silent --show-error --max-time 20 --output /tmp/custom-route-body.txt --write-out "%{http_code}" "$CUSTOM_URL" || true)
+          echo "Custom quote route status: $CUSTOM_STATUS"
+          if [ "$CUSTOM_STATUS" != "400" ]; then
+            echo "❌ /api/custom-quote ist nicht korrekt registriert. Erwartet: HTTP 400 ohne Ticker." >> "$GITHUB_STEP_SUMMARY"
+            echo "Letzte Antwort:" >> "$GITHUB_STEP_SUMMARY"
+            cat /tmp/custom-route-body.txt >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+            exit 1
+          fi
+
+          echo "## Backend Deploy" >> "$GITHUB_STEP_SUMMARY"
+          echo "✅ Backend-Version $EXPECTED_BACKEND_VERSION ist live: ${BASE_URL%/}" >> "$GITHUB_STEP_SUMMARY"
+          echo "✅ Push-Test-Route /api/test-push ist registriert und geschützt (HTTP 401 ohne Admin-Key)." >> "$GITHUB_STEP_SUMMARY"
+          echo "✅ Eigene-Werte-Route /api/custom-quote ist registriert." >> "$GITHUB_STEP_SUMMARY"
