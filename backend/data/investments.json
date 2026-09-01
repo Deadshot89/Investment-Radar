@@ -15,7 +15,8 @@
       "allocation": 40,
       "risk": 2,
       "reviewDrop1dPct": 6.0,
-      "hardReviewBelow": 9.5
+      "hardReviewBelow": 9.5,
+      "yahooSymbol": "SPYI.DE"
     },
     {
       "id": "msft",
@@ -43,7 +44,8 @@
       "allocation": 15,
       "risk": 3,
       "reviewDrop1dPct": 6.0,
-      "hardReviewBelow": 57
+      "hardReviewBelow": 57,
+      "yahooSymbol": "IS3S.DE"
     },
     {
       "id": "googl",
@@ -71,7 +73,8 @@
       "allocation": 10,
       "risk": 3,
       "reviewDrop1dPct": 6.0,
-      "hardReviewBelow": 64
+      "hardReviewBelow": 64,
+      "yahooSymbol": "IS3Q.DE"
     },
     {
       "id": "visa",

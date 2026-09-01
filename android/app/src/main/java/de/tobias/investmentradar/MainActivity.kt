@@ -439,9 +439,13 @@ private fun PortfolioScreen(
                         profitColor(profit)
                     )
                     if (item.price == null) {
-                        Text("Live-Kurs fehlt – Performance wird automatisch berechnet, sobald Kursdaten verfügbar sind.", color = RadarYellow, style = MaterialTheme.typography.bodySmall)
+                        val detail = item.dataError?.takeIf { it.isNotBlank() }?.let { ": $it" }.orEmpty()
+                        Text("Kursdaten fehlen$detail", color = RadarYellow, style = MaterialTheme.typography.bodySmall)
                     } else if (comparablePrice == null) {
-                        Text("Kurswährung ${item.currency} – Gewinn/Verlust wird erst mit einem EUR-Kurs oder einer EUR-Umrechnung berechnet.", color = RadarYellow, style = MaterialTheme.typography.bodySmall)
+                        Text("EUR-Umrechnung für ${item.currency} fehlt – Performance wird berechnet, sobald der Wechselkurs verfügbar ist.", color = RadarYellow, style = MaterialTheme.typography.bodySmall)
+                    }
+                    if (item.dataDelayed && item.dataSource.isNotBlank()) {
+                        Text("Kursquelle ${item.dataSource} · verzögert", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
                     }
 
                     Text("Score ${reco.score}/100 · Risiko ${item.risk}/5", color = recommendationColor(reco.label), fontWeight = FontWeight.Bold)
@@ -679,11 +683,16 @@ private fun openMarketQuote(context: android.content.Context, item: InvestmentIt
 private fun priceLine(item: InvestmentItem): String {
     val price = item.price?.let { String.format(Locale.GERMANY, "%.2f", it) } ?: "–"
     val change = item.percentChange?.let { String.format(Locale.GERMANY, "%+.2f%%", it) } ?: "–"
-    return "Kurs $price ${item.currency} · Heute $change"
+    val eur = item.priceEur
+        ?.takeIf { item.price != null && !item.currency.equals("EUR", ignoreCase = true) }
+        ?.let { " · ≈ ${formatMoney(it)}" }
+        .orEmpty()
+    val delayed = if (item.dataDelayed) " · verzögert" else ""
+    return "Kurs $price ${item.currency}$eur · Heute $change$delayed"
 }
 
 private fun euroComparablePrice(item: InvestmentItem): Double? =
-    item.price?.takeIf { item.currency.isBlank() || item.currency.equals("EUR", ignoreCase = true) }
+    item.priceEur ?: item.price?.takeIf { item.currency.isBlank() || item.currency.equals("EUR", ignoreCase = true) }
 
 private fun parseDecimal(value: String): Double? = value.trim().replace(',', '.').toDoubleOrNull()
 

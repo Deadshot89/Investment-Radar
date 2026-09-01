@@ -35,6 +35,7 @@ export async function loadSheetConfig(localConfig) {
         name,
         ticker,
         marketSymbol: existing?.marketSymbol || inferMarketSymbol(type, ticker),
+        yahooSymbol: existing?.yahooSymbol || inferYahooSymbol(type, ticker),
         isin,
         tradeRepublicName: String(row[14] ?? name).trim(),
         status: normalizeStatus(row[12]),
@@ -61,6 +62,10 @@ export async function loadSheetConfig(localConfig) {
 function inferMarketSymbol(type, ticker) {
   if (type === "ETF" && /^[A-Z0-9]{3,6}$/.test(ticker)) return `${ticker}:XETR`;
   return ticker;
+}
+function inferYahooSymbol(type, ticker) {
+  if (type === "ETF" && /^[A-Z0-9]{3,6}$/.test(ticker)) return `${ticker}.DE`;
+  return undefined;
 }
 function normalizeStatus(value) {
   const v = String(value ?? "BEOBACHTEN").trim().toUpperCase().replaceAll("Ü", "UE");

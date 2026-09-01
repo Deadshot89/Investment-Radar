@@ -20,9 +20,14 @@ data class InvestmentItem(
     val allocation: Int,
     val risk: Int,
     val price: Double?,
+    val priceEur: Double?,
     val currency: String,
+    val fxRateToEur: Double?,
     val percentChange: Double?,
-    val marketOpen: Boolean?
+    val marketOpen: Boolean?,
+    val dataSource: String,
+    val dataDelayed: Boolean,
+    val dataError: String?
 )
 
 data class SignalAlert(

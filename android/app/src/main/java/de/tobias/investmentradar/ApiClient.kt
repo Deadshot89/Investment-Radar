@@ -65,9 +65,14 @@ object ApiClient {
                     allocation = o.optInt("allocation", 0),
                     risk = o.optInt("risk", 3),
                     price = if (o.isNull("price")) null else o.optDouble("price"),
+                    priceEur = if (o.isNull("priceEur")) null else o.optDouble("priceEur"),
                     currency = o.optString("currency", ""),
+                    fxRateToEur = if (o.isNull("fxRateToEur")) null else o.optDouble("fxRateToEur"),
                     percentChange = if (o.isNull("percentChange")) null else o.optDouble("percentChange"),
-                    marketOpen = if (o.isNull("marketOpen")) null else o.optBoolean("marketOpen")
+                    marketOpen = if (o.isNull("marketOpen")) null else o.optBoolean("marketOpen"),
+                    dataSource = o.optString("dataSource", ""),
+                    dataDelayed = o.optBoolean("dataDelayed", false),
+                    dataError = if (o.isNull("dataError")) null else o.optString("dataError")
                 )
             }
         }
