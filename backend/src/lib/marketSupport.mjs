@@ -56,3 +56,17 @@ function numberOrUndefined(value) {
   const n = typeof value === "number" ? value : Number(value);
   return Number.isFinite(n) ? n : undefined;
 }
+
+export function normalizeEcbDailyXml(xml) {
+  const text = String(xml ?? "");
+  const dateMatch = text.match(/<Cube\b[^>]*\btime=["']([^"']+)["'][^>]*>/i);
+  const rates = new Map();
+  rates.set("EUR", 1);
+  const pattern = /<Cube\b[^>]*\bcurrency=["']([A-Z]{3})["'][^>]*\brate=["']([0-9.]+)["'][^>]*\/?>(?:<\/Cube>)?/gi;
+  for (const match of text.matchAll(pattern)) {
+    const currency = String(match[1]).toUpperCase();
+    const perEur = Number(match[2]);
+    if (Number.isFinite(perEur) && perEur > 0) rates.set(currency, 1 / perEur);
+  }
+  return { date: dateMatch?.[1] ?? null, rates };
+}

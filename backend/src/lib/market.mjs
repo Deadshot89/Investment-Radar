@@ -1,6 +1,7 @@
-import { convertPriceToEur, normalizeYahooChart } from "./marketSupport.mjs";
+import { convertPriceToEur, normalizeEcbDailyXml, normalizeYahooChart } from "./marketSupport.mjs";
 
 const BASE = "https://api.twelvedata.com";
+const ECB_DAILY = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml";
 const YAHOO_BASES = [
   "https://query1.finance.yahoo.com/v8/finance/chart",
   "https://query2.finance.yahoo.com/v8/finance/chart"
@@ -29,21 +30,48 @@ export async function loadQuotes(items) {
   return quotes;
 }
 
-export async function loadEurRates(quotes) {
+export async function loadEurRateDetails(quotes) {
   const key = process.env.TWELVE_DATA_API_KEY?.trim();
   const currencies = [...new Set([...quotes.values()]
     .filter((q) => q?.price != null)
     .map((q) => String(q?.currency ?? "").trim().toUpperCase())
     .filter((currency) => currency && currency !== "EUR"))];
 
-  const rates = new Map();
-  if (!key || currencies.length === 0) return rates;
+  const details = new Map();
+  if (currencies.length === 0) return details;
 
-  await Promise.all(currencies.map(async (currency) => {
-    const rate = await loadExchangeRateToEur(currency, key);
-    if (rate != null) rates.set(currency, rate);
-  }));
-  return rates;
+  if (key) {
+    await Promise.all(currencies.map(async (currency) => {
+      const rate = await loadExchangeRateToEur(currency, key);
+      if (rate != null) {
+        details.set(currency, { rate, source: "Twelve Data", delayed: false, asOf: null, error: null });
+      }
+    }));
+  }
+
+  const unresolved = currencies.filter((currency) => !Number.isFinite(details.get(currency)?.rate));
+  if (unresolved.length > 0) {
+    const ecb = await loadEcbDailyRates();
+    for (const currency of unresolved) {
+      const rate = ecb.rates.get(currency);
+      if (Number.isFinite(rate) && rate > 0) {
+        details.set(currency, { rate, source: "ECB", delayed: true, asOf: ecb.date, error: null });
+      } else {
+        details.set(currency, {
+          rate: null, source: "", delayed: true, asOf: ecb.date,
+          error: ecb.error || `Kein ECB-Referenzkurs für ${currency}`
+        });
+      }
+    }
+  }
+  return details;
+}
+
+export async function loadEurRates(quotes) {
+  const details = await loadEurRateDetails(quotes);
+  return new Map([...details.entries()]
+    .filter(([, detail]) => Number.isFinite(detail?.rate))
+    .map(([currency, detail]) => [currency, detail.rate]));
 }
 
 export function priceInEur(quote, ratesToEur) {
@@ -120,6 +148,20 @@ async function loadYahooQuote(symbol) {
     delayed: true,
     error: lastError
   };
+}
+
+async function loadEcbDailyRates() {
+  try {
+    const response = await fetch(ECB_DAILY, {
+      headers: { Accept: "application/xml,text/xml;q=0.9,*/*;q=0.8", "User-Agent": "InvestmentRadar/1.1" },
+      signal: AbortSignal.timeout(8_000)
+    });
+    if (!response.ok) return { date: null, rates: new Map(), error: `ECB HTTP ${response.status}` };
+    const normalized = normalizeEcbDailyXml(await response.text());
+    return { ...normalized, error: normalized.rates.size > 1 ? null : "ECB-Referenzkurse leer" };
+  } catch (error) {
+    return { date: null, rates: new Map(), error: error instanceof Error ? error.message : "ECB-FX-Fehler" };
+  }
 }
 
 async function loadExchangeRateToEur(currency, key) {

@@ -79,7 +79,7 @@ grep -q 'NetworkRetryPolicy.execute' "$API" || { echo "FAIL: ApiClient verwendet
 grep -q 'NetworkRetryPolicy.CONNECT_TIMEOUT_MS' "$API" || { echo "FAIL: ApiClient verwendet neuen Connect-Timeout nicht"; exit 1; }
 grep -q 'NetworkRetryPolicy.READ_TIMEOUT_MS' "$API" || { echo "FAIL: ApiClient verwendet neuen Read-Timeout nicht"; exit 1; }
 grep -q 'previousState is UiState.Ready' "$VM" || { echo "FAIL: MainViewModel bewahrt vorhandene Daten beim Refresh nicht"; exit 1; }
-grep -q 'versionCode = 18' "$BUILD" || { echo "FAIL: versionCode 18 fehlt"; exit 1; }
-grep -q 'versionName = "1.1.17"' "$BUILD" || { echo "FAIL: versionName 1.1.17 fehlt"; exit 1; }
+grep -q 'versionCode = 19' "$BUILD" || { echo "FAIL: versionCode 19 fehlt"; exit 1; }
+grep -q 'versionName = "1.1.18"' "$BUILD" || { echo "FAIL: versionName 1.1.18 fehlt"; exit 1; }
 
 echo "PASS: Network resilience wiring"

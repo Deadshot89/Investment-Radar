@@ -448,6 +448,15 @@ private fun PortfolioScreen(
                         val quality = if (item.dataDelayed) "verzögert" else "Live"
                         Text("Kursquelle ${item.dataSource} · $quality", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
                     }
+                    if (item.price != null && !item.currency.equals("EUR", ignoreCase = true) && item.fxRateToEur != null && item.fxSource.isNotBlank()) {
+                        val fxQuality = when {
+                            item.fxSource.contains("ECB", ignoreCase = true) && !item.fxSource.startsWith("Cache") -> "Tageskurs"
+                            item.fxDelayed -> "verzögert"
+                            else -> "Live"
+                        }
+                        val fxStand = item.fxAsOf?.takeIf { it.isNotBlank() }?.let { " · Stand $it" }.orEmpty()
+                        Text("FX ${item.fxSource} · $fxQuality$fxStand", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
+                    }
 
                     Text("Score ${reco.score}/100 · Risiko ${item.risk}/5", color = recommendationColor(reco.label), fontWeight = FontWeight.Bold)
                     Text(reco.reason, style = MaterialTheme.typography.bodySmall)
