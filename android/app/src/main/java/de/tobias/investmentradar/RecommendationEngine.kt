@@ -36,10 +36,33 @@ object RecommendationEngine {
             item.id to WeightRow(item, portfolioWeight, raw)
         }
         val totalWeight = weights.values.sumOf { it.personalWeight }
-        if (safeBudget == 0 || totalWeight <= 0.0) {
+        if (safeBudget == 0) {
             return PersonalPlan(
                 items = candidates.map { item -> weights.getValue(item.id).toRecommendation(0) },
-                cashAmount = safeBudget
+                cashAmount = 0
+            )
+        }
+
+        if (totalWeight <= 0.0) {
+            val fallback = weights.values
+                .filter { row -> row.item.recommendation.equals("BUY", true) && (row.item.scoreTotal ?: 0) >= 75 }
+                .minWithOrNull(
+                    compareBy<WeightRow> { it.portfolioWeight }
+                        .thenBy { it.item.risk }
+                        .thenByDescending { it.item.scoreTotal ?: 0 }
+                )
+            if (fallback == null) {
+                return PersonalPlan(
+                    items = candidates.map { item -> weights.getValue(item.id).toRecommendation(0) },
+                    cashAmount = safeBudget
+                )
+            }
+            return PersonalPlan(
+                items = candidates.map { item ->
+                    val row = weights.getValue(item.id)
+                    row.toRecommendation(if (item.id == fallback.item.id) safeBudget else 0, fallbackOverride = item.id == fallback.item.id)
+                },
+                cashAmount = 0
             )
         }
 
@@ -85,8 +108,9 @@ object RecommendationEngine {
         val portfolioWeight: Double,
         val personalWeight: Double
     ) {
-        fun toRecommendation(allocation: Int): PersonalRecommendation {
+        fun toRecommendation(allocation: Int, fallbackOverride: Boolean = false): PersonalRecommendation {
             val concentration = when {
+                fallbackOverride -> "AUSNAHME"
                 portfolioWeight >= 40.0 -> "BLOCKIERT"
                 portfolioWeight >= 30.0 -> "STARK REDUZIERT"
                 portfolioWeight >= 20.0 -> "REDUZIERT"
@@ -94,6 +118,7 @@ object RecommendationEngine {
             }
             val explanation = when {
                 !item.recommendation.equals("BUY", true) -> "Kein objektives Kaufsignal"
+                fallbackOverride -> "Ausnahme: kein weniger konzentrierter BUY-Kandidat verfügbar"
                 portfolioWeight >= 40.0 -> "Kein Neukauf: Position ist bereits stark konzentriert"
                 portfolioWeight >= 30.0 -> "Neukauf wegen hoher Depotgewichtung stark reduziert"
                 portfolioWeight >= 20.0 -> "Neukauf wegen Depotgewichtung reduziert"
