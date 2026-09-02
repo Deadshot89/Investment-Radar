@@ -1,3 +1,4 @@
+// Final 1.2.0 branch verification trigger: keeps backend state migration in the exact-head test matrix.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { normalizeState } from "../src/lib/state.mjs";

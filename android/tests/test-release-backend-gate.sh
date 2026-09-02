@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Final 1.2.0 branch verification trigger: keeps Android release gates in the exact-head test matrix.
 set -euo pipefail
 
 WF=".github/workflows/android-build.yml"
