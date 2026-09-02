@@ -1,7 +1,10 @@
 package de.tobias.investmentradar
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -9,13 +12,19 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
@@ -27,9 +36,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import java.text.SimpleDateFormat
+import java.util.Locale
+import java.util.TimeZone
 
 @Composable
 fun AlertsScreen(
@@ -57,9 +71,13 @@ fun AlertsScreen(
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("ALARME", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold)
                 Text("Alarmcenter", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
-                Text("$unread ungelesen", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    AlertFilter.entries.forEach { candidate ->
+                Text(
+                    if (unread == 1) "1 neuer Alarm" else "$unread neue Alarme",
+                    color = if (unread > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = if (unread > 0) FontWeight.Bold else FontWeight.Normal
+                )
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(AlertFilter.entries) { candidate ->
                         FilterChip(
                             selected = filter == candidate,
                             onClick = { filterName = candidate.name },
@@ -72,7 +90,7 @@ fun AlertsScreen(
                     TextButton(onClick = { showSettings = true }, modifier = Modifier.weight(1f)) { Text("Alarmeinstellungen") }
                 }
                 if (alerts.isNotEmpty()) {
-                    TextButton(onClick = { confirmClear = true }, modifier = Modifier.fillMaxWidth()) { Text("Alle Alarme löschen") }
+                    TextButton(onClick = { confirmClear = true }, modifier = Modifier.fillMaxWidth()) { Text("Alarmverlauf leeren") }
                 }
             }
         }
@@ -82,25 +100,7 @@ fun AlertsScreen(
         }
 
         items(visible, key = { it.alert.id }) { stored ->
-            val alert = stored.alert
-            Card(
-                modifier = Modifier.fillMaxWidth().clickable { onOpen(stored) },
-                shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = if (stored.isRead) MaterialTheme.colorScheme.surfaceContainer
-                    else MaterialTheme.colorScheme.secondaryContainer
-                )
-            ) {
-                Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(alert.title.ifBlank { alert.level }, fontWeight = FontWeight.Black, modifier = Modifier.weight(1f))
-                        if (!stored.isRead) Text("NEU", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Black)
-                    }
-                    Text(alert.message)
-                    Text(alert.createdAt, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    TextButton(onClick = { onDelete(alert.id) }) { Text("Löschen") }
-                }
-            }
+            AlertCard(stored = stored, onOpen = onOpen, onDelete = onDelete)
         }
     }
 
@@ -123,6 +123,110 @@ fun AlertsScreen(
             onSave = { value -> onPreferencesChange(value); showSettings = false }
         )
     }
+}
+
+@Composable
+private fun AlertCard(
+    stored: StoredAlert,
+    onOpen: (StoredAlert) -> Unit,
+    onDelete: (String) -> Unit
+) {
+    val alert = stored.alert
+    val accent = alertAccentColor(alert)
+    val shape = RoundedCornerShape(18.dp)
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, accent.copy(alpha = if (stored.isRead) 0.26f else 0.62f), shape)
+            .clickable { onOpen(stored) },
+        shape = shape,
+        colors = CardDefaults.cardColors(
+            containerColor = if (stored.isRead) MaterialTheme.colorScheme.surfaceContainer
+            else MaterialTheme.colorScheme.surfaceContainerHigh
+        )
+    ) {
+        Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .background(accent.copy(alpha = 0.16f), RoundedCornerShape(9.dp))
+                        .border(1.dp, accent.copy(alpha = 0.45f), RoundedCornerShape(9.dp))
+                        .padding(horizontal = 9.dp, vertical = 5.dp)
+                ) {
+                    Text(
+                        alertBadgeLabel(alert),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Black,
+                        color = accent
+                    )
+                }
+                if (!stored.isRead) {
+                    Text("NEU", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Black, style = MaterialTheme.typography.labelSmall)
+                }
+                Box(Modifier.weight(1f))
+                IconButton(onClick = { onDelete(alert.id) }) {
+                    Icon(Icons.Default.DeleteOutline, contentDescription = "Alarm löschen", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+
+            Text(
+                alert.title.ifBlank { alert.level },
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Black
+            )
+
+            Text(
+                formatAlertTimestamp(alert.createdAt),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            HorizontalDivider(color = accent.copy(alpha = 0.18f))
+
+            Text("Warum der Radar reagiert", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = accent)
+            Text(alert.message, style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+}
+
+private fun alertBadgeLabel(alert: SignalAlert): String {
+    val combined = "${alert.title} ${alert.message}".uppercase(Locale.GERMANY)
+    if ("PROGNOSE" in combined || "FORECAST" in combined) return "PROGNOSE"
+    return when (alert.level.trim().uppercase(Locale.GERMANY)) {
+        "BUY" -> "KAUFCHANCE"
+        "REVIEW" -> "PRÜFEN"
+        "SELL" -> "VERKAUF"
+        "THRESHOLD" -> "SCHWELLE"
+        else -> "INFO"
+    }
+}
+
+private fun alertAccentColor(alert: SignalAlert): Color {
+    val combined = "${alert.title} ${alert.message}".uppercase(Locale.GERMANY)
+    if ("PROGNOSE" in combined || "FORECAST" in combined) return Color(0xFF9F7BFF)
+    return when (alert.level.trim().uppercase(Locale.GERMANY)) {
+        "BUY" -> Color(0xFF2EE59D)
+        "REVIEW" -> Color(0xFFFFC857)
+        "SELL" -> Color(0xFFFF6577)
+        "THRESHOLD" -> Color(0xFFFF8A65)
+        else -> Color(0xFF4C8DFF)
+    }
+}
+
+private fun formatAlertTimestamp(raw: String): String {
+    if (raw.isBlank()) return "Zeitpunkt unbekannt"
+    val patterns = listOf("yyyy-MM-dd'T'HH:mm:ss.SSSX", "yyyy-MM-dd'T'HH:mm:ssX")
+    val parsed = patterns.firstNotNullOfOrNull { pattern ->
+        runCatching {
+            SimpleDateFormat(pattern, Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }.parse(raw)
+        }.getOrNull()
+    } ?: return raw
+    return SimpleDateFormat("dd.MM.yyyy · HH:mm", Locale.GERMANY).format(parsed)
 }
 
 @Composable
