@@ -28,6 +28,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import java.util.Locale
@@ -43,6 +44,7 @@ fun RadarScreenV2(
     onEditInvestment: (InvestmentItem) -> Unit,
     onOpenDetail: (String) -> Unit
 ) {
+    val context = LocalContext.current
     var filters by remember { mutableStateOf(RadarFilterState()) }
     val visibleItems = remember(items, filters, holdingIds, watchlistIds, personalById) {
         RadarFilterEngine.apply(
@@ -163,7 +165,8 @@ fun RadarScreenV2(
                 onToggleWatchlist = { onToggleWatchlist(item.id) },
                 onBought = { onBought(item) },
                 onEditInvestment = { onEditInvestment(item) },
-                onOpenDetail = { onOpenDetail(item.id) }
+                onOpenDetail = { onOpenDetail(item.id) },
+                onOpenTradeRepublic = { TradeRepublicNavigator.open(context, item) }
             )
         }
     }
@@ -188,7 +191,8 @@ private fun RadarResultCard(
     onToggleWatchlist: () -> Unit,
     onBought: () -> Unit,
     onEditInvestment: () -> Unit,
-    onOpenDetail: () -> Unit
+    onOpenDetail: () -> Unit,
+    onOpenTradeRepublic: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -222,6 +226,7 @@ private fun RadarResultCard(
             }
 
             Button(onClick = onOpenDetail, modifier = Modifier.fillMaxWidth()) { Text("Details") }
+            OutlinedButton(onClick = onOpenTradeRepublic, modifier = Modifier.fillMaxWidth()) { Text("Trade Republic öffnen") }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = onToggleWatchlist, modifier = Modifier.weight(1f)) {
                     Text(if (isWatchlisted) "Watchlist −" else "Watchlist +")
