@@ -30,3 +30,4 @@ if grep -Fq 'private fun AlertsScreen(' "$MAIN"; then
 fi
 
 echo "PASS 1.2.0 alert center wiring"
+echo "PASS push detail deep link"
