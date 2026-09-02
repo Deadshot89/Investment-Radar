@@ -21,7 +21,7 @@ grep -Fq 'Wertpapier nicht verfügbar' "$MAIN"
 grep -Fq 'putExtra("openItemId", itemId)' "$PUSH"
 grep -Fq 'initialDetailId' "$MAIN"
 grep -Fq 'intent.getStringExtra("openItemId")' "$MAIN"
-grep -Fq 'selectedDetailId by remember { mutableStateOf(initialDetailId)' "$MAIN"
+grep -Fq 'selectedDetailId by remember { mutableStateOf(initialDetailId?.takeIf' "$MAIN"
 grep -Fq 'detailReturnTab by remember { mutableIntStateOf(if (initialDetailId.isNullOrBlank()) initialTab.coerceIn(0, 3) else 3) }' "$MAIN"
 
 if grep -Fq 'private fun AlertsScreen(' "$MAIN"; then
