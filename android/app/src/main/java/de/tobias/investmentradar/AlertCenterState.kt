@@ -10,6 +10,17 @@ data class AlertCenterSnapshot(
     val tombstones: Map<String, Long>
 )
 
+enum class AlertFilter(val label: String) {
+    ALL("Alle"), BUY("Kauf"), REVIEW("Prüfen"), SELL("Verkauf");
+
+    fun matches(level: String): Boolean = when (this) {
+        ALL -> true
+        REVIEW -> level.equals("REVIEW", true) || level.equals("THRESHOLD", true)
+        BUY -> level.equals("BUY", true)
+        SELL -> level.equals("SELL", true)
+    }
+}
+
 object AlertCenterState {
     private const val TOMBSTONE_TTL_MS = 7L * 24L * 60L * 60L * 1000L
 
