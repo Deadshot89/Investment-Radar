@@ -5,7 +5,7 @@ const BASE = "https://api.twelvedata.com/statistics";
 const FRESH_MS = 24 * 60 * 60 * 1000;
 const MAX_STALE_MS = 7 * 24 * 60 * 60 * 1000;
 
-export async function loadFundamentals(items, { fetchImpl = fetch, now = Date.now() } = {}) {
+export async function loadFundamentals(items, { fetchImpl = fetch, now = Date.now(), refresh = true } = {}) {
   const cache = await loadAnalysisCache("fundamentals-cache");
   const key = process.env.TWELVE_DATA_API_KEY?.trim();
   const result = new Map();
@@ -19,6 +19,25 @@ export async function loadFundamentals(items, { fetchImpl = fetch, now = Date.no
     const cached = cache[item.id];
     if (isFresh(cached, FRESH_MS, now) && cached?.raw) {
       result.set(item.id, normalizeFundamentals({ ...cached.raw, source: cached.source || "Twelve Data", asOf: cached.fetchedAt }));
+      return;
+    }
+
+    if (!refresh) {
+      const age = now - Date.parse(String(cached?.fetchedAt ?? ""));
+      if (cached?.raw && Number.isFinite(age) && age <= MAX_STALE_MS) {
+        result.set(item.id, normalizeFundamentals({
+          ...cached.raw,
+          source: `Cache · ${cached.source || "Fundamentaldaten"}`,
+          stale: true,
+          asOf: cached.fetchedAt,
+          error: "Fundamentaldaten werden im Hintergrund aktualisiert"
+        }));
+      } else {
+        result.set(item.id, normalizeFundamentals({
+          source: "",
+          error: "Fundamentaldaten werden im Hintergrund geladen"
+        }));
+      }
       return;
     }
 
