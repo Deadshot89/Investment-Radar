@@ -8,6 +8,7 @@ on:
   push:
     paths:
       - 'scripts/apply-ir120-mainactivity.py'
+      - 'scripts/run-ir120-mainactivity-migration.py'
       - '.github/workflows/apply-ir120-mainactivity.yml'
 
 jobs:
@@ -21,7 +22,7 @@ jobs:
           fetch-depth: 0
 
       - name: Apply deterministic migration
-        run: python scripts/apply-ir120-mainactivity.py
+        run: python scripts/run-ir120-mainactivity-migration.py
 
       - name: Verify migration diff
         shell: bash
