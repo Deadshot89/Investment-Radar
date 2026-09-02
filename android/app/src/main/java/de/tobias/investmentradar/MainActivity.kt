@@ -85,7 +85,8 @@ fun InvestmentRadarUi(vm: MainViewModel = viewModel(), initialTab: Int = 0) {
     val prefs = remember { context.getSharedPreferences("investment_radar_settings", 0) }
     var budget by remember { mutableIntStateOf(prefs.getInt("monthly_budget", 100).coerceIn(10, 10000)) }
     var tab by remember { mutableIntStateOf(initialTab.coerceIn(0, 3)) }
-    var radarFocusId by remember { mutableStateOf<String?>(null) }
+    var selectedDetailId by remember { mutableStateOf<String?>(null) }
+    var detailReturnTab by remember { mutableIntStateOf(initialTab.coerceIn(0, 3)) }
     var budgetDialog by remember { mutableStateOf(false) }
     var investmentDialogItem by remember { mutableStateOf<InvestmentItem?>(null) }
     var customAssetDialog by remember { mutableStateOf(false) }
@@ -149,10 +150,10 @@ fun InvestmentRadarUi(vm: MainViewModel = viewModel(), initialTab: Int = 0) {
             },
             bottomBar = {
                 NavigationBar(containerColor = RadarSurface) {
-                    NavigationBarItem(selected = tab == 0, onClick = { tab = 0 }, icon = { Icon(Icons.Default.ShowChart, null) }, label = { Text("Live") })
-                    NavigationBarItem(selected = tab == 1, onClick = { radarFocusId = null; tab = 1 }, icon = { Icon(Icons.Default.Search, null) }, label = { Text("Radar") })
-                    NavigationBarItem(selected = tab == 2, onClick = { tab = 2 }, icon = { Icon(Icons.Default.Favorite, null) }, label = { Text("Portfolio") })
-                    NavigationBarItem(selected = tab == 3, onClick = { tab = 3 }, icon = { Icon(Icons.Default.Notifications, null) }, label = { Text("Alarme") })
+                    NavigationBarItem(selected = tab == 0, onClick = { selectedDetailId = null; tab = 0 }, icon = { Icon(Icons.Default.ShowChart, null) }, label = { Text("Live") })
+                    NavigationBarItem(selected = tab == 1, onClick = { selectedDetailId = null; tab = 1 }, icon = { Icon(Icons.Default.Search, null) }, label = { Text("Radar") })
+                    NavigationBarItem(selected = tab == 2, onClick = { selectedDetailId = null; tab = 2 }, icon = { Icon(Icons.Default.Favorite, null) }, label = { Text("Portfolio") })
+                    NavigationBarItem(selected = tab == 3, onClick = { selectedDetailId = null; tab = 3 }, icon = { Icon(Icons.Default.Notifications, null) }, label = { Text("Alarme") })
                 }
             }
         ) { padding ->
@@ -165,55 +166,80 @@ fun InvestmentRadarUi(vm: MainViewModel = viewModel(), initialTab: Int = 0) {
                 when (val s = state) {
                     UiState.Loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
                     is UiState.Error -> ErrorView(s.message) { vm.refresh() }
-                    is UiState.Ready -> when (tab) {
-                        0 -> DashboardScreen(
-                            data = s.data,
-                            budget = budget,
-                            holdingIds = holdingIds,
-                            positions = positions,
-                            watchlistIds = watchlistIds,
-                            onEditBudget = { budgetDialog = true },
-                            onOpenRadar = { radarFocusId = null; tab = 1 }
-                        )
-                        1 -> RadarScreenV2(
-                            items = s.data.items,
-                            holdingIds = holdingIds,
-                            watchlistIds = watchlistIds,
-                            personalById = RecommendationEngine.plan(
-                                s.data.items,
-                                budget,
-                                PortfolioAnalysis.values(s.data.items, positions, customItems)
-                            ).items.associateBy { it.itemId },
-                            onToggleWatchlist = vm::toggleWatchlist,
-                            onBought = { investmentDialogItem = it },
-                            onEditInvestment = { investmentDialogItem = it },
-                            onOpenDetail = { id -> radarFocusId = id }
-                        )
-                        2 -> PortfolioScreen(
-                            items = s.data.items.filter { it.id in holdingIds },
-                            positions = positions,
-                            customItems = customItems,
-                            onEdit = { investmentDialogItem = it },
-                            onRemove = vm::removeHolding,
-                            onAddCustom = { customAssetDialog = true },
-                            onEditCustom = { editingCustomAsset = it },
-                            onRemoveCustom = vm::removeCustomInvestment
-                        )
-                        else -> AlertsScreen(
-                            alerts = alerts,
-                            preferences = alertPreferences,
-                            onOpen = { stored ->
-                                vm.markAlertRead(stored.alert.id)
-                                if (s.data.items.any { it.id == stored.alert.itemId }) {
-                                    radarFocusId = stored.alert.itemId
-                                    tab = 1
+                    is UiState.Ready -> {
+                        val personalById = RecommendationEngine.plan(
+                            s.data.items,
+                            budget,
+                            PortfolioAnalysis.values(s.data.items, positions, customItems)
+                        ).items.associateBy { it.itemId }
+                        val detailId = selectedDetailId
+                        if (detailId != null) {
+                            val detailItem = s.data.items.firstOrNull { it.id == detailId }
+                            val detailCustom = customItems.firstOrNull { it.id == detailId }
+                            InvestmentDetailScreen(
+                                item = detailItem,
+                                customItem = detailCustom,
+                                position = positions[detailId],
+                                personalRecommendation = personalById[detailId],
+                                isWatchlisted = detailId in watchlistIds,
+                                onBack = { selectedDetailId = null; tab = detailReturnTab },
+                                onToggleWatchlist = vm::toggleWatchlist,
+                                onEditPosition = { investmentDialogItem = it },
+                                onOpenPortfolio = { selectedDetailId = null; tab = 2 }
+                            )
+                        } else when (tab) {
+                            0 -> DashboardScreen(
+                                data = s.data,
+                                budget = budget,
+                                holdingIds = holdingIds,
+                                positions = positions,
+                                watchlistIds = watchlistIds,
+                                onEditBudget = { budgetDialog = true },
+                                onOpenRadar = { selectedDetailId = null; tab = 1 }
+                            )
+                            1 -> RadarScreenV2(
+                                items = s.data.items,
+                                holdingIds = holdingIds,
+                                watchlistIds = watchlistIds,
+                                personalById = personalById,
+                                onToggleWatchlist = vm::toggleWatchlist,
+                                onBought = { investmentDialogItem = it },
+                                onEditInvestment = { investmentDialogItem = it },
+                                onOpenDetail = { id ->
+                                    detailReturnTab = 1
+                                    selectedDetailId = id
                                 }
-                            },
-                            onMarkAllRead = vm::markAllAlertsRead,
-                            onDelete = vm::deleteAlert,
-                            onClear = vm::clearAlerts,
-                            onPreferencesChange = vm::updateAlertPreferences
-                        )
+                            )
+                            2 -> PortfolioScreen(
+                                items = s.data.items.filter { it.id in holdingIds },
+                                positions = positions,
+                                customItems = customItems,
+                                onOpenDetail = { id ->
+                                    detailReturnTab = 2
+                                    selectedDetailId = id
+                                },
+                                onEdit = { investmentDialogItem = it },
+                                onRemove = vm::removeHolding,
+                                onAddCustom = { customAssetDialog = true },
+                                onEditCustom = { editingCustomAsset = it },
+                                onRemoveCustom = vm::removeCustomInvestment
+                            )
+                            else -> AlertsScreen(
+                                alerts = alerts,
+                                preferences = alertPreferences,
+                                onOpen = { stored ->
+                                    vm.markAlertRead(stored.alert.id)
+                                    if (s.data.items.any { it.id == stored.alert.itemId } || customItems.any { it.id == stored.alert.itemId }) {
+                                        detailReturnTab = 3
+                                        selectedDetailId = stored.alert.itemId
+                                    }
+                                },
+                                onMarkAllRead = vm::markAllAlertsRead,
+                                onDelete = vm::deleteAlert,
+                                onClear = vm::clearAlerts,
+                                onPreferencesChange = vm::updateAlertPreferences
+                            )
+                        }
                     }
                 }
             }
@@ -463,6 +489,7 @@ private fun PortfolioScreen(
     items: List<InvestmentItem>,
     positions: Map<String, PortfolioPosition>,
     customItems: List<CustomInvestment>,
+    onOpenDetail: (String) -> Unit,
     onEdit: (InvestmentItem) -> Unit,
     onRemove: (String) -> Unit,
     onAddCustom: () -> Unit,
@@ -670,6 +697,7 @@ private fun PortfolioScreen(
 
                 Text("Score ${RecommendationPresentation.scoreText(item.scoreTotal)} · Risiko ${item.risk}/5", color = recommendationColor(label), fontWeight = FontWeight.Bold)
                 Text(RecommendationPresentation.topReasons(item).joinToString(" · ").ifBlank { "Analyse V2 · keine Zusatzbegründung" }, style = MaterialTheme.typography.bodySmall)
+                OutlinedButton(onClick = { onOpenDetail(item.id) }, modifier = Modifier.fillMaxWidth()) { Text("Details") }
                 Button(onClick = { onEdit(item) }, modifier = Modifier.fillMaxWidth()) { Text("Transaktionen verwalten") }
                 OutlinedButton(onClick = { TradeRepublicNavigator.open(context, item) }, modifier = Modifier.fillMaxWidth()) { Text("Trade Republic öffnen") }
                 customById[item.id]?.let { custom ->
