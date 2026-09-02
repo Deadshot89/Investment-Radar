@@ -54,3 +54,20 @@ test("daily drop threshold is categorized as THRESHOLD", () => {
   const signals = evaluateSignals(items, new Map());
   assert.ok(signals.some((signal) => signal.level === "THRESHOLD" && signal.title.includes("Tagesverlust") && signal.message.includes("-8.00 %")));
 });
+
+test("fundamental deterioration requires fresh sufficient data", () => {
+  const base = {
+    id: "held", name: "Held", recommendation: "WATCH", scoreTotal: 60,
+    fundamentals: { revenueGrowth: -0.20, epsGrowth: -0.30, coveragePct: 80, stale: false }
+  };
+  const held = { heldIds: new Set(["held"]) };
+
+  const fresh = evaluateSignals([base], new Map(), held);
+  assert.ok(fresh.some((signal) => signal.title.includes("fundamentale Verschlechterung")));
+
+  const stale = evaluateSignals([{ ...base, fundamentals: { ...base.fundamentals, stale: true } }], new Map(), held);
+  assert.equal(stale.some((signal) => signal.title.includes("fundamentale Verschlechterung")), false);
+
+  const insufficient = evaluateSignals([{ ...base, fundamentals: { ...base.fundamentals, coveragePct: 45 } }], new Map(), held);
+  assert.equal(insufficient.some((signal) => signal.title.includes("fundamentale Verschlechterung")), false);
+});
