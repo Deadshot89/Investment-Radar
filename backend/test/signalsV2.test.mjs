@@ -42,3 +42,15 @@ test("missing prior score does not become zero", () => {
   const signals = evaluateSignals(items, new Map(), { previousScores: { held: null }, heldIds: new Set(["held"]) });
   assert.equal(signals.some((signal) => signal.title.includes("Score deutlich gefallen")), false);
 });
+
+test("absolute price threshold is categorized as THRESHOLD", () => {
+  const items = [{ id: "x", name: "Asset X", recommendation: "WATCH", hardReviewBelow: 100, price: 90, currency: "EUR" }];
+  const signals = evaluateSignals(items, new Map());
+  assert.ok(signals.some((signal) => signal.level === "THRESHOLD" && signal.title.includes("Kurs-Schwelle")));
+});
+
+test("daily drop threshold is categorized as THRESHOLD", () => {
+  const items = [{ id: "x", name: "Asset X", recommendation: "WATCH", reviewDrop1dPct: 7, percentChange: -8 }];
+  const signals = evaluateSignals(items, new Map());
+  assert.ok(signals.some((signal) => signal.level === "THRESHOLD" && signal.title.includes("Tagesverlust")));
+});
