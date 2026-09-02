@@ -5,7 +5,7 @@ enum class RadarTypeFilter { ALL, STOCK, ETF }
 enum class RadarHoldingFilter { ALL, HELD, NOT_HELD }
 enum class RadarDataQualityFilter { ALL, FULL, REDUCED, INSUFFICIENT }
 enum class RadarRiskFilter { ALL, LOW, MEDIUM, HIGH }
-enum class RadarSortOption { SCORE, ALLOCATION, MOMENTUM_6M, DAY_ASC, DAY_DESC, NAME }
+enum class RadarSortMode { SCORE, ALLOCATION, MOMENTUM_6M, DAY_ASC, DAY_DESC, NAME }
 
 data class RadarFilterState(
     val query: String = "",
@@ -15,7 +15,7 @@ data class RadarFilterState(
     val watchlistOnly: Boolean = false,
     val dataQuality: RadarDataQualityFilter = RadarDataQualityFilter.ALL,
     val risk: RadarRiskFilter = RadarRiskFilter.ALL,
-    val sort: RadarSortOption = RadarSortOption.SCORE
+    val sort: RadarSortMode = RadarSortMode.SCORE
 )
 
 object RadarFilterEngine {
@@ -37,33 +37,33 @@ object RadarFilterEngine {
             .toList()
 
         return when (state.sort) {
-            RadarSortOption.SCORE -> filtered.sortedWith(
+            RadarSortMode.SCORE -> filtered.sortedWith(
                 compareByDescending<InvestmentItem> { it.scoreTotal ?: Int.MIN_VALUE }
                     .thenBy { it.name.lowercase() }
                     .thenBy { it.id }
             )
-            RadarSortOption.ALLOCATION -> filtered.sortedWith(
+            RadarSortMode.ALLOCATION -> filtered.sortedWith(
                 compareByDescending<InvestmentItem> { allocationById[it.id] ?: 0 }
                     .thenByDescending { it.scoreTotal ?: Int.MIN_VALUE }
                     .thenBy { it.name.lowercase() }
                     .thenBy { it.id }
             )
-            RadarSortOption.MOMENTUM_6M -> filtered.sortedWith(
+            RadarSortMode.MOMENTUM_6M -> filtered.sortedWith(
                 nullableNumberComparator({ it.momentum?.m6 }, ascending = false)
                     .thenBy { it.name.lowercase() }
                     .thenBy { it.id }
             )
-            RadarSortOption.DAY_ASC -> filtered.sortedWith(
+            RadarSortMode.DAY_ASC -> filtered.sortedWith(
                 nullableNumberComparator({ it.percentChange }, ascending = true)
                     .thenBy { it.name.lowercase() }
                     .thenBy { it.id }
             )
-            RadarSortOption.DAY_DESC -> filtered.sortedWith(
+            RadarSortMode.DAY_DESC -> filtered.sortedWith(
                 nullableNumberComparator({ it.percentChange }, ascending = false)
                     .thenBy { it.name.lowercase() }
                     .thenBy { it.id }
             )
-            RadarSortOption.NAME -> filtered.sortedWith(
+            RadarSortMode.NAME -> filtered.sortedWith(
                 compareBy<InvestmentItem> { it.name.lowercase() }
                     .thenBy { it.ticker.lowercase() }
                     .thenBy { it.id }
