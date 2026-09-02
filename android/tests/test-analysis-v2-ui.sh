@@ -34,3 +34,4 @@ grep -q 'personalById = RecommendationEngine' "$SRC"
 ! grep -q 'private fun RadarScreen(' "$SRC"
 
 bash android/tests/test-score-null-display.sh
+bash android/tests/test-investment-detail-ui.sh
