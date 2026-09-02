@@ -60,6 +60,10 @@ private val RadarPink = Color(0xFFFF5EDB)
 private val RadarGlow = Color(0x332EE59D)
 
 class MainActivity : ComponentActivity() {
+    private var pendingOpenItemId by mutableStateOf<String?>(null)
+    private var pendingOpenAlerts by mutableStateOf(false)
+    private var pushNavigationRequest by mutableLongStateOf(0L)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (FirebaseBootstrap.isConfigured()) {
@@ -68,14 +72,26 @@ class MainActivity : ComponentActivity() {
                 FirebaseMessaging.getInstance().subscribeToTopic(MainViewModel.holdingTopic(itemId))
             }
         }
-        val openItemId = intent.getStringExtra("openItemId")?.takeIf { it.isNotBlank() }
-        val openAlerts = intent.getBooleanExtra("openAlerts", false)
+        applyPushIntent(intent)
         setContent {
             InvestmentRadarUi(
-                initialTab = if (openAlerts || openItemId != null) 3 else 0,
-                initialDetailId = openItemId
+                initialTab = if (pendingOpenAlerts || pendingOpenItemId != null) 3 else 0,
+                initialDetailId = pendingOpenItemId,
+                pushNavigationRequest = pushNavigationRequest
             )
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        applyPushIntent(intent)
+    }
+
+    private fun applyPushIntent(intent: Intent) {
+        pendingOpenItemId = intent.getStringExtra("openItemId")?.takeIf { it.isNotBlank() }
+        pendingOpenAlerts = intent.getBooleanExtra("openAlerts", false)
+        pushNavigationRequest++
     }
 }
 
@@ -84,7 +100,8 @@ class MainActivity : ComponentActivity() {
 fun InvestmentRadarUi(
     vm: MainViewModel = viewModel(),
     initialTab: Int = 0,
-    initialDetailId: String? = null
+    initialDetailId: String? = null,
+    pushNavigationRequest: Long = 0L
 ) {
     val state by vm.state.collectAsState()
     val holdingIds by vm.holdingIds.collectAsState()
@@ -109,6 +126,14 @@ fun InvestmentRadarUi(
     var updateStatusMessage by remember { mutableStateOf<String?>(null) }
     var updateCheckRequested by remember { mutableIntStateOf(0) }
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
+    LaunchedEffect(pushNavigationRequest) {
+        if (pushNavigationRequest > 0L) {
+            tab = if (initialTab == 3 || !initialDetailId.isNullOrBlank()) 3 else initialTab.coerceIn(0, 3)
+            detailReturnTab = 3
+            selectedDetailId = initialDetailId?.takeIf { it.isNotBlank() }
+        }
+    }
 
     LaunchedEffect(updateCheckRequested) {
         if (updateCheckRequested == 0) {
