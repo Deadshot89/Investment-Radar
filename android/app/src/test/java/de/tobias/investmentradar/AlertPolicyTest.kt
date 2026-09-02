@@ -27,9 +27,9 @@ class AlertPolicyTest {
 
     @Test fun customDailyDropThresholdSuppressesSmallerDropButKeepsPriceThreshold() {
         val prefs = AlertPreferences(localDailyDropThresholdPct = 10.0)
-        val smallerDrop = SignalAlert("d1", "x", "THRESHOLD", "", "", "", triggerValuePct = -8.0)
-        val largeDrop = SignalAlert("d2", "x", "THRESHOLD", "", "", "", triggerValuePct = -11.0)
-        val priceThreshold = SignalAlert("p", "x", "THRESHOLD", "", "", "")
+        val smallerDrop = SignalAlert("d1", "x", "THRESHOLD", "Asset: ungewöhnlicher Tagesverlust", "Tagesbewegung -8.00 %. Prüfe Nachrichten.", "")
+        val largeDrop = SignalAlert("d2", "x", "THRESHOLD", "Asset: ungewöhnlicher Tagesverlust", "Tagesbewegung -11.00 %. Prüfe Nachrichten.", "")
+        val priceThreshold = SignalAlert("p", "x", "THRESHOLD", "Asset: Kurs-Schwelle erreicht", "Kurs 90 EUR liegt unter der Prüfschwelle.", "")
         assertFalse(AlertPolicy.shouldNotify(smallerDrop, prefs))
         assertTrue(AlertPolicy.shouldNotify(largeDrop, prefs))
         assertTrue(AlertPolicy.shouldNotify(priceThreshold, prefs))
