@@ -13,4 +13,9 @@ object AlertPolicy {
         "BUY", "REVIEW", "SELL", "THRESHOLD" -> true
         else -> prefs.minimumSeverity.equals("ALL", true)
     }
+
+    fun isRelevantForPortfolio(alert: SignalAlert, holdingIds: Set<String>): Boolean = when (alert.level.trim().uppercase()) {
+        "REVIEW", "SELL", "THRESHOLD" -> alert.itemId.isNotBlank() && alert.itemId in holdingIds
+        else -> true
+    }
 }
