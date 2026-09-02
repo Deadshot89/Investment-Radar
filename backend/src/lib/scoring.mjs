@@ -59,8 +59,8 @@ export function scoreInvestment({ item, fundamentals = null, momentum = null, qu
 }
 
 function riskScore(risk, quote, momentum) {
-  const level = Number(risk);
-  if (!Number.isFinite(level)) return null;
+  const level = finite(risk);
+  if (level == null) return null;
   const base = ({ 1: 96, 2: 86, 3: 72, 4: 56, 5: 40 })[Math.max(1, Math.min(5, Math.round(level)))] ?? 60;
   let adjustment = 0;
   const day = finite(quote?.percentChange);
@@ -94,6 +94,7 @@ function scoreReason(value, high, middle, low) {
   return low;
 }
 function finite(value) {
+  if (value == null || (typeof value === "string" && value.trim() === "")) return null;
   const n = typeof value === "number" ? value : Number(value);
   return Number.isFinite(n) ? n : null;
 }
