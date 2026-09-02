@@ -36,6 +36,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _watchlistIds = MutableStateFlow(WatchlistStore.read(app))
     val watchlistIds: StateFlow<Set<String>> = _watchlistIds.asStateFlow()
 
+    private val _alerts = MutableStateFlow(AlertStore.readStored(app))
+    val alerts: StateFlow<List<StoredAlert>> = _alerts.asStateFlow()
+
+    private val _alertPreferences = MutableStateFlow(AlertPreferencesStore.read(app))
+    val alertPreferences: StateFlow<AlertPreferences> = _alertPreferences.asStateFlow()
+
     init {
         refresh()
         viewModelScope.launch {
@@ -61,7 +67,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 }.awaitAll()
                 dashboard.copy(items = (dashboard.items + customQuotes).distinctBy { it.id })
             }
-                .onSuccess { _state.value = UiState.Ready(it) }
+                .onSuccess {
+                    val application = getApplication<Application>()
+                    _alerts.value = AlertStore.mergeRemote(application, it.alerts)
+                    _state.value = UiState.Ready(it)
+                }
                 .onFailure { e ->
                     if (!hadReadyData) {
                         _state.value = UiState.Error(e.message ?: "Verbindung zum Server fehlgeschlagen. Bitte erneut versuchen.")
@@ -146,13 +156,42 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-
     fun toggleWatchlist(itemId: String) {
         val app = getApplication<Application>()
         _watchlistIds.value = WatchlistStore.toggle(app, itemId)
     }
 
-    fun localAlerts(): List<SignalAlert> = AlertStore.read(getApplication())
+    fun markAlertRead(alertId: String) {
+        val app = getApplication<Application>()
+        AlertStore.markRead(app, alertId)
+        _alerts.value = AlertStore.readStored(app)
+    }
+
+    fun markAllAlertsRead() {
+        val app = getApplication<Application>()
+        AlertStore.markAllRead(app)
+        _alerts.value = AlertStore.readStored(app)
+    }
+
+    fun deleteAlert(alertId: String) {
+        val app = getApplication<Application>()
+        AlertStore.delete(app, alertId)
+        _alerts.value = AlertStore.readStored(app)
+    }
+
+    fun clearAlerts() {
+        val app = getApplication<Application>()
+        AlertStore.clear(app)
+        _alerts.value = AlertStore.readStored(app)
+    }
+
+    fun updateAlertPreferences(value: AlertPreferences) {
+        val app = getApplication<Application>()
+        AlertPreferencesStore.save(app, value)
+        _alertPreferences.value = AlertPreferencesStore.read(app)
+    }
+
+    fun localAlerts(): List<SignalAlert> = _alerts.value.map { it.alert }
 
     private fun reloadPortfolio(app: Application) {
         val next = PortfolioStore.readPositions(app)
