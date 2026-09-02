@@ -1,0 +1,130 @@
+name: Apply running-app push fix
+
+permissions:
+  contents: write
+
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-running-push-fix.yml'
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch MainActivity safely
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt')
+          s = p.read_text()
+
+          old = '''class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        if (FirebaseBootstrap.isConfigured()) {
+            FirebaseMessaging.getInstance().subscribeToTopic("investment-alerts")
+            PortfolioStore.read(this).forEach { itemId ->
+                FirebaseMessaging.getInstance().subscribeToTopic(MainViewModel.holdingTopic(itemId))
+            }
+        }
+        val openItemId = intent.getStringExtra("openItemId")?.takeIf { it.isNotBlank() }
+        val openAlerts = intent.getBooleanExtra("openAlerts", false)
+        setContent {
+            InvestmentRadarUi(
+                initialTab = if (openAlerts || openItemId != null) 3 else 0,
+                initialDetailId = openItemId
+            )
+        }
+    }
+}
+'''
+          new = '''class MainActivity : ComponentActivity() {
+    private var pendingOpenItemId by mutableStateOf<String?>(null)
+    private var pendingOpenAlerts by mutableStateOf(false)
+    private var pushNavigationRequest by mutableLongStateOf(0L)
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        if (FirebaseBootstrap.isConfigured()) {
+            FirebaseMessaging.getInstance().subscribeToTopic("investment-alerts")
+            PortfolioStore.read(this).forEach { itemId ->
+                FirebaseMessaging.getInstance().subscribeToTopic(MainViewModel.holdingTopic(itemId))
+            }
+        }
+        applyPushIntent(intent)
+        setContent {
+            InvestmentRadarUi(
+                initialTab = if (pendingOpenAlerts || pendingOpenItemId != null) 3 else 0,
+                initialDetailId = pendingOpenItemId,
+                pushNavigationRequest = pushNavigationRequest
+            )
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        applyPushIntent(intent)
+    }
+
+    private fun applyPushIntent(intent: Intent) {
+        pendingOpenItemId = intent.getStringExtra("openItemId")?.takeIf { it.isNotBlank() }
+        pendingOpenAlerts = intent.getBooleanExtra("openAlerts", false)
+        pushNavigationRequest++
+    }
+}
+'''
+          if old not in s:
+              raise SystemExit('MainActivity class anchor not found')
+          s = s.replace(old, new, 1)
+
+          old_sig = '''fun InvestmentRadarUi(
+    vm: MainViewModel = viewModel(),
+    initialTab: Int = 0,
+    initialDetailId: String? = null
+) {'''
+          new_sig = '''fun InvestmentRadarUi(
+    vm: MainViewModel = viewModel(),
+    initialTab: Int = 0,
+    initialDetailId: String? = null,
+    pushNavigationRequest: Long = 0L
+) {'''
+          if old_sig not in s:
+              raise SystemExit('InvestmentRadarUi signature anchor not found')
+          s = s.replace(old_sig, new_sig, 1)
+
+          anchor = '''    var updateCheckRequested by remember { mutableIntStateOf(0) }
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
+    LaunchedEffect(updateCheckRequested) {'''
+          replacement = '''    var updateCheckRequested by remember { mutableIntStateOf(0) }
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
+    LaunchedEffect(pushNavigationRequest) {
+        if (pushNavigationRequest > 0L) {
+            tab = if (initialTab == 3 || !initialDetailId.isNullOrBlank()) 3 else initialTab.coerceIn(0, 3)
+            detailReturnTab = 3
+            selectedDetailId = initialDetailId?.takeIf { it.isNotBlank() }
+        }
+    }
+
+    LaunchedEffect(updateCheckRequested) {'''
+          if anchor not in s:
+              raise SystemExit('LaunchedEffect anchor not found')
+          s = s.replace(anchor, replacement, 1)
+          p.write_text(s)
+          PY
+
+          bash android/tests/test-alert-center-wiring.sh
+          git config user.name "openai-github-app[bot]"
+          git config user.email "openai-github-app[bot]@users.noreply.github.com"
+          git add android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt
+          git commit -m "feat: handle push navigation while app is open"
+          git rm .github/workflows/apply-running-push-fix.yml
+          git commit -m "chore: remove temporary push patch workflow"
+          git push origin HEAD:main
