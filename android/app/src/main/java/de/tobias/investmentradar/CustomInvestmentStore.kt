@@ -11,9 +11,10 @@ data class CustomInvestment(
     val isin: String,
     val type: String,
     val tradeRepublicUrl: String = "",
-    val risk: Int = 3
+    val risk: Int = 3,
+    val manualPriceEur: Double? = null
 ) {
-    fun fallbackItem(error: String? = null) = InvestmentItem(
+    fun fallbackItem(error: String? = null, manual: Double? = manualPriceEur) = InvestmentItem(
         id = id,
         type = type,
         name = name,
@@ -23,18 +24,18 @@ data class CustomInvestment(
         status = "EIGEN",
         allocation = 0,
         risk = risk,
-        price = null,
-        priceEur = null,
-        currency = "",
+        price = manual,
+        priceEur = manual,
+        currency = if (manual != null) "EUR" else "",
         fxRateToEur = null,
         fxSource = "",
         fxDelayed = false,
         fxAsOf = null,
         percentChange = null,
         marketOpen = null,
-        dataSource = "",
-        dataDelayed = false,
-        dataError = error
+        dataSource = if (manual != null) "Manueller EUR-Kurs" else "",
+        dataDelayed = manual != null,
+        dataError = if (manual != null) null else error
     )
 }
 
@@ -59,7 +60,8 @@ object CustomInvestmentStore {
                         isin = o.optString("isin").trim().uppercase(),
                         type = if (o.optString("type").equals("ETF", true)) "ETF" else "Aktie",
                         tradeRepublicUrl = o.optString("tradeRepublicUrl").trim(),
-                        risk = o.optInt("risk", 3).coerceIn(1, 5)
+                        risk = o.optInt("risk", 3).coerceIn(1, 5),
+                        manualPriceEur = o.optDouble("manualPriceEur").takeIf { it.isFinite() && it > 0.0 }
                     ))
                 }
             }
@@ -90,7 +92,8 @@ object CustomInvestmentStore {
                 .put("isin", item.isin)
                 .put("type", item.type)
                 .put("tradeRepublicUrl", item.tradeRepublicUrl)
-                .put("risk", item.risk))
+                .put("risk", item.risk)
+                .apply { item.manualPriceEur?.let { put("manualPriceEur", it) } })
         }
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY, array.toString()).apply()
     }

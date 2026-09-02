@@ -17,8 +17,8 @@ android {
         applicationId = "de.tobias.investmentradar"
         minSdk = 23
         targetSdk = 36
-        versionCode = 27
-        versionName = "1.1.26"
+        versionCode = 28
+        versionName = "1.1.27"
 
         buildConfigField("String", "API_BASE_URL", "\"${prop("INVESTMENT_API_BASE_URL", "https://YOUR-FUNCTION-APP.azurewebsites.net").trimEnd('/')}\"")
         buildConfigField("String", "FIREBASE_APP_ID", "\"${prop("FIREBASE_APP_ID")}\"")

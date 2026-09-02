@@ -284,7 +284,8 @@ private fun DashboardScreen(
     val missingQuoteItems = data.items.filter { it.status.equals("EIGEN", true) && it.price == null }
     val portfolioValues = data.items.mapNotNull { item ->
         val position = positions[item.id] ?: return@mapNotNull null
-        position.currentValue(euroComparablePrice(item))?.let { value -> item to value }
+        val value = position.currentValue(euroComparablePrice(item)) ?: position.investedAmount
+        item to value
     }
     val portfolioTotal = portfolioValues.sumOf { it.second }
     val concentration = portfolioValues.maxByOrNull { it.second }?.let { (item, value) ->
@@ -569,12 +570,17 @@ private fun PortfolioScreen(
     val context = LocalContext.current
     val totalInvested = items.sumOf { positions[it.id]?.investedAmount ?: 0.0 }
     val totalRealized = items.sumOf { positions[it.id]?.realizedProfitLoss() ?: 0.0 }
-    val currentValues = items.mapNotNull { item ->
+    val knownValueRows = items.mapNotNull { item ->
         val position = positions[item.id] ?: return@mapNotNull null
-        position.currentValue(euroComparablePrice(item))
+        position.currentValue(euroComparablePrice(item))?.let { value -> item to value }
     }
-    val currentTotal = currentValues.takeIf { it.size == items.size }?.sum()
-    val totalUnrealized = currentTotal?.minus(totalInvested)
+    val knownValueTotal = knownValueRows.sumOf { it.second }
+    val knownIds = knownValueRows.mapTo(mutableSetOf()) { it.first.id }
+    val knownInvested = items.filter { it.id in knownIds }.sumOf { positions[it.id]?.investedAmount ?: 0.0 }
+    val missingQuotePositions = items.filter { item -> item.id !in knownIds && (positions[item.id]?.shares ?: 0.0) > 0.0 }
+    val missingValueInvested = missingQuotePositions.sumOf { positions[it.id]?.investedAmount ?: 0.0 }
+    val currentTotal: Double? = knownValueTotal.takeIf { knownValueRows.isNotEmpty() }
+    val totalUnrealized: Double? = currentTotal?.minus(knownInvested)
     val totalProfit = totalUnrealized?.plus(totalRealized)
     val transactionCount = items.sumOf { item ->
         positions[item.id]?.let { it.purchases.size + it.sales.size } ?: 0
@@ -623,6 +629,15 @@ private fun PortfolioScreen(
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     DarkMetricCard("REALISIERT", formatSignedMoney(totalRealized), profitColor(totalRealized), Modifier.weight(1f))
                     DarkMetricCard("OFFEN", totalUnrealized?.let(::formatSignedMoney) ?: "–", profitColor(totalUnrealized), Modifier.weight(1f))
+                }
+                if (missingQuotePositions.isNotEmpty()) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "${missingQuotePositions.size} ${if (missingQuotePositions.size == 1) "Position ohne Kurs" else "Positionen ohne Kurs"} · investiert ${formatMoney(missingValueInvested)} · bekannte Positionen werden trotzdem berechnet.",
+                        color = RadarYellow,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         }
@@ -779,12 +794,14 @@ private fun CustomInvestmentDialog(
     var type by remember(existing?.id) { mutableStateOf(existing?.type ?: "Aktie") }
     var tradeRepublicUrl by remember(existing?.id) { mutableStateOf(existing?.tradeRepublicUrl.orEmpty()) }
     var risk by remember(existing?.id) { mutableIntStateOf(existing?.risk ?: 3) }
+    var manualPriceText by remember(existing?.id) { mutableStateOf(existing?.manualPriceEur?.let(::formatEditableNumber).orEmpty()) }
     var dateText by remember(existing?.id) { mutableStateOf(todayPurchaseDate()) }
     var amountText by remember(existing?.id) { mutableStateOf("") }
     var sharesText by remember(existing?.id) { mutableStateOf("") }
 
     val amount = parseDecimal(amountText)
     val shares = parseDecimal(sharesText)
+    val manualPrice = parseDecimal(manualPriceText)?.takeIf { it > 0.0 }
     val newValid = existing != null || (isValidPurchaseDate(dateText) && amount != null && amount > 0 && shares != null && shares > 0)
     val metaValid = name.isNotBlank() && ticker.isNotBlank()
 
@@ -808,6 +825,8 @@ private fun CustomInvestmentDialog(
                     }
                 }
                 OutlinedTextField(tradeRepublicUrl, { tradeRepublicUrl = it.take(250) }, label = { Text("Trade-Republic-Link (optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(manualPriceText, { manualPriceText = sanitizeDecimalInput(it) }, label = { Text("MANUELLER EUR-KURS (optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Text("Nur als Fallback, wenn keine Kursquelle den Wert findet.", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
                 if (existing == null) {
                     HorizontalDivider(color = RadarSurface2)
                     Text("Ersten Kauf erfassen", fontWeight = FontWeight.Black)
@@ -823,7 +842,7 @@ private fun CustomInvestmentDialog(
         confirmButton = {
             Button(enabled = metaValid && newValid, onClick = {
                 val id = existing?.id ?: CustomInvestmentStore.createId(ticker, isin)
-                val item = CustomInvestment(id, name.trim(), ticker.trim().uppercase(), isin.trim().uppercase(), type, tradeRepublicUrl.trim(), risk)
+                val item = CustomInvestment(id, name.trim(), ticker.trim().uppercase(), isin.trim().uppercase(), type, tradeRepublicUrl.trim(), risk, manualPrice)
                 val purchase = if (existing == null) PortfolioPurchase(UUID.randomUUID().toString(), dateText, amount!!, shares!!) else null
                 onSave(item, purchase)
             }) { Text(if (existing == null) "Hinzufügen" else "Speichern") }

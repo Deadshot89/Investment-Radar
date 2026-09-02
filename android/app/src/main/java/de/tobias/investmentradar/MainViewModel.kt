@@ -56,7 +56,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val customQuotes = _customItems.value.map { custom ->
                     async {
                         runCatching { ApiClient.loadCustomQuote(custom) }
-                            .getOrElse { custom.fallbackItem(it.message ?: "Kursdaten fehlen") }
+                            .getOrElse { custom.fallbackItem(it.message ?: "Kursdaten fehlen", custom.manualPriceEur) }
                     }
                 }.awaitAll()
                 dashboard.copy(items = (dashboard.items + customQuotes).distinctBy { it.id })

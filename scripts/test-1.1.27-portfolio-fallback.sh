@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+MAIN="$ROOT/android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt"
+STORE="$ROOT/android/app/src/main/java/de/tobias/investmentradar/CustomInvestmentStore.kt"
+VM="$ROOT/android/app/src/main/java/de/tobias/investmentradar/MainViewModel.kt"
+CUSTOM="$ROOT/backend/src/lib/customAsset.mjs"
+GRADLE="$ROOT/android/app/build.gradle.kts"
+HEALTH="$ROOT/backend/src/functions/health.mjs"
+PKG="$ROOT/backend/package.json"
+WF="$ROOT/.github/workflows/backend-deploy.yml"
+
+grep -q 'manualPriceEur' "$STORE"
+grep -q 'MANUELLER EUR-KURS' "$MAIN"
+grep -q 'custom.fallbackItem.*manual' "$VM"
+grep -q 'US30303M1027.*META' "$CUSTOM"
+grep -q 'quoteCandidates' "$CUSTOM"
+grep -q 'knownValueTotal' "$MAIN"
+grep -q 'missingValueInvested' "$MAIN"
+grep -q 'Position ohne Kurs\|Positionen ohne Kurs' "$MAIN"
+grep -q 'position.currentValue(euroComparablePrice(item)) ?: position.investedAmount' "$MAIN"
+grep -q 'versionCode = 28' "$GRADLE"
+grep -q 'versionName = "1.1.27"' "$GRADLE"
+grep -q 'backendVersion: "1.1.27"\|backendVersion: '\''1.1.27'\''' "$HEALTH"
+grep -q '"version": "1.1.27"' "$PKG"
+grep -q 'EXPECTED_BACKEND_VERSION: "1.1.27"' "$WF"
+echo 'PASS 1.1.27 portfolio fallback'

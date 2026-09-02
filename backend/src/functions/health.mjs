@@ -12,7 +12,7 @@ app.http("health", {
       jsonBody: {
         ok: true,
         service: "investment-radar-live",
-        backendVersion: "1.1.25",
+        backendVersion: "1.1.27",
         marketDataConfigured: Boolean(process.env.TWELVE_DATA_API_KEY),
         pushConfigured: Boolean(process.env.FIREBASE_SERVICE_ACCOUNT_JSON?.trim()),
         ...firebaseDiagnostics,
