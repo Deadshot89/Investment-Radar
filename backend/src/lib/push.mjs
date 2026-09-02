@@ -22,7 +22,7 @@ function safeTopicPart(value) {
 }
 
 function targetTopic(alert) {
-  if (["SELL", "REVIEW"].includes(String(alert.level).toUpperCase()) && alert.itemId) {
+  if (["SELL", "REVIEW", "THRESHOLD"].includes(String(alert.level).toUpperCase()) && alert.itemId) {
     return `holding-${safeTopicPart(alert.itemId)}`;
   }
   return process.env.ALERT_TOPIC?.trim() || "investment-alerts";
