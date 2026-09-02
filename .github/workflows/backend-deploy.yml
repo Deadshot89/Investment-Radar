@@ -25,7 +25,12 @@ jobs:
         working-directory: backend
         run: npm run check
 
+      - name: Backend tests
+        working-directory: backend
+        run: npm test
+
       - name: Check Azure configuration
+        if: github.ref == 'refs/heads/main'
         id: azure_config
         shell: bash
         env:
@@ -50,7 +55,7 @@ jobs:
           fi
 
       - name: Create immutable deploy package
-        if: steps.azure_config.outputs.configured == 'true'
+        if: github.ref == 'refs/heads/main' && steps.azure_config.outputs.configured == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -72,7 +77,7 @@ jobs:
           unzip -p backend-deploy.zip .deploy-id
 
       - name: Deploy Azure Functions
-        if: steps.azure_config.outputs.configured == 'true'
+        if: github.ref == 'refs/heads/main' && steps.azure_config.outputs.configured == 'true'
         uses: Azure/functions-action@v1
         with:
           app-name: ${{ vars.AZURE_FUNCTIONAPP_NAME }}
@@ -82,7 +87,7 @@ jobs:
           remote-build: true
 
       - name: Verify live backend
-        if: steps.azure_config.outputs.configured == 'true'
+        if: github.ref == 'refs/heads/main' && steps.azure_config.outputs.configured == 'true'
         shell: bash
         env:
           BASE_URL: ${{ vars.INVESTMENT_API_BASE_URL }}
