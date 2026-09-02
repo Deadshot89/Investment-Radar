@@ -1,0 +1,36 @@
+name: Apply Investment Radar 1.1.26
+
+permissions:
+  contents: write
+
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-ir126.yml'
+  workflow_dispatch:
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Apply 1.1.26 payload
+        run: |
+          set -euo pipefail
+          cat .tmp/ir126.part1 .tmp/ir126.part2 .tmp/ir126.part3 | base64 -d > /tmp/ir126.tar.gz
+          tar -xzf /tmp/ir126.tar.gz -C .
+          grep -q 'versionCode = 27' android/app/build.gradle.kts
+          grep -q 'versionName = "1.1.26"' android/app/build.gradle.kts
+          test -f android/app/src/main/java/de/tobias/investmentradar/WatchlistStore.kt
+          rm -f .tmp/ir126.part1 .tmp/ir126.part2 .tmp/ir126.part3
+          rm -f .github/workflows/apply-ir126.yml
+
+      - name: Commit 1.1.26
+        run: |
+          set -euo pipefail
+          git config user.name "Investment Radar Bot"
+          git config user.email "actions@github.com"
+          git add -A
+          git commit -m "Apply Investment Radar 1.1.26"
+          git push
