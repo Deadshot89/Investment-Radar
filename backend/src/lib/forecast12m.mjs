@@ -25,6 +25,12 @@ export function forecast12m(item) {
 
   const m12 = finite(item?.momentum?.m12);
   const expectedChangePct = round1(clamp(drift + (m12 ?? 0) * 0.34, -65, 65));
+  const risk = clamp(Number(item?.risk ?? 1), 1, 5);
+  const coverage = finite(item?.coverage);
+  const coveragePenalty = coverage == null ? 4 : coverage < 50 ? 6 : coverage < 70 ? 3.5 : coverage < 85 ? 1.5 : 0;
+  const uncertainty = Math.max(3, 5 + risk * 2.4 + coveragePenalty);
+  const bearChangePct = round1(Math.max(-80, expectedChangePct - uncertainty));
+  const bullChangePct = round1(Math.min(120, expectedChangePct + uncertainty));
   const direction = expectedChangePct >= 2.5 ? "UP" : expectedChangePct <= -2.5 ? "DOWN" : "SIDEWAYS";
   const reasons = [];
 
@@ -43,7 +49,7 @@ export function forecast12m(item) {
   else if (epsGrowth != null && epsGrowth < 0) reasons.push("Sinkende Gewinne belasten das Basisszenario.");
   if (reasons.length === 0) reasons.push("Die Richtung ergibt sich aus Qualität, Bewertung, Wachstum, Risiko und verfügbaren Kursdaten.");
 
-  return { expectedChangePct, direction, reasons: [...new Set(reasons)].slice(0, 3) };
+  return { expectedChangePct, bearChangePct, bullChangePct, direction, reasons: [...new Set(reasons)].slice(0, 3) };
 }
 
 export function directionLabel(direction) {
