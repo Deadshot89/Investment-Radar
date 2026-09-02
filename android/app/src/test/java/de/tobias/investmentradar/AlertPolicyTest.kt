@@ -24,4 +24,15 @@ class AlertPolicyTest {
         assertFalse(AlertPolicy.shouldNotify(alert, AlertPreferences(thresholdEnabled = false)))
         assertTrue(AlertPolicy.shouldStore(alert, AlertPreferences(thresholdEnabled = false)))
     }
+
+    @Test fun portfolioSpecificAlertsOnlyBelongToHeldAssets() {
+        val empty = emptySet<String>()
+        val held = setOf("msft")
+        assertTrue(AlertPolicy.isRelevantForPortfolio(SignalAlert("b", "x", "BUY", "", "", ""), empty))
+        assertFalse(AlertPolicy.isRelevantForPortfolio(SignalAlert("r", "msft", "REVIEW", "", "", ""), empty))
+        assertFalse(AlertPolicy.isRelevantForPortfolio(SignalAlert("s", "msft", "SELL", "", "", ""), empty))
+        assertFalse(AlertPolicy.isRelevantForPortfolio(SignalAlert("t", "msft", "THRESHOLD", "", "", ""), empty))
+        assertTrue(AlertPolicy.isRelevantForPortfolio(SignalAlert("r2", "msft", "REVIEW", "", "", ""), held))
+        assertTrue(AlertPolicy.isRelevantForPortfolio(SignalAlert("t2", "msft", "THRESHOLD", "", "", ""), held))
+    }
 }
