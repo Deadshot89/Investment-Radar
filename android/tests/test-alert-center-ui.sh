@@ -26,7 +26,7 @@ grep -q 'contentDescription = "Alarm löschen"' "$UI"
 # Prognose-Alarme werden vollständig auf Deutsch strukturiert dargestellt.
 grep -q 'private fun ForecastAlertSummary' "$UI"
 grep -q '"PROGNOSE · 12 MONATE"' "$UI"
-grep -q '"Vorher:"' "$UI"
+grep -q 'Text("Vorher:' "$UI"
 grep -q '"Pessimistisch"' "$UI"
 grep -q '"Erwartet"' "$UI"
 grep -q '"Optimistisch"' "$UI"
