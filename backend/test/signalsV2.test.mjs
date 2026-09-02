@@ -27,3 +27,18 @@ test("existing BUY state does not emit a fresh BUY transition", () => {
   const signals = evaluateSignals(items, new Map(), { previousRecommendations: { a: "BUY" } });
   assert.equal(signals.some((signal) => signal.level === "BUY"), false);
 });
+
+test("missing price never becomes zero for hard review threshold", () => {
+  const items = [{
+    id: "missing", name: "Missing Quote", recommendation: "WATCH",
+    hardReviewBelow: 100, price: null, percentChange: null
+  }];
+  const signals = evaluateSignals(items, new Map());
+  assert.equal(signals.some((signal) => signal.title.includes("Kurs-Schwelle")), false);
+});
+
+test("missing prior score does not become zero", () => {
+  const items = [{ id: "held", name: "Held", recommendation: "WATCH", scoreTotal: 10 }];
+  const signals = evaluateSignals(items, new Map(), { previousScores: { held: null }, heldIds: new Set(["held"]) });
+  assert.equal(signals.some((signal) => signal.title.includes("Score deutlich gefallen")), false);
+});
