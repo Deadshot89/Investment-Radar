@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add local alert preferences, a real alert center, robust Trade Republic navigation and explicit manual update-check feedback without breaking existing push delivery or updater behavior.
+**Goal:** Add local alert preferences, a real alert center, data-focused Firebase push transport, robust Trade Republic navigation and explicit manual update-check feedback without breaking existing updater behavior.
 
-**Architecture:** Keep Firebase transport and backend alert generation separate from local display policy. Introduce pure/testable alert policy and navigation helpers, evolve local alert persistence to read/tombstone state, move alert Compose UI into its own file, and expose a typed update-check result so startup can remain silent while manual checks are explicit.
+**Architecture:** Backend sends alert data rather than an unconditional Firebase notification payload; Android decides locally whether to store/show the notification. Alert persistence gains read/tombstone state, alert Compose UI moves into its own file, Trade Republic navigation becomes a focused navigator, and update checking returns a typed current/available/error result.
 
-**Tech Stack:** Kotlin, Jetpack Compose Material 3, Firebase Messaging, SharedPreferences/JSON, Android intents, JUnit 4, existing GitHub Releases updater.
+**Tech Stack:** Kotlin, Jetpack Compose Material 3, Firebase Messaging/Admin, SharedPreferences/JSON, Android intents, JUnit 4, Node `node:test`, existing GitHub Releases updater.
 
 **Spec:** `docs/superpowers/specs/2026-09-02-investment-radar-1.2.0-design.md`
 
@@ -15,9 +15,9 @@
 - Existing Firebase topic names remain compatible.
 - Holding-specific REVIEW/SELL events remain scoped to holding topics.
 - BUY opportunity events use the general investment topic.
-- User notification preferences are local and do not upload portfolio/settings.
-- Startup update checks remain silent when current or when the check fails.
-- Manual update checks show current-version success or a concise error.
+- User alert preferences are local and do not upload portfolio/settings.
+- Startup update checks stay silent when current or failed.
+- Manual update checks distinguish current from network/API failure.
 - Trade Republic uses HTTPS only; no undocumented custom URI scheme.
 - Existing 1.1.28 unknown-source permission resume flow remains unchanged.
 
@@ -32,9 +32,8 @@
 
 **Interfaces:**
 - `AlertPreferences(buyEnabled, reviewEnabled, sellEnabled, thresholdEnabled, minimumSeverity, localDailyDropThresholdPct)`.
-- `AlertPreferencesStore.read(context)` and `.save(context, prefs)`.
-- `AlertPolicy.shouldNotify(alert, prefs) -> Boolean`.
-- `AlertPolicy.shouldStore(alert, prefs) -> Boolean`.
+- `AlertPreferencesStore.read(context)` / `save(context, prefs)`.
+- `AlertPolicy.shouldNotify(alert, prefs)` and `shouldStore(alert, prefs)`.
 
 - [ ] **Step 1: Write failing policy tests**
 
@@ -55,14 +54,14 @@ fun reviewAndSellDefaultToEnabled() {
 }
 ```
 
-- [ ] **Step 2: Run and verify RED**
+- [ ] **Step 2: Run RED**
 
 ```bash
 cd android
 gradle --no-daemon :app:testDebugUnitTest --tests '*AlertPolicyTest*'
 ```
 
-- [ ] **Step 3: Implement exact defaults**
+- [ ] **Step 3: Implement exact defaults and persistence**
 
 ```kotlin
 data class AlertPreferences(
@@ -75,9 +74,9 @@ data class AlertPreferences(
 )
 ```
 
-Persist each field in `investment_radar_alert_preferences`. Unknown alert levels default to storage but notification only when severity policy allows.
+Persist in `investment_radar_alert_preferences`. BUY/REVIEW/SELL/THRESHOLD map to their explicit toggles. Unknown informational levels may be stored but should not bypass minimum-severity filtering.
 
-- [ ] **Step 4: Run tests and commit**
+- [ ] **Step 4: Run GREEN and commit**
 
 ```bash
 cd android
@@ -88,7 +87,7 @@ git commit -m "feat: add local alert preferences"
 
 ---
 
-### Task 2: Evolve AlertStore into read/unread/delete/tombstone center state
+### Task 2: Read/unread/delete/tombstone alert-center state
 
 **Files:**
 - Modify: `android/app/src/main/java/de/tobias/investmentradar/AlertStore.kt`
@@ -96,7 +95,7 @@ git commit -m "feat: add local alert preferences"
 - Create: `android/app/src/test/java/de/tobias/investmentradar/AlertCenterStateTest.kt`
 
 **Interfaces:**
-- `StoredAlert(alert, isRead)`.
+- `StoredAlert(alert: SignalAlert, isRead: Boolean)`.
 - `AlertCenterState.merge(local, remote, tombstones, nowEpochMs) -> List<StoredAlert>`.
 - Store operations: `markRead`, `markAllRead`, `delete`, `clear`, `readTombstones`.
 - Tombstones retain deleted IDs for 30 days.
@@ -115,31 +114,24 @@ fun deletedRemoteAlertDoesNotImmediatelyReappear() {
     )
     assertTrue(merged.isEmpty())
 }
-
-@Test
-fun openingAnAlertCanMarkItReadWithoutChangingPayload() {
-    val stored = StoredAlert(SignalAlert("1", "x", "REVIEW", "T", "M", "D"), isRead = false)
-    assertTrue(stored.copy(isRead = true).isRead)
-    assertEquals("1", stored.alert.id)
-}
 ```
 
-- [ ] **Step 2: Run and verify RED**
+- [ ] **Step 2: Run RED**
 
 ```bash
 cd android
 gradle --no-daemon :app:testDebugUnitTest --tests '*AlertCenterStateTest*'
 ```
 
-- [ ] **Step 3: Implement storage migration**
+- [ ] **Step 3: Implement backward-compatible storage migration**
 
-Read existing `history` JSON entries as unread `StoredAlert` when `isRead` is absent. Persist `isRead`. Add a `tombstones` JSON object mapping alert IDs to deletion epoch milliseconds. Purge tombstones older than 30 days during reads/writes.
+Existing `history` JSON entries without `isRead` load as unread. Persist `isRead`. Add a `tombstones` JSON object `id -> deletionEpochMs`; purge entries older than 30 days.
 
-- [ ] **Step 4: Implement merge semantics**
+- [ ] **Step 4: Implement deterministic merge**
 
-Deduplicate by alert ID, prefer local read state, sort by `createdAt` descending where parseable, and ignore active tombstones. A genuinely new backend fingerprint has a new ID and appears normally.
+Deduplicate by ID, preserve local read state, sort newest first, and ignore active tombstones. A new backend fingerprint/new ID appears normally.
 
-- [ ] **Step 5: Run tests and commit**
+- [ ] **Step 5: Run GREEN and commit**
 
 ```bash
 cd android
@@ -150,16 +142,83 @@ git commit -m "feat: add alert center state"
 
 ---
 
-### Task 3: Apply local alert policy in Firebase messaging service
+### Task 3: Convert backend Firebase transport to data-only alert messages
+
+**Files:**
+- Modify: `backend/src/lib/push.mjs`
+- Create: `backend/test/pushPayload.test.mjs`
+
+**Interfaces:**
+- `buildPushMessage(alert) -> Firebase message object` contains `topic`, `data` and Android priority/channel metadata, but no top-level `notification` payload.
+- `sendAlert(alert)` calls `getMessaging().send(buildPushMessage(alert))`.
+
+- [ ] **Step 1: Write failing payload test**
+
+```js
+import test from "node:test";
+import assert from "node:assert/strict";
+import { buildPushMessage } from "../src/lib/push.mjs";
+
+test("push is data-focused so Android can apply local policy", () => {
+  const message = buildPushMessage({ id: "1", itemId: "msft", level: "REVIEW", title: "Prüfen", message: "Grund", createdAt: "2026-09-02T08:00:00Z" });
+  assert.equal(message.notification, undefined);
+  assert.equal(message.data.level, "REVIEW");
+  assert.equal(message.data.itemId, "msft");
+});
+```
+
+- [ ] **Step 2: Run RED**
+
+```bash
+cd backend
+node --test test/pushPayload.test.mjs
+```
+
+- [ ] **Step 3: Extract and use data-only builder**
+
+Build:
+
+```js
+export function buildPushMessage(alert) {
+  return {
+    topic: targetTopic(alert),
+    data: {
+      alertId: String(alert.id),
+      itemId: String(alert.itemId ?? ""),
+      level: String(alert.level ?? "INFO"),
+      title: String(alert.title ?? "Investment Radar"),
+      message: String(alert.message ?? ""),
+      createdAt: String(alert.createdAt ?? new Date().toISOString())
+    },
+    android: { priority: "high" }
+  };
+}
+```
+
+Do not include a Firebase `notification` object, because background notification payloads could bypass Android local preference policy.
+
+- [ ] **Step 4: Run backend tests/checks and commit**
+
+```bash
+cd backend
+npm test
+npm run check
+git add src/lib/push.mjs test/pushPayload.test.mjs
+git commit -m "feat: send policy-aware data push events"
+```
+
+---
+
+### Task 4: Apply local policy in Firebase messaging service
 
 **Files:**
 - Modify: `android/app/src/main/java/de/tobias/investmentradar/InvestmentMessagingService.kt`
 - Create: `android/tests/test-alert-policy-wiring.sh`
 
 **Interfaces:**
-- Incoming Firebase data is converted to `SignalAlert` first.
-- `AlertPolicy.shouldStore` controls local history storage.
-- `AlertPolicy.shouldNotify` controls system notification display.
+- Incoming data becomes `SignalAlert` first.
+- `AlertPolicy.shouldStore` controls history.
+- `AlertPolicy.shouldNotify` controls system notification.
 
 - [ ] **Step 1: Write failing wiring regression**
 
@@ -172,15 +231,13 @@ grep -q 'AlertPolicy.shouldStore' "$SRC"
 grep -q 'AlertPolicy.shouldNotify' "$SRC"
 ```
 
-- [ ] **Step 2: Run and verify RED**
+- [ ] **Step 2: Run RED**
 
 ```bash
 bash android/tests/test-alert-policy-wiring.sh
 ```
 
 - [ ] **Step 3: Wire policy before notification**
-
-Use:
 
 ```kotlin
 val alert = SignalAlert(id, itemId, level, title, body, createdAt)
@@ -191,7 +248,7 @@ if (AlertPolicy.shouldNotify(alert, prefs)) showNotification(title, body, level,
 
 Keep channel creation and notification tap behavior intact.
 
-- [ ] **Step 4: Run tests and commit**
+- [ ] **Step 4: Run GREEN and commit**
 
 ```bash
 bash android/tests/test-alert-policy-wiring.sh
@@ -203,7 +260,7 @@ git commit -m "feat: apply alert notification preferences"
 
 ---
 
-### Task 4: Dedicated Alert Center Compose screen and settings
+### Task 5: Dedicated Alert Center Compose screen and settings
 
 **Files:**
 - Create: `android/app/src/main/java/de/tobias/investmentradar/AlertsScreen.kt`
@@ -215,11 +272,11 @@ git commit -m "feat: apply alert notification preferences"
 - `AlertsScreen(alerts, preferences, onPreferenceChange, onOpenAlert, onMarkAllRead, onDelete, onClear)`.
 - Filters: ALL, BUY, REVIEW, SELL.
 
-- [ ] **Step 1: Write failing UI source regression**
+- [ ] **Step 1: Write failing UI regression**
 
-Assert the new file contains `Alle`, `Kauf`, `Prüfen`, `Verkauf`, `Alle gelesen`, `Alarmeinstellungen` and delete/clear actions.
+Script asserts `AlertsScreen.kt` contains `Alle`, `Kauf`, `Prüfen`, `Verkauf`, `Alle gelesen`, `Alarmeinstellungen`, delete and clear actions.
 
-- [ ] **Step 2: Run and verify RED**
+- [ ] **Step 2: Run RED**
 
 ```bash
 bash android/tests/test-alert-center-ui.sh
@@ -227,17 +284,17 @@ bash android/tests/test-alert-center-ui.sh
 
 - [ ] **Step 3: Move alert UI out of MainActivity**
 
-Create a focused Compose file that renders unread marker/count, filter chips, alert cards and settings controls. Keep app colors passed through MaterialTheme rather than duplicating unrelated screen logic.
+Render unread count/marker, filter chips, alert cards and settings controls in the dedicated file. Keep app colors through MaterialTheme/explicit existing palette inputs rather than duplicating unrelated screen logic.
 
-- [ ] **Step 4: Add ViewModel operations backed by AlertStore**
+- [ ] **Step 4: Add ViewModel operations**
 
-Expose functions that reload local alert state after mark-read/delete/clear. Merge local and backend alerts through `AlertCenterState.merge` so deleted remote alerts respect tombstones.
+Reload local state after mark-read/delete/clear. Merge local/backend alerts through `AlertCenterState.merge` so tombstones suppress refresh resurrection.
 
 - [ ] **Step 5: Open related investment in-app**
 
-When an alert's `itemId` resolves to a current investment, set an app-level selected asset and navigate to Radar/detail context; if not resolvable, simply mark the alert read and leave the alert visible.
+When `itemId` resolves, mark read, switch to Radar and focus/open that asset's detail context. If unresolved, mark read and remain in Alert Center.
 
-- [ ] **Step 6: Run tests and commit**
+- [ ] **Step 6: Run GREEN and commit**
 
 ```bash
 bash android/tests/test-alert-center-ui.sh
@@ -249,7 +306,7 @@ git commit -m "feat: add interactive alert center"
 
 ---
 
-### Task 5: Extract robust Trade Republic navigator
+### Task 6: Extract robust Trade Republic navigator
 
 **Files:**
 - Create: `android/app/src/main/java/de/tobias/investmentradar/TradeRepublicNavigator.kt`
@@ -259,17 +316,14 @@ git commit -m "feat: add interactive alert center"
 
 **Interfaces:**
 - `TradeRepublicNavigator.stockUrl(isin) -> String?`.
-- `TradeRepublicNavigator.open(context, item)` tries package-targeted HTTPS, then normal HTTPS, then browse URL/clipboard fallback.
+- `TradeRepublicNavigator.open(context, item)` tries package-targeted HTTPS, normal HTTPS, then browse/clipboard fallback.
 
-- [ ] **Step 1: Write failing pure URL tests**
+- [ ] **Step 1: Write failing URL tests**
 
 ```kotlin
 @Test
 fun validIsinBuildsHttpsStockUrl() {
-    assertEquals(
-        "https://app.traderepublic.com/stocks/US5949181045",
-        TradeRepublicNavigator.stockUrl("us5949181045")
-    )
+    assertEquals("https://app.traderepublic.com/stocks/US5949181045", TradeRepublicNavigator.stockUrl("us5949181045"))
 }
 
 @Test
@@ -278,7 +332,7 @@ fun invalidIsinDoesNotBuildStockUrl() {
 }
 ```
 
-- [ ] **Step 2: Run and verify RED**
+- [ ] **Step 2: Run RED**
 
 ```bash
 cd android
@@ -287,15 +341,13 @@ gradle --no-daemon :app:testDebugUnitTest --tests '*TradeRepublicNavigatorTest*'
 
 - [ ] **Step 3: Implement targeted HTTPS launch**
 
-Create the normal HTTPS intent first, clone/target it to `de.traderepublic.app` only when package resolution succeeds, and catch `ActivityNotFoundException`. Always copy ISIN/ticker before navigation. Use browse URL for invalid/missing ISIN. Do not use `traderepublic://`.
+Build normal `ACTION_VIEW` HTTPS intent, then target a copy to package `de.traderepublic.app` only when resolvable. Catch launch failures. Always copy ISIN/ticker first. Use `https://app.traderepublic.com/browse/stock` for invalid/missing ISIN. Do not use `traderepublic://`.
 
-- [ ] **Step 4: Replace old MainActivity helper**
+- [ ] **Step 4: Replace old MainActivity helper and strengthen regression**
 
-All existing `Trade Republic öffnen` buttons call `TradeRepublicNavigator.open(context, item)`. Remove duplicated URL constants and old launcher fallback code from MainActivity.
+All `Trade Republic öffnen` actions call `TradeRepublicNavigator.open`. Regression asserts stock URL, browse URL, package name, `ACTION_VIEW` and MainActivity navigator reference.
 
-- [ ] **Step 5: Strengthen existing shell regression and commit**
-
-The shell test must assert the navigator contains stock base URL, browse URL, package name and `ACTION_VIEW`, and MainActivity references `TradeRepublicNavigator`.
+- [ ] **Step 5: Run GREEN and commit**
 
 ```bash
 bash android/tests/test-trade-republic-links.sh
@@ -307,7 +359,7 @@ git commit -m "refactor: harden Trade Republic navigation"
 
 ---
 
-### Task 6: Typed manual update-check result
+### Task 7: Typed manual update-check result
 
 **Files:**
 - Modify: `android/app/src/main/java/de/tobias/investmentradar/AppUpdateManager.kt`
@@ -316,11 +368,11 @@ git commit -m "refactor: harden Trade Republic navigation"
 - Modify: `android/tests/test-update-resume.sh`
 
 **Interfaces:**
-- `sealed interface UpdateCheckResult { data class Available(...); data class Current(...); data class Error(...) }`.
+- `sealed interface UpdateCheckResult { data class Available(val info: AppUpdateInfo); data class Current(val versionName: String); data class Error(val message: String) }`.
 - `AppUpdateManager.checkDetailed(context) -> UpdateCheckResult`.
-- `AppUpdateManager.check(context) -> AppUpdateInfo?` remains as startup-compatible wrapper if useful.
+- Startup wrapper only surfaces `Available`.
 
-- [ ] **Step 1: Write failing result-model tests**
+- [ ] **Step 1: Write failing pure version/result test**
 
 ```kotlin
 @Test
@@ -329,39 +381,26 @@ fun semanticVersionComparisonTreats120AsNewerThan1129() {
 }
 ```
 
-Expose only an internal pure comparison wrapper for tests; do not expose network internals.
-
-- [ ] **Step 2: Run and verify RED**
+- [ ] **Step 2: Run RED**
 
 ```bash
 cd android
 gradle --no-daemon :app:testDebugUnitTest --tests '*AppUpdateResultTest*'
 ```
 
-- [ ] **Step 3: Distinguish current from error**
+- [ ] **Step 3: Add typed result without changing permission-resume flow**
 
-`checkDetailed` returns:
-- `Available(info)` when newer APK release exists,
-- `Current(BuildConfig.VERSION_NAME)` when latest release is not newer,
-- `Error("Update-Prüfung fehlgeschlagen. Bitte erneut versuchen.")` for HTTP/parse/network/missing-asset failures relevant to manual checks.
+Expose an internal `isNewerVersionForTest` wrapper around the existing pure comparator. `checkDetailed` returns Available for a newer valid APK release, Current for non-newer latest release, and Error for HTTP/network/parse/missing-asset failure. Existing `check(context)` may translate only Available to `AppUpdateInfo?` for silent startup use.
 
-Startup can continue to translate only `Available` into a dialog and suppress `Current/Error`.
+- [ ] **Step 4: Add manual feedback**
 
-- [ ] **Step 4: Add manual feedback in MainActivity**
+Manual Update tap shows `Du nutzt bereits die aktuelle Version ${BuildConfig.VERSION_NAME}.` for Current and `Update-Prüfung fehlgeschlagen. Bitte erneut versuchen.` for Error. Never report Current after a network failure.
 
-Manual Update tap shows:
+- [ ] **Step 5: Preserve updater resume regression**
 
-```text
-Du nutzt bereits die aktuelle Version 1.2.0.
-```
+Extend `test-update-resume.sh` only as needed; lifecycle callbacks and automatic post-settings download remain present.
 
-when current, or the concise retry message on error. It must not create a false current-version message after a failed network request.
-
-- [ ] **Step 5: Preserve permission-resume regression**
-
-Keep lifecycle callback behavior and extend `test-update-resume.sh` to assert the existing resume strings/callbacks still exist after the refactor.
-
-- [ ] **Step 6: Run tests and commit**
+- [ ] **Step 6: Run GREEN and commit**
 
 ```bash
 bash android/tests/test-update-resume.sh
