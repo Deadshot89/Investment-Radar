@@ -63,4 +63,13 @@ class DataFreshnessTest {
         val item = freshnessItem(type = "ETF").copy(fundamentals = null)
         assertEquals(FreshnessStatus.CURRENT, DataFreshness.summarize(item, now).status)
     }
+
+    @Test
+    fun etfWithEmptyFundamentalPlaceholderCanStillBeCurrent() {
+        val now = Instant.parse("2026-09-02T10:00:00Z").toEpochMilli()
+        val item = freshnessItem(type = "ETF").copy(
+            fundamentals = FundamentalSnapshot(source = "ETF-Konfiguration", asOf = null)
+        )
+        assertEquals(FreshnessStatus.CURRENT, DataFreshness.summarize(item, now).status)
+    }
 }
