@@ -1,7 +1,7 @@
 # Investment Radar 1.2.0 – Release Expansion Design
 
 Date: 2026-09-02
-Status: approved in chat on 2026-09-02
+Status: design approved in chat; written specification awaiting final user review
 Target: Android app + existing Azure Functions backend
 Release target: Android 1.2.0 / versionCode 31, Backend 1.2.0
 
@@ -40,6 +40,12 @@ Der Radar erhält eine lokale Volltextsuche über:
 
 Die Suche arbeitet ausschließlich auf den bereits geladenen 40 Radar-Werten und benutzerdefinierten lokalen Investments. Es wird keine unbegrenzte externe Wertpapiersuche eingeführt.
 
+Suchregeln:
+- Groß-/Kleinschreibung wird ignoriert.
+- Führende und nachfolgende Leerzeichen werden ignoriert.
+- Teiltreffer sind erlaubt.
+- Eine leere Suche zeigt alle Werte, die die aktiven Filter erfüllen.
+
 ### 3.2 Filter
 
 Unterstützte Filter:
@@ -48,9 +54,19 @@ Unterstützte Filter:
 - Depotstatus: gehalten / nicht gehalten
 - Watchlist: nur Watchlist
 - Datenqualität: vollständig / reduziert / unzureichend
-- Risiko: niedrig bis hoch anhand vorhandener Risk-Klassifizierung
+- Risiko: niedrig / mittel / hoch
 
-Mehrere Filter dürfen gleichzeitig aktiv sein.
+Mehrere Filter dürfen gleichzeitig aktiv sein. Innerhalb einer Filtergruppe dürfen mehrere Werte gewählt werden; zwischen Filtergruppen gilt UND-Verknüpfung.
+
+Datenqualität ist eindeutig an Coverage gebunden:
+- vollständig: Coverage >= 70
+- reduziert: Coverage 50–69
+- unzureichend: Coverage < 50
+
+Risiko basiert auf der bestehenden numerischen Risk-Klassifizierung:
+- niedrig: Risk 1–2
+- mittel: Risk 3
+- hoch: Risk 4–5
 
 ### 3.3 Sortierung
 
@@ -58,10 +74,11 @@ Sortieroptionen:
 - Gesamtscore absteigend
 - persönliche Monatsallokation absteigend
 - Momentum 6M absteigend
-- Tagesveränderung auf/absteigend
+- Tagesveränderung aufsteigend
+- Tagesveränderung absteigend
 - Name A–Z
 
-Default ist Gesamtscore absteigend. Filter- und Sortierzustand dürfen während einer laufenden App-Sitzung erhalten bleiben; eine dauerhafte Speicherung über App-Neustarts ist für 1.2.0 nicht erforderlich.
+Default ist Gesamtscore absteigend. Fehlende numerische Sortierwerte stehen immer am Ende. Filter- und Sortierzustand dürfen während einer laufenden App-Sitzung erhalten bleiben; eine dauerhafte Speicherung über App-Neustarts ist für 1.2.0 nicht erforderlich.
 
 ## 4. Erweiterung B – Wertpapier-Detailansicht
 
@@ -91,7 +108,7 @@ Separate Darstellung für:
 - Risk
 - Coverage/Datenabdeckung
 
-Fehlende Werte werden ausdrücklich als nicht verfügbar dargestellt und niemals als 0 interpretiert.
+Fehlende Werte werden ausdrücklich als „Nicht verfügbar“ dargestellt und niemals als 0 interpretiert.
 
 ### 4.3 Momentum
 
@@ -132,15 +149,21 @@ Oben werden angezeigt:
 - Anzahl gehaltener Positionen
 - größte Position mit Gewichtung
 
-Wenn für einzelne Positionen kein verwertbarer Kurs vorhanden ist, muss das Dashboard klar kennzeichnen, dass Gesamtwert und Performance unvollständig sind. Fehlende Kurse dürfen nicht als 0 in Performance-Kennzahlen eingehen.
+Wenn für alle gehaltenen Positionen verwertbare Kurse vorhanden sind, werden Gesamtwert und Performance vollständig berechnet.
+
+Wenn mindestens eine gehaltene Position keinen verwertbaren Kurs hat:
+- der verfügbare aktuelle Wert wird ausdrücklich als „Teilwert“ gekennzeichnet,
+- Gesamtgewinn/-verlust und prozentuale Gesamtperformance werden nicht als vollständige Depot-KPI ausgegeben,
+- die Zahl der Positionen ohne Kurs wird sichtbar genannt,
+- fehlende Kurse werden niemals als 0 angesetzt.
 
 ### 5.2 Positionsübersicht
 
 Je Position:
-- aktueller Wert
+- aktueller Wert, falls berechenbar
 - Einstandswert
-- Gewinn/Verlust absolut und Prozent
-- Depotgewichtung
+- Gewinn/Verlust absolut und Prozent, falls ein verwertbarer Kurs vorhanden ist
+- Depotgewichtung auf Basis der berechenbaren aktuellen Werte
 - objektiver Score/Empfehlung
 - persönliche Kaufempfehlung für das aktuelle Monatsbudget
 - Konzentrationsstatus
@@ -169,11 +192,25 @@ Wertpapier-Detail und bei Bedarf Radar-Karte zeigen kompakt:
 - Coverage
 - Status: aktuell / gecacht / teilweise verfügbar / veraltet
 
-### 6.3 Regeln
+### 6.3 Feste Frische-Regeln
+
+Die Anzeige folgt den bestehenden Backend-Cachefenstern:
+- History/Momentum ist frisch bis einschließlich 6 Stunden.
+- Fundamentaldaten sind frisch bis einschließlich 24 Stunden.
+- History- oder Fundamentaldaten dürfen aus Cache bis maximal 7 Tage weiterverwendet werden.
+- Daten älter als 7 Tage gelten für den jeweiligen Bereich als veraltet und dürfen nicht als frische Daten dargestellt werden.
+
+Gesamtstatus der Wertpapieransicht:
+- `aktuell`: Coverage >= 70, keine verwendete Datenkomponente als stale markiert, History innerhalb 6 Stunden und Fundamentaldaten bei Aktien innerhalb 24 Stunden, soweit diese Daten vorhanden/erwartet sind.
+- `gecached`: Coverage >= 70 und mindestens eine verwendete History-/Fundamental-Komponente ist älter als ihr Frischefenster, aber höchstens 7 Tage alt.
+- `teilweise verfügbar`: Coverage < 70 oder eine wesentliche Analysekomponente/Quelle fehlt, ohne dass verwendete Daten älter als 7 Tage sind.
+- `veraltet`: mindestens eine für die dargestellte Analyse verwendete History-/Fundamental-Komponente ist älter als 7 Tage oder das Backend kennzeichnet den verwendeten Datensatz ausdrücklich als stale außerhalb der zulässigen Cachefrist.
+
+Bei mehreren zutreffenden Zuständen hat `veraltet` Vorrang vor `teilweise verfügbar`, dieses vor `gecached`, dieses vor `aktuell`.
 
 Die UI darf keine Quelle erfinden. Wenn der Backend-Datensatz für einen Teil keine Quelle kennt, wird „Quelle nicht verfügbar“ angezeigt.
 
-Ein veralteter Datensatz darf weiterhin angezeigt werden, muss aber sichtbar als veraltet markiert werden. Eine veraltete oder niedrige Datenabdeckung darf niemals optisch wie ein voll belastbares BUY-Signal aussehen.
+Ein gecachter oder veralteter Datensatz darf weiterhin angezeigt werden, muss aber sichtbar gekennzeichnet werden. Eine veraltete oder niedrige Datenabdeckung darf niemals optisch wie ein voll belastbares BUY-Signal aussehen.
 
 ## 7. Erweiterung E – Alarm-Direktnavigation
 
@@ -226,14 +263,15 @@ Dadurch verursacht das größere UI keinen zusätzlichen Marktdaten-Request bei 
 ### 11.1 Android Unit Tests
 
 Ergänzen für:
-- Volltextsuche Name/Symbol/ISIN
-- kombinierte Filter
-- Sortierreihenfolge
+- Volltextsuche Name/Symbol/ISIN einschließlich Groß-/Kleinschreibung und Teiltreffer
+- kombinierte Filter und Mehrfachauswahl
+- Datenqualitäts- und Risikofilter
+- Sortierreihenfolge und Nullwerte am Ende
 - fehlende Score-/Momentum-/Fundamentalwerte
 - Portfolio-KPI-Berechnung
 - fehlender Kurs wird nicht als 0 gewertet
 - Konzentrationsübersicht
-- Datenfrische-Klassifizierung
+- Datenfrische-Klassifizierung an 6h/24h/7d-Grenzen
 - Alarm-itemId-Navigation
 
 ### 11.2 Android Regression/Contract Tests
