@@ -68,13 +68,24 @@ class MainActivity : ComponentActivity() {
                 FirebaseMessaging.getInstance().subscribeToTopic(MainViewModel.holdingTopic(itemId))
             }
         }
-        setContent { InvestmentRadarUi(initialTab = if (intent.getBooleanExtra("openAlerts", false)) 3 else 0) }
+        val openItemId = intent.getStringExtra("openItemId")?.takeIf { it.isNotBlank() }
+        val openAlerts = intent.getBooleanExtra("openAlerts", false)
+        setContent {
+            InvestmentRadarUi(
+                initialTab = if (openAlerts || openItemId != null) 3 else 0,
+                initialDetailId = openItemId
+            )
+        }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun InvestmentRadarUi(vm: MainViewModel = viewModel(), initialTab: Int = 0) {
+fun InvestmentRadarUi(
+    vm: MainViewModel = viewModel(),
+    initialTab: Int = 0,
+    initialDetailId: String? = null
+) {
     val state by vm.state.collectAsState()
     val holdingIds by vm.holdingIds.collectAsState()
     val positions by vm.positions.collectAsState()
@@ -86,8 +97,8 @@ fun InvestmentRadarUi(vm: MainViewModel = viewModel(), initialTab: Int = 0) {
     val prefs = remember { context.getSharedPreferences("investment_radar_settings", 0) }
     var budget by remember { mutableIntStateOf(prefs.getInt("monthly_budget", 100).coerceIn(10, 10000)) }
     var tab by remember { mutableIntStateOf(initialTab.coerceIn(0, 3)) }
-    var selectedDetailId by remember { mutableStateOf<String?>(null) }
-    var detailReturnTab by remember { mutableIntStateOf(initialTab.coerceIn(0, 3)) }
+    var selectedDetailId by remember { mutableStateOf(initialDetailId?.takeIf { it.isNotBlank() }) }
+    var detailReturnTab by remember { mutableIntStateOf(if (initialDetailId.isNullOrBlank()) initialTab.coerceIn(0, 3) else 3) }
     var missingAlertItemMessage by rememberSaveable { mutableStateOf<String?>(null) }
     var budgetDialog by remember { mutableStateOf(false) }
     var investmentDialogItem by remember { mutableStateOf<InvestmentItem?>(null) }
@@ -320,18 +331,9 @@ fun InvestmentRadarUi(vm: MainViewModel = viewModel(), initialTab: Int = 0) {
         AlertDialog(
             onDismissRequest = { availableUpdate = null },
             title = { Text("Update verfügbar") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Neue Version ${update.versionName} ist verfügbar.", fontWeight = FontWeight.Bold)
-                    if (update.notes.isNotBlank()) Text(update.notes, color = RadarMuted)
-                    Text("Die App lädt die neue APK selbst herunter. Android fragt dich danach nur noch, ob Investment Radar aktualisiert werden soll.", color = RadarMuted)
-                }
-            },
+            text = { Text("Version ${update.versionName} ist verfügbar.") },
             confirmButton = {
-                Button(onClick = {
-                    AppUpdateManager.openUpdate(context, update)
-                    availableUpdate = null
-                }) { Text("Jetzt aktualisieren") }
+                Button(onClick = { AppUpdateManager.startUpdate(context, update) }) { Text("Installieren") }
             },
             dismissButton = { TextButton(onClick = { availableUpdate = null }) { Text("Später") } }
         )
@@ -340,7 +342,7 @@ fun InvestmentRadarUi(vm: MainViewModel = viewModel(), initialTab: Int = 0) {
     updateStatusMessage?.let { message ->
         AlertDialog(
             onDismissRequest = { updateStatusMessage = null },
-            title = { Text("Update") },
+            title = { Text("Update-Prüfung") },
             text = { Text(message) },
             confirmButton = { TextButton(onClick = { updateStatusMessage = null }) { Text("OK") } }
         )
@@ -354,512 +356,89 @@ private fun DashboardScreen(
     holdingIds: Set<String>,
     positions: Map<String, PortfolioPosition>,
     watchlistIds: Set<String>,
-    personalPlan: PersonalPlan,
+    personalPlan: RecommendationPlan,
     onEditBudget: () -> Unit,
     onOpenRadar: () -> Unit
 ) {
-    val context = LocalContext.current
-    val cashAmount = personalPlan.cashAmount
-    val personalById = personalPlan.items.associateBy { it.itemId }
-    val allocations = personalPlan.items.associate { it.itemId to it.allocationEur }
-    val top = data.items
-        .filter { RecommendationPresentation.effectiveRecommendation(it) == "BUY" }
-        .maxByOrNull { it.scoreTotal ?: Int.MIN_VALUE }
-    val buyCandidates = data.items
-        .filter { RecommendationPresentation.effectiveRecommendation(it) == "BUY" }
-        .sortedByDescending { it.scoreTotal ?: Int.MIN_VALUE }
-    val reviewItems = data.items.filter { item ->
-        item.id in holdingIds && RecommendationPresentation.effectiveRecommendation(item) == "REVIEW"
+    val top = personalPlan.items.firstOrNull { it.signal == PersonalSignal.BUY }
+    val marketOpen = data.items.count { it.marketOpen == true }
+    val delayed = data.items.count { it.dataDelayed == true }
+    val marketText = when {
+        marketOpen > 0 -> "OFFEN"
+        delayed > 0 -> "VERZÖGERT"
+        else -> "GESCHLOSSEN"
     }
-    val missingQuoteItems = data.items.filter { it.status.equals("EIGEN", true) && it.price == null }
-    val concentrationWarning = personalPlan.items.maxByOrNull { it.currentWeightPct }
-        ?.takeIf { it.currentWeightPct >= 40.0 }
-        ?.let { row -> data.items.firstOrNull { it.id == row.itemId }?.let { it to row.currentWeightPct } }
+    val marketSubtitle = when {
+        marketOpen > 0 -> "$marketOpen Werte mit offenem Markt"
+        delayed > 0 -> "$delayed verzögerte Kursquellen"
+        else -> "Aktuell keine offenen Märkte"
+    }
+    val coverageText = data.meta?.coveragePct?.let { "$it % Datenabdeckung" } ?: "Datenabdeckung wird geprüft"
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
-        contentPadding = PaddingValues(bottom = 28.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        item { Spacer(Modifier.height(2.dp)) }
         item {
-            NeonPanel(accent = RadarCyan) {
-                Text("LIVE DASHBOARD", style = MaterialTheme.typography.labelLarge, color = RadarCyan, fontWeight = FontWeight.Black)
-                Text("Analyse V2 für deinen nächsten Monatskauf", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
-                Text("Qualität, Bewertung, Wachstum, Momentum, Risiko und deine aktuelle Depotgewichtung fließen zusammen.", color = RadarMuted)
-            }
-        }
-        item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                DarkMetricCard("MARKT", data.marketLight.uppercase(), RadarYellow, Modifier.weight(1f))
-                DarkMetricCard("BUDGET", "$budget €", RadarBlue, Modifier.weight(1f), onClick = onEditBudget)
-                DarkMetricCard("SIGNAL", if (top != null) "AKTIV" else "WARTEN", RadarGreen, Modifier.weight(1f), valueStyle = if (top == null) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleLarge)
-            }
-        }
-
-        item {
-            NeonPanel(accent = if (reviewItems.isNotEmpty() || concentrationWarning != null) RadarYellow else RadarCyan) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Jetzt relevant", color = RadarCyan, fontWeight = FontWeight.Black, style = MaterialTheme.typography.labelLarge)
-                        Text("Deine wichtigsten Punkte auf einen Blick", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
-                    }
-                    StatusPill(if (reviewItems.isNotEmpty()) "PRÜFEN" else "AKTUELL")
-                }
-                RelevantRow("Kaufkandidaten", buyCandidates.take(3).joinToString { it.ticker }.ifBlank { "Keine" }, RadarGreen)
-                RelevantRow("Prüfsignale", reviewItems.joinToString { it.ticker }.ifBlank { "Keine" }, if (reviewItems.isEmpty()) RadarMuted else RadarYellow)
-                RelevantRow("Watchlist", "${watchlistIds.size} Werte", RadarPurple)
-                if (missingQuoteItems.isNotEmpty()) RelevantRow("Kursdaten fehlen", missingQuoteItems.joinToString { it.ticker }, RadarYellow)
-                concentrationWarning?.let { (item, share) ->
-                    RelevantRow("Konzentration", "${item.ticker} ${String.format(Locale.GERMANY, "%.1f", share)} %", RadarRed)
-                }
-                TextButton(onClick = onOpenRadar, modifier = Modifier.align(Alignment.End)) { Text("Radar öffnen") }
-            }
-        }
-
-        if (top != null) item {
-            val label = RecommendationPresentation.label(top)
-            val personal = personalById[top.id]
-            val amount = personal?.allocationEur ?: 0
-            Text("HEUTIGE EMPFEHLUNG", style = MaterialTheme.typography.labelLarge, color = RadarMuted, fontWeight = FontWeight.Bold)
-            NeonPanel(accent = recommendationColor(label)) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text(label, color = recommendationColor(label), fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
-                        Text(top.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
-                        Text("${top.ticker} · ${top.type} · Risiko ${top.risk}/5", color = RadarMuted)
-                    }
-                    ScoreRing(top.scoreTotal ?: 0)
-                }
-                PortfolioBadgeRow(
-                    listOf(
-                        "Monatskauf" to if (amount > 0) "$amount €" else "0 €",
-                        "Score" to RecommendationPresentation.scoreText(top.scoreTotal),
-                        "Signal" to RecommendationPresentation.confidence(top),
-                        "Depotanteil" to personal?.currentWeightPct?.let { String.format(Locale.GERMANY, "%.1f %%", it) }.orEmpty().ifBlank { "–" }
-                    )
-                )
-                Text(
-                    if (amount > 0) "Diesen Monat $amount € investieren" else personal?.explanation ?: "DIESEN MONAT WARTEN",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Black,
-                    color = recommendationColor(label)
-                )
-                Text(personal?.explanation ?: RecommendationPresentation.topReasons(top).joinToString(" · ").ifBlank { "Analyse liegt vor." }, color = RadarText)
-                Text(priceLine(top), color = RadarMuted)
-                ScoreBreakdownCard(top)
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(
-                        onClick = { TradeRepublicNavigator.open(context, top) },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = RadarGreen, contentColor = Color(0xFF05150E))
-                    ) {
-                        Icon(Icons.Default.OpenInNew, null)
-                        Spacer(Modifier.width(6.dp))
-                        Text("Trade Republic öffnen", fontWeight = FontWeight.Bold)
-                    }
-                    OutlinedButton(onClick = { openMarketQuote(context, top) }, modifier = Modifier.weight(1f)) {
-                        Icon(Icons.Default.ShowChart, null)
-                        Spacer(Modifier.width(6.dp))
-                        Text("Kurs")
-                    }
-                }
-            }
-        }
-
-        if (cashAmount > 0) item {
-            NeonPanel(accent = RadarYellow) {
-                Text("DIESEN MONAT WARTEN", color = RadarYellow, fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
-                Text("$cashAmount € bleiben als Cash, weil aktuell kein geeigneter persönlicher Neukauf übrig bleibt.", color = RadarMuted)
-            }
-        }
-
-        item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Column {
-                    Text("DEIN KAUFPLAN", style = MaterialTheme.typography.labelLarge, color = RadarMuted, fontWeight = FontWeight.Bold)
-                    Text("$budget € Monatsbudget", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
-                }
-                FilledTonalButton(onClick = onEditBudget) {
-                    Icon(Icons.Default.AccountBalanceWallet, null)
-                    Spacer(Modifier.width(6.dp))
-                    Text("Ändern")
-                }
-            }
-        }
-
-        items(data.items.sortedByDescending { allocations[it.id] ?: 0 }) { item ->
-            RecommendationRow(item, personalById[item.id]) { TradeRepublicNavigator.open(context, item) }
-        }
-
-        item {
-            Text(
-                "Nur objektive BUY-Signale erhalten neues Budget. Depotkonzentration und Risiko können die persönliche Zuteilung reduzieren oder blockieren. Keine automatische Order.",
-                style = MaterialTheme.typography.bodySmall,
-                color = RadarMuted,
-                modifier = Modifier.padding(top = 6.dp)
+            DarkHeroCard(
+                eyebrow = "LIVE DASHBOARD",
+                title = "Analyse V2 für deinen nächsten Monatskauf",
+                subtitle = coverageText
             )
         }
+        item {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                DarkMetricCard("MARKT", marketText, RadarYellow, marketSubtitle, Modifier.weight(1f))
+                DarkMetricCard("BUDGET", "$budget €", RadarBlue, "monatlich verfügbar", Modifier.weight(1f))
+                DarkMetricCard(
+                    "SIGNAL",
+                    if (top != null) "AKTIV" else "WARTEN",
+                    RadarGreen,
+                    if (top != null) top.itemName else "Kein klarer Kauf aktuell",
+                    Modifier.weight(1f),
+                    valueStyle = if (top == null) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleLarge
+                )
+            }
+        }
+        item {
+            DarkSectionTitle("Jetzt relevant", "Was der Radar aktuell priorisiert")
+        }
+        if (personalPlan.items.isEmpty()) {
+            item {
+                DarkInfoCard("Keine Empfehlung verfügbar", "Aktuell reichen die Daten für keine belastbare Monatsentscheidung.", RadarYellow)
+            }
+        } else {
+            items(personalPlan.items.take(3), key = { it.itemId }) { item ->
+                val accent = when (item.signal) {
+                    PersonalSignal.BUY -> RadarGreen
+                    PersonalSignal.WATCH -> RadarYellow
+                    PersonalSignal.HOLD -> RadarBlue
+                    PersonalSignal.REVIEW -> RadarPurple
+                    PersonalSignal.SELL -> RadarRed
+                }
+                DarkInfoCard(item.itemName, item.explanation, accent)
+            }
+        }
+        item {
+            Button(onClick = onEditBudget, modifier = Modifier.fillMaxWidth()) { Text("Budget anpassen") }
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(onClick = onOpenRadar, modifier = Modifier.fillMaxWidth()) { Text("Zum Radar") }
+        }
     }
 }
 
 @Composable
-private fun CustomInvestmentDialog(
-    existing: CustomInvestment?,
-    onDismiss: () -> Unit,
-    onSave: (CustomInvestment, PortfolioPurchase?) -> Unit
-) {
-    var name by remember(existing?.id) { mutableStateOf(existing?.name.orEmpty()) }
-    var ticker by remember(existing?.id) { mutableStateOf(existing?.ticker.orEmpty()) }
-    var isin by remember(existing?.id) { mutableStateOf(existing?.isin.orEmpty()) }
-    var type by remember(existing?.id) { mutableStateOf(existing?.type ?: "Aktie") }
-    var tradeRepublicUrl by remember(existing?.id) { mutableStateOf(existing?.tradeRepublicUrl.orEmpty()) }
-    var risk by remember(existing?.id) { mutableIntStateOf(existing?.risk ?: 3) }
-    var manualPriceText by remember(existing?.id) { mutableStateOf(existing?.manualPriceEur?.let(::formatEditableNumber).orEmpty()) }
-    var dateText by remember(existing?.id) { mutableStateOf(todayPurchaseDate()) }
-    var amountText by remember(existing?.id) { mutableStateOf("") }
-    var sharesText by remember(existing?.id) { mutableStateOf("") }
-
-    val amount = parseDecimal(amountText)
-    val shares = parseDecimal(sharesText)
-    val manualPrice = parseDecimal(manualPriceText)?.takeIf { it > 0.0 }
-    val newValid = existing != null || (isValidPurchaseDate(dateText) && amount != null && amount > 0 && shares != null && shares > 0)
-    val metaValid = name.isNotBlank() && ticker.isNotBlank()
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(if (existing == null) "Aktie/ETF hinzufügen" else "Eigenen Wert bearbeiten") },
-        text = {
-            Column(Modifier.heightIn(max = 600.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Eigene Werte", color = RadarPurple, fontWeight = FontWeight.Black)
-                OutlinedTextField(name, { name = it.take(80) }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(ticker, { ticker = it.uppercase().filter { ch -> ch.isLetterOrDigit() || ch in ".-" }.take(20) }, label = { Text("Ticker") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(isin, { isin = it.uppercase().filter(Char::isLetterOrDigit).take(20) }, label = { Text("ISIN") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(selected = type == "Aktie", onClick = { type = "Aktie" }, label = { Text("Aktie") }, modifier = Modifier.weight(1f))
-                    FilterChip(selected = type == "ETF", onClick = { type = "ETF" }, label = { Text("ETF") }, modifier = Modifier.weight(1f))
-                }
-                Text("Risiko", color = RadarMuted, style = MaterialTheme.typography.labelSmall)
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    (1..5).forEach { level ->
-                        FilterChip(selected = risk == level, onClick = { risk = level }, label = { Text(level.toString()) }, modifier = Modifier.weight(1f))
-                    }
-                }
-                OutlinedTextField(tradeRepublicUrl, { tradeRepublicUrl = it.take(250) }, label = { Text("Trade-Republic-Link (optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(manualPriceText, { manualPriceText = sanitizeDecimalInput(it) }, label = { Text("MANUELLER EUR-KURS (optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                Text("Nur als Fallback, wenn keine Kursquelle den Wert findet.", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
-                if (existing == null) {
-                    HorizontalDivider(color = RadarSurface2)
-                    Text("Ersten Kauf erfassen", fontWeight = FontWeight.Black)
-                    OutlinedTextField(dateText, { dateText = it.filter { ch -> ch.isDigit() || ch == '.' }.take(10) }, label = { Text("Kaufdatum (TT.MM.JJJJ)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(amountText, { amountText = sanitizeDecimalInput(it) }, label = { Text("Investierter Betrag in €") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(sharesText, { sharesText = sanitizeDecimalInput(it) }, label = { Text("Stückzahl / Anteile") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    val unitPrice = if (amount != null && shares != null && shares > 0) amount / shares else null
-                    Text("Kaufkurs: ${unitPrice?.let(::formatMoney) ?: "–"}", color = RadarGreen, fontWeight = FontWeight.Bold)
-                }
-                Text("Der aktuelle Kurs wird anschließend automatisch über das Investment-Radar-Backend geladen. Falls der Ticker nicht gefunden wird, bleibt die Position trotzdem gespeichert.", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
-            }
-        },
-        confirmButton = {
-            Button(enabled = metaValid && newValid, onClick = {
-                val id = existing?.id ?: CustomInvestmentStore.createId(ticker, isin)
-                val item = CustomInvestment(id, name.trim(), ticker.trim().uppercase(), isin.trim().uppercase(), type, tradeRepublicUrl.trim(), risk, manualPrice)
-                val purchase = if (existing == null) PortfolioPurchase(UUID.randomUUID().toString(), dateText, amount!!, shares!!) else null
-                onSave(item, purchase)
-            }) { Text(if (existing == null) "Hinzufügen" else "Speichern") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } }
-    )
-}
-
-@Composable
-private fun RelevantRow(label: String, value: String, accent: Color) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .background(Color(0x0DFFFFFF), RoundedCornerShape(14.dp))
-            .padding(horizontal = 12.dp, vertical = 9.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+private fun DarkHeroCard(eyebrow: String, title: String, subtitle: String) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = RadarSurface)
     ) {
-        Text(label, color = RadarMuted, style = MaterialTheme.typography.bodySmall)
-        Text(value, color = accent, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall)
-    }
-}
-
-@Composable
-private fun PortfolioValueRow(label: String, value: String, valueColor: Color) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-        Text(label, color = RadarMuted)
-        Text(value, fontWeight = FontWeight.Bold, color = valueColor)
-    }
-}
-
-@Composable
-private fun PurchaseHistoryDialog(
-    item: InvestmentItem,
-    current: PortfolioPosition,
-    onDismiss: () -> Unit,
-    onUpsertPurchase: (PortfolioPurchase) -> Boolean,
-    onDeletePurchase: (String) -> Boolean,
-    onUpsertSale: (PortfolioSale) -> Boolean,
-    onDeleteSale: (String) -> Boolean
-) {
-    var entryType by remember(item.id) { mutableStateOf("BUY") }
-    var editingId by remember(item.id) { mutableStateOf<String?>(null) }
-    var dateText by remember(item.id) { mutableStateOf(todayPurchaseDate()) }
-    var amountText by remember(item.id) { mutableStateOf("") }
-    var sharesText by remember(item.id) { mutableStateOf("") }
-    var errorText by remember(item.id) { mutableStateOf<String?>(null) }
-
-    fun resetEditor(nextType: String = entryType) {
-        entryType = nextType
-        editingId = null
-        dateText = todayPurchaseDate()
-        amountText = ""
-        sharesText = ""
-        errorText = null
-    }
-
-    fun editPurchase(purchase: PortfolioPurchase) {
-        entryType = "BUY"
-        editingId = purchase.id
-        dateText = purchase.date.ifBlank { todayPurchaseDate() }
-        amountText = formatEditableNumber(purchase.investedAmount)
-        sharesText = formatEditableNumber(purchase.shares)
-        errorText = null
-    }
-
-    fun editSale(sale: PortfolioSale) {
-        entryType = "SELL"
-        editingId = sale.id
-        dateText = sale.date.ifBlank { todayPurchaseDate() }
-        amountText = formatEditableNumber(sale.proceeds)
-        sharesText = formatEditableNumber(sale.shares)
-        errorText = null
-    }
-
-    val amount = parseDecimal(amountText)
-    val shares = parseDecimal(sharesText)
-    val unitPrice = if (amount != null && shares != null && shares > 0.0) amount / shares else null
-    val valid = isValidPurchaseDate(dateText) && amount != null && amount > 0.0 && shares != null && shares > 0.0
-    val editingPurchase = entryType == "BUY" && editingId != null
-    val editingSale = entryType == "SELL" && editingId != null
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Kaufhistorie & Verkäufe") },
-        text = {
-            Column(
-                modifier = Modifier.heightIn(max = 590.dp).verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Text(item.name, fontWeight = FontWeight.Black)
-                Text("${item.ticker} · ${item.isin}", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
-
-                NeonPanel(accent = RadarPurple) {
-                    PortfolioBadgeRow(
-                        listOf(
-                            "Bestand" to formatShares(current.shares),
-                            "Käufe" to current.purchases.size.toString(),
-                            "Verkäufe" to current.sales.size.toString()
-                        )
-                    )
-                    PortfolioValueRow("Verbleibend investiert", formatMoney(current.investedAmount), RadarText)
-                    PortfolioValueRow("Verbleibende Stückzahl", formatShares(current.shares), RadarText)
-                    PortfolioValueRow("Ø Einstand", current.averageBuyPrice()?.let(::formatMoney) ?: "–", RadarGreen)
-                    PortfolioValueRow("Realisierter G/V", formatSignedMoney(current.realizedProfitLoss()), profitColor(current.realizedProfitLoss()))
-                }
-
-                Text("Transaktion hinzufügen", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(
-                        selected = entryType == "BUY",
-                        onClick = { resetEditor("BUY") },
-                        label = { Text("Kauf") },
-                        modifier = Modifier.weight(1f)
-                    )
-                    FilterChip(
-                        selected = entryType == "SELL",
-                        onClick = { resetEditor("SELL") },
-                        label = { Text("Verkauf") },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-
-                Text(
-                    when {
-                        entryType == "BUY" && editingPurchase -> "Kauf bearbeiten"
-                        entryType == "BUY" -> "Nachkauf hinzufügen"
-                        entryType == "SELL" && editingSale -> "Verkauf bearbeiten"
-                        else -> "Verkauf hinzufügen"
-                    },
-                    fontWeight = FontWeight.Black,
-                    style = MaterialTheme.typography.titleMedium
-                )
-                OutlinedTextField(
-                    value = dateText,
-                    onValueChange = { dateText = it.filter { ch -> ch.isDigit() || ch == '.' }.take(10); errorText = null },
-                    label = { Text(if (entryType == "BUY") "Kaufdatum (TT.MM.JJJJ)" else "Verkaufsdatum (TT.MM.JJJJ)") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                OutlinedTextField(
-                    value = amountText,
-                    onValueChange = { amountText = sanitizeDecimalInput(it); errorText = null },
-                    label = { Text(if (entryType == "BUY") "Investierter Betrag in €" else "Verkaufserlös in €") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                OutlinedTextField(
-                    value = sharesText,
-                    onValueChange = { sharesText = sanitizeDecimalInput(it); errorText = null },
-                    label = { Text(if (entryType == "BUY") "Stückzahl / Anteile" else "Verkaufte Stückzahl / Anteile") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Text(
-                    if (entryType == "BUY") {
-                        "Kaufkurs: ${unitPrice?.let(::formatMoney) ?: "–"}"
-                    } else {
-                        "Verkaufspreis: ${unitPrice?.let(::formatMoney) ?: "–"}"
-                    },
-                    color = if (unitPrice != null) if (entryType == "BUY") RadarGreen else RadarYellow else RadarMuted,
-                    fontWeight = FontWeight.Bold
-                )
-
-                errorText?.let { Text(it, color = RadarRed, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold) }
-
-                Button(
-                    onClick = {
-                        if (entryType == "BUY") {
-                            val purchase = PortfolioPurchase(
-                                id = editingId ?: UUID.randomUUID().toString(),
-                                date = dateText,
-                                investedAmount = amount!!,
-                                shares = shares!!
-                            )
-                            if (onUpsertPurchase(purchase)) {
-                                resetEditor("BUY")
-                            } else {
-                                errorText = "Änderung nicht möglich – dadurch wäre ein bereits erfasster Verkauf nicht mehr durch den Bestand gedeckt."
-                            }
-                        } else {
-                            val sale = PortfolioSale(
-                                id = editingId ?: UUID.randomUUID().toString(),
-                                date = dateText,
-                                proceeds = amount!!,
-                                shares = shares!!
-                            )
-                            if (onUpsertSale(sale)) {
-                                resetEditor("SELL")
-                            } else {
-                                errorText = "Verkauf nicht möglich – die Stückzahl zum gewählten Datum überschreitet deinen vorhandenen Bestand."
-                            }
-                        }
-                    },
-                    enabled = valid,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        when {
-                            entryType == "BUY" && editingPurchase -> "Kauf aktualisieren"
-                            entryType == "BUY" -> "Nachkauf speichern"
-                            entryType == "SELL" && editingSale -> "Verkauf aktualisieren"
-                            else -> "Verkauf speichern"
-                        }
-                    )
-                }
-                if (editingId != null) {
-                    TextButton(onClick = { resetEditor(entryType) }, modifier = Modifier.fillMaxWidth()) { Text("Bearbeitung abbrechen") }
-                }
-
-                HorizontalDivider(color = RadarSurface2)
-                Text("Bisherige Käufe", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
-                if (current.purchases.isEmpty()) {
-                    Text("Noch kein Kauf erfasst.", color = RadarMuted)
-                } else {
-                    current.purchases.asReversed().forEach { purchase ->
-                        NeonPanel(accent = RadarGreen) {
-                                Text(purchase.date.ifBlank { "Bestand übernommen" }, fontWeight = FontWeight.Bold)
-                                Text(
-                                    "${formatMoney(purchase.investedAmount)} · ${formatShares(purchase.shares)} Anteile · Kaufkurs ${purchase.buyPrice()?.let(::formatMoney) ?: "–"}",
-                                    color = RadarMuted,
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    TextButton(onClick = { editPurchase(purchase) }, modifier = Modifier.weight(1f)) { Text("Ändern") }
-                                    TextButton(
-                                        onClick = {
-                                            if (onDeletePurchase(purchase.id)) {
-                                                if (editingId == purchase.id && entryType == "BUY") resetEditor("BUY")
-                                            } else {
-                                                errorText = "Änderung nicht möglich – dieser Kauf wird für einen späteren Verkauf benötigt."
-                                            }
-                                        },
-                                        modifier = Modifier.weight(1f)
-                                    ) { Text("Löschen", color = RadarRed) }
-                                }
-                            }
-                        }
-                    }
-
-                HorizontalDivider(color = RadarSurface2)
-                Text("Bisherige Verkäufe", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
-                if (current.sales.isEmpty()) {
-                    Text("Noch kein Verkauf erfasst.", color = RadarMuted)
-                } else {
-                    current.sales.asReversed().forEach { sale ->
-                        NeonPanel(accent = RadarYellow) {
-                                Text(sale.date.ifBlank { "Verkauf" }, fontWeight = FontWeight.Bold, color = RadarYellow)
-                                Text(
-                                    "${formatMoney(sale.proceeds)} Erlös · ${formatShares(sale.shares)} Anteile · Verkaufspreis ${sale.salePrice()?.let(::formatMoney) ?: "–"}",
-                                    color = RadarMuted,
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    TextButton(onClick = { editSale(sale) }, modifier = Modifier.weight(1f)) { Text("Ändern") }
-                                    TextButton(
-                                        onClick = {
-                                            onDeleteSale(sale.id)
-                                            if (editingId == sale.id && entryType == "SELL") resetEditor("SELL")
-                                        },
-                                        modifier = Modifier.weight(1f)
-                                    ) { Text("Löschen", color = RadarRed) }
-                                }
-                            }
-                        }
-                    }
-            }
-        },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Fertig") } },
-        dismissButton = {}
-    )
-}
-
-@Composable
-private fun RecommendationRow(item: InvestmentItem, personal: PersonalRecommendation?, onOpen: () -> Unit) {
-    val label = RecommendationPresentation.label(item)
-    val amount = personal?.allocationEur ?: 0
-    NeonPanel(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen),
-        accent = recommendationColor(label)
-    ) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(item.name, fontWeight = FontWeight.Black)
-                Text("${item.ticker} · Score ${RecommendationPresentation.scoreText(item.scoreTotal)} · Risiko ${item.risk}/5", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
-                Text(
-                    if (amount > 0) "Diesen Monat $amount €" else personal?.explanation ?: RecommendationPresentation.label(item),
-                    color = recommendationColor(label),
-                    fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.labelLarge
-                )
-            }
-            Column(horizontalAlignment = Alignment.End) {
-                Text(if (amount > 0) "$amount €" else "0 €", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium, color = if (amount > 0) RadarGreen else RadarMuted)
-                Icon(Icons.Default.OpenInNew, null, tint = RadarCyan, modifier = Modifier.size(18.dp))
-            }
+        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Text(eyebrow, color = RadarGreen, fontWeight = FontWeight.Black, style = MaterialTheme.typography.labelLarge)
+            Text(title, fontWeight = FontWeight.Black, style = MaterialTheme.typography.headlineSmall)
+            Text(subtitle, color = RadarMuted)
         }
     }
 }
@@ -869,250 +448,282 @@ private fun DarkMetricCard(
     label: String,
     value: String,
     accent: Color,
+    subtitle: String,
     modifier: Modifier = Modifier,
-    onClick: (() -> Unit)? = null,
-    valueStyle: androidx.compose.ui.text.TextStyle? = null
-) {
-    val clickModifier = if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
-    NeonPanel(modifier.then(clickModifier), accent) {
-        Text(label, style = MaterialTheme.typography.labelSmall, color = RadarMuted)
-        Text(value, fontWeight = FontWeight.Black, color = accent, style = valueStyle ?: MaterialTheme.typography.titleLarge)
-        Text("Live Übersicht", style = MaterialTheme.typography.labelSmall, color = accent.copy(alpha = 0.78f))
-    }
-}
-
-@Composable
-private fun ScoreRing(score: Int) {
-    Surface(
-        color = Color(0x141FFFFFF),
-        shape = RoundedCornerShape(18.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, RadarGreen.copy(alpha = 0.45f))
-    ) {
-        Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(score.toString(), fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleLarge, color = RadarGreen)
-            Text("/100", color = RadarMuted, style = MaterialTheme.typography.labelSmall)
-        }
-    }
-}
-
-@Composable
-private fun StatusPill(status: String) {
-    Surface(
-        color = recommendationColor(status).copy(alpha = 0.14f),
-        shape = RoundedCornerShape(50),
-        border = androidx.compose.foundation.BorderStroke(1.dp, recommendationColor(status).copy(alpha = 0.40f))
-    ) {
-        Text(status, Modifier.padding(horizontal = 10.dp, vertical = 5.dp), color = recommendationColor(status), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black)
-    }
-}
-
-@Composable
-private fun NeonPanel(
-    modifier: Modifier = Modifier,
-    accent: Color = RadarBlue,
-    content: @Composable ColumnScope.() -> Unit
+    valueStyle: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.titleLarge
 ) {
     Card(
         modifier = modifier,
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        shape = RoundedCornerShape(22.dp)
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = RadarSurface2)
     ) {
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .background(Brush.linearGradient(listOf(accent.copy(alpha = 0.10f), RadarSurface.copy(alpha = 0.99f), RadarSurface2.copy(alpha = 0.96f))))
-                .border(1.dp, accent.copy(alpha = 0.34f), RoundedCornerShape(22.dp))
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            content = {
-                Box(
-                    Modifier
-                        .fillMaxWidth(0.32f)
-                        .height(3.dp)
-                        .background(brush = Brush.horizontalGradient(listOf(accent.copy(alpha = 0.18f), accent, RadarPurple)), shape = RoundedCornerShape(50))
-                )
-                content()
-            }
-        )
-    }
-}
-
-@Composable
-private fun PortfolioBadgeRow(entries: List<Pair<String, String>>) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            entries.take(2).forEach { (label, value) ->
-                MetricBadge(label, value, Modifier.weight(1f))
-            }
-        }
-        if (entries.size > 2) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                entries.drop(2).take(2).forEach { (label, value) ->
-                    MetricBadge(label, value, Modifier.weight(1f))
-                }
-            }
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(label, color = RadarMuted, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+            Text(value, color = accent, fontWeight = FontWeight.Black, style = valueStyle)
+            Text(subtitle, color = RadarMuted, style = MaterialTheme.typography.labelSmall)
         }
     }
 }
 
 @Composable
-private fun MetricBadge(label: String, value: String, modifier: Modifier = Modifier) {
-    Surface(
-        modifier = modifier,
-        color = Color(0x12FFFFFF),
-        shape = RoundedCornerShape(16.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, RadarGlow)
+private fun DarkSectionTitle(title: String, subtitle: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(title, fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleLarge)
+        Text(subtitle, color = RadarMuted, style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+@Composable
+private fun DarkInfoCard(title: String, text: String, accent: Color) {
+    Card(
+        modifier = Modifier.fillMaxWidth().border(1.dp, accent.copy(alpha = 0.35f), RoundedCornerShape(18.dp)),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = RadarSurface)
     ) {
-        Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(label.uppercase(), style = MaterialTheme.typography.labelSmall, color = RadarMuted)
-            Text(value, fontWeight = FontWeight.Bold, color = RadarText)
+        Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Text(title, fontWeight = FontWeight.Black)
+            Text(text, color = RadarMuted)
         }
     }
 }
 
 @Composable
-private fun NeonStatStrip(entries: List<Pair<String, String>>, accent: Color) {
+private fun ErrorView(message: String, onRetry: () -> Unit) {
     Column(
-        Modifier
-            .fillMaxWidth()
-            .background(accent.copy(alpha = 0.06f), RoundedCornerShape(18.dp))
-            .border(1.dp, accent.copy(alpha = 0.24f), RoundedCornerShape(18.dp))
-            .padding(10.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        Modifier.fillMaxSize().padding(24.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        entries.chunked(2).forEach { rowEntries ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                rowEntries.forEach { (label, value) ->
-                    MetricBadge(label, value, Modifier.weight(1f))
-                }
-                if (rowEntries.size == 1) Spacer(Modifier.weight(1f))
-            }
-        }
+        Text("Daten konnten nicht geladen werden", fontWeight = FontWeight.Black)
+        Spacer(Modifier.height(8.dp))
+        Text(message, color = RadarMuted)
+        Spacer(Modifier.height(16.dp))
+        Button(onClick = onRetry) { Text("Erneut versuchen") }
     }
 }
 
 @Composable
 private fun BudgetDialog(current: Int, onDismiss: () -> Unit, onSave: (Int) -> Unit) {
-    var value by remember(current) { mutableStateOf(current.toString()) }
+    var value by remember { mutableStateOf(current.toString()) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Monatsbudget ändern") },
+        title = { Text("Monatsbudget") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Der Kaufplan wird sofort auf dein neues Budget neu verteilt.", color = RadarMuted)
-                OutlinedTextField(
-                    value = value,
-                    onValueChange = { value = it.filter(Char::isDigit).take(5) },
-                    label = { Text("Budget in €") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf(50, 100, 200, 500).forEach { preset ->
-                        AssistChip(onClick = { value = preset.toString() }, label = { Text("$preset €") })
-                    }
-                }
-            }
+            OutlinedTextField(
+                value = value,
+                onValueChange = { value = it.filter(Char::isDigit).take(5) },
+                label = { Text("Budget in €") },
+                singleLine = true
+            )
         },
         confirmButton = {
-            Button(onClick = { value.toIntOrNull()?.let { onSave(it) } }, enabled = (value.toIntOrNull() ?: 0) >= 10) { Text("Übernehmen") }
+            Button(onClick = { value.toIntOrNull()?.let(onSave) }) { Text("Speichern") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } }
     )
 }
 
 @Composable
-private fun ErrorView(message: String, retry: () -> Unit) {
-    Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
-        NeonPanel(accent = RadarRed, modifier = Modifier.fillMaxWidth()) {
-            Text("Keine Live-Verbindung", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleLarge)
-            Text(message, color = RadarMuted)
-            Button(onClick = retry, modifier = Modifier.fillMaxWidth()) { Text("Erneut versuchen") }
-        }
+private fun PurchaseHistoryDialog(
+    item: InvestmentItem,
+    current: PortfolioPosition,
+    onDismiss: () -> Unit,
+    onUpsertPurchase: (PortfolioPurchase) -> Unit,
+    onDeletePurchase: (String) -> Unit,
+    onUpsertSale: (PortfolioSale) -> Unit,
+    onDeleteSale: (String) -> Unit
+) {
+    var showPurchaseForm by remember { mutableStateOf(false) }
+    var showSaleForm by remember { mutableStateOf(false) }
+    var editingPurchase by remember { mutableStateOf<PortfolioPurchase?>(null) }
+    var editingSale by remember { mutableStateOf<PortfolioSale?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("${item.name} · Portfolio") },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth().heightIn(max = 560.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text("Käufe", fontWeight = FontWeight.Black)
+                current.purchases.forEach { purchase ->
+                    Card(colors = CardDefaults.cardColors(containerColor = RadarSurface2)) {
+                        Column(Modifier.padding(10.dp)) {
+                            Text("${purchase.date} · ${formatMoney(purchase.amountEur)} €")
+                            Text("${formatNumber(purchase.quantity)} Stück · ${formatMoney(purchase.priceEur)} €", color = RadarMuted)
+                            Row {
+                                TextButton(onClick = { editingPurchase = purchase; showPurchaseForm = true }) { Text("Bearbeiten") }
+                                TextButton(onClick = { onDeletePurchase(purchase.id) }) { Text("Löschen") }
+                            }
+                        }
+                    }
+                }
+                Button(onClick = { editingPurchase = null; showPurchaseForm = true }, modifier = Modifier.fillMaxWidth()) { Text("Kauf hinzufügen") }
+                HorizontalDivider()
+                Text("Verkäufe", fontWeight = FontWeight.Black)
+                current.sales.forEach { sale ->
+                    Card(colors = CardDefaults.cardColors(containerColor = RadarSurface2)) {
+                        Column(Modifier.padding(10.dp)) {
+                            Text("${sale.date} · ${formatMoney(sale.amountEur)} €")
+                            Text("${formatNumber(sale.quantity)} Stück · ${formatMoney(sale.priceEur)} €", color = RadarMuted)
+                            Row {
+                                TextButton(onClick = { editingSale = sale; showSaleForm = true }) { Text("Bearbeiten") }
+                                TextButton(onClick = { onDeleteSale(sale.id) }) { Text("Löschen") }
+                            }
+                        }
+                    }
+                }
+                Button(onClick = { editingSale = null; showSaleForm = true }, modifier = Modifier.fillMaxWidth()) { Text("Verkauf hinzufügen") }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Fertig") } }
+    )
+
+    if (showPurchaseForm) {
+        val existing = editingPurchase
+        TransactionDialog(
+            title = if (existing == null) "Kauf hinzufügen" else "Kauf bearbeiten",
+            initialDate = existing?.date.orEmpty(),
+            initialAmount = existing?.amountEur,
+            initialQuantity = existing?.quantity,
+            initialPrice = existing?.priceEur,
+            onDismiss = { showPurchaseForm = false },
+            onSave = { date, amount, quantity, price ->
+                onUpsertPurchase(
+                    PortfolioPurchase(
+                        id = existing?.id ?: UUID.randomUUID().toString(),
+                        date = date,
+                        amountEur = amount,
+                        quantity = quantity,
+                        priceEur = price
+                    )
+                )
+                showPurchaseForm = false
+            }
+        )
+    }
+
+    if (showSaleForm) {
+        val existing = editingSale
+        TransactionDialog(
+            title = if (existing == null) "Verkauf hinzufügen" else "Verkauf bearbeiten",
+            initialDate = existing?.date.orEmpty(),
+            initialAmount = existing?.amountEur,
+            initialQuantity = existing?.quantity,
+            initialPrice = existing?.priceEur,
+            onDismiss = { showSaleForm = false },
+            onSave = { date, amount, quantity, price ->
+                onUpsertSale(
+                    PortfolioSale(
+                        id = existing?.id ?: UUID.randomUUID().toString(),
+                        date = date,
+                        amountEur = amount,
+                        quantity = quantity,
+                        priceEur = price
+                    )
+                )
+                showSaleForm = false
+            }
+        )
     }
 }
 
-private fun openSavedTradeRepublicUrl(context: android.content.Context, url: String) {
-    val normalized = url.trim()
-    if (!normalized.startsWith("https://") && !normalized.startsWith("http://")) return
-    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(normalized))) }
+@Composable
+private fun TransactionDialog(
+    title: String,
+    initialDate: String,
+    initialAmount: Double?,
+    initialQuantity: Double?,
+    initialPrice: Double?,
+    onDismiss: () -> Unit,
+    onSave: (String, Double, Double, Double) -> Unit
+) {
+    var date by remember { mutableStateOf(initialDate.ifBlank { SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date()) }) }
+    var amount by remember { mutableStateOf(initialAmount?.toString().orEmpty()) }
+    var quantity by remember { mutableStateOf(initialQuantity?.toString().orEmpty()) }
+    var price by remember { mutableStateOf(initialPrice?.toString().orEmpty()) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(value = date, onValueChange = { date = it }, label = { Text("Datum (JJJJ-MM-TT)") }, singleLine = true)
+                OutlinedTextField(value = amount, onValueChange = { amount = normalizeDecimalInput(it) }, label = { Text("Betrag €") }, singleLine = true)
+                OutlinedTextField(value = quantity, onValueChange = { quantity = normalizeDecimalInput(it) }, label = { Text("Stück") }, singleLine = true)
+                OutlinedTextField(value = price, onValueChange = { price = normalizeDecimalInput(it) }, label = { Text("Preis je Stück €") }, singleLine = true)
+            }
+        },
+        confirmButton = {
+            Button(onClick = {
+                val amountValue = amount.toDoubleOrNull()
+                val quantityValue = quantity.toDoubleOrNull()
+                val priceValue = price.toDoubleOrNull()
+                if (date.isNotBlank() && amountValue != null && quantityValue != null && priceValue != null && amountValue > 0 && quantityValue > 0 && priceValue > 0) {
+                    onSave(date, amountValue, quantityValue, priceValue)
+                }
+            }) { Text("Speichern") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } }
+    )
 }
 
-private fun openMarketQuote(context: android.content.Context, item: InvestmentItem) {
-    val ticker = Uri.encode(item.ticker.trim())
-    val url = "https://finance.yahoo.com/quote/$ticker"
-    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+@Composable
+private fun CustomInvestmentDialog(
+    existing: CustomInvestment?,
+    onDismiss: () -> Unit,
+    onSave: (CustomInvestment, PortfolioPurchase?) -> Unit
+) {
+    var name by remember { mutableStateOf(existing?.name.orEmpty()) }
+    var isin by remember { mutableStateOf(existing?.isin.orEmpty()) }
+    var ticker by remember { mutableStateOf(existing?.ticker.orEmpty()) }
+    var quantity by remember { mutableStateOf("") }
+    var price by remember { mutableStateOf(existing?.manualPriceEur?.toString().orEmpty()) }
+    var date by remember { mutableStateOf(SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (existing == null) "Eigenen Wert hinzufügen" else "Eigenen Wert bearbeiten") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Name") }, singleLine = true)
+                OutlinedTextField(value = isin, onValueChange = { isin = it.uppercase().take(12) }, label = { Text("ISIN") }, singleLine = true)
+                OutlinedTextField(value = ticker, onValueChange = { ticker = it.uppercase() }, label = { Text("Ticker") }, singleLine = true)
+                if (existing == null) OutlinedTextField(value = quantity, onValueChange = { quantity = normalizeDecimalInput(it) }, label = { Text("Stück") }, singleLine = true)
+                OutlinedTextField(value = price, onValueChange = { price = normalizeDecimalInput(it) }, label = { Text("Preis €") }, singleLine = true)
+                if (existing == null) OutlinedTextField(value = date, onValueChange = { date = it }, label = { Text("Kaufdatum") }, singleLine = true)
+            }
+        },
+        confirmButton = {
+            Button(onClick = {
+                if (name.isBlank()) return@Button
+                val id = existing?.id ?: "custom-${UUID.randomUUID()}"
+                val priceValue = price.toDoubleOrNull()
+                val item = CustomInvestment(id = id, name = name.trim(), isin = isin.trim(), ticker = ticker.trim(), manualPriceEur = priceValue)
+                val purchase = if (existing == null) {
+                    val qty = quantity.toDoubleOrNull()
+                    if (qty != null && qty > 0 && priceValue != null && priceValue > 0) {
+                        PortfolioPurchase(
+                            id = UUID.randomUUID().toString(),
+                            date = date,
+                            amountEur = qty * priceValue,
+                            quantity = qty,
+                            priceEur = priceValue
+                        )
+                    } else null
+                } else null
+                onSave(item, purchase)
+            }) { Text("Speichern") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } }
+    )
 }
 
-private fun priceLine(item: InvestmentItem): String {
-    val price = item.price?.let { String.format(Locale.GERMANY, "%.2f", it) } ?: "–"
-    val change = item.percentChange?.let { String.format(Locale.GERMANY, "%+.2f%%", it) } ?: "–"
-    val eur = item.priceEur
-        ?.takeIf { item.price != null && !item.currency.equals("EUR", ignoreCase = true) }
-        ?.let { " · ≈ ${formatMoney(it)}" }
-        .orEmpty()
-    val quality = if (item.price == null) "" else if (item.dataDelayed) " · verzögert" else " · Live"
-    return "Kurs $price ${item.currency}$eur · Heute $change$quality"
+private fun normalizeDecimalInput(value: String): String = value.replace(',', '.').filter { it.isDigit() || it == '.' }.let { normalized ->
+    val firstDot = normalized.indexOf('.')
+    if (firstDot < 0) normalized else normalized.substring(0, firstDot + 1) + normalized.substring(firstDot + 1).replace(".", "")
 }
 
-private fun euroComparablePrice(item: InvestmentItem): Double? =
-    item.priceEur ?: item.price?.takeIf { item.currency.isBlank() || item.currency.equals("EUR", ignoreCase = true) }
-
-private fun todayPurchaseDate(): String =
-    SimpleDateFormat("dd.MM.yyyy", Locale.GERMANY).format(Date())
-
-private fun isValidPurchaseDate(value: String): Boolean {
-    if (!value.matches(Regex("\\d{2}\\.\\d{2}\\.\\d{4}"))) return false
-    val format = SimpleDateFormat("dd.MM.yyyy", Locale.GERMANY).apply { isLenient = false }
-    val parsed = runCatching { format.parse(value) }.getOrNull() ?: return false
-    return format.format(parsed) == value
-}
-
-private fun parseDecimal(value: String): Double? = value.trim().replace(',', '.').toDoubleOrNull()
-
-private fun sanitizeDecimalInput(value: String): String {
-    val normalized = value.filter { it.isDigit() || it == ',' || it == '.' }.replace('.', ',')
-    val firstComma = normalized.indexOf(',')
-    return if (firstComma < 0) normalized.take(12) else {
-        normalized.substring(0, firstComma + 1) + normalized.substring(firstComma + 1).replace(",", "").take(6)
-    }.take(16)
-}
-
-private fun formatEditableNumber(value: Double): String =
-    if (value % 1.0 == 0.0) value.toLong().toString() else String.format(Locale.GERMANY, "%.6f", value).trimEnd('0').trimEnd(',')
-
-private fun formatMoney(value: Double): String = String.format(Locale.GERMANY, "%.2f €", value)
-
-private fun formatSignedMoney(value: Double): String = String.format(Locale.GERMANY, "%+.2f €", value)
-
-private fun formatShares(value: Double): String = String.format(Locale.GERMANY, "%.6f", value).trimEnd('0').trimEnd(',')
-
-private fun formatSignedPercent(value: Double): String = String.format(Locale.GERMANY, "%+.2f%%", value)
-
-private fun profitColor(value: Double?): Color = when {
-    value == null -> RadarMuted
-    value > 0.0 -> RadarGreen
-    value < 0.0 -> RadarRed
-    else -> RadarMuted
-}
-
-private fun recommendationColor(label: String) = when (label.uppercase()) {
-    "KAUFEN" -> RadarGreen
-    "BEOBACHTEN" -> RadarYellow
-    "VERKAUF PRÜFEN", "VERKAUFEN" -> RadarRed
-    "NICHT KAUFEN" -> Color(0xFFFF8B6A)
-    else -> RadarBlue
-}
-
-private fun marketAccent(light: String) = when (light.uppercase()) {
-    "GRÜN", "GRUEN", "GREEN" -> RadarGreen
-    "ROT", "RED" -> RadarRed
-    else -> RadarYellow
-}
-
-private fun alertDarkColor(level: String) = when (level.uppercase()) {
-    "SELL" -> Color(0xFF351824)
-    "REVIEW" -> Color(0xFF392B18)
-    "BUY" -> Color(0xFF123126)
-    else -> RadarSurface2
-}
+private fun formatMoney(value: Double): String = String.format(Locale.GERMANY, "%.2f", value)
+private fun formatNumber(value: Double): String = String.format(Locale.GERMANY, "%.4f", value).trimEnd('0').trimEnd(',')
