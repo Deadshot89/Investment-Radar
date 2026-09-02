@@ -23,4 +23,29 @@ class AlertCenterStateTest {
         )
         assertEquals(true, merged.single().isRead)
     }
+
+    @Test fun markAllReadPreservesAlertsAndMarksEveryItem() {
+        val a = StoredAlert(SignalAlert("a", "msft", "BUY", "A", "", "2026-09-02T08:00:00Z"), false)
+        val b = StoredAlert(SignalAlert("b", "googl", "REVIEW", "B", "", "2026-09-02T09:00:00Z"), true)
+        val next = AlertCenterState.markAllRead(listOf(a, b))
+        assertEquals(2, next.size)
+        assertTrue(next.all { it.isRead })
+    }
+
+    @Test fun deleteRemovesAlertAndCreatesTombstone() {
+        val alert = StoredAlert(SignalAlert("a", "msft", "BUY", "A", "", "2026-09-02T08:00:00Z"), false)
+        val next = AlertCenterState.delete(listOf(alert), emptyMap(), "a", 1234L)
+        assertTrue(next.items.isEmpty())
+        assertEquals(1234L, next.tombstones["a"])
+    }
+
+    @Test fun clearRemovesAllAlertsAndTombstonesEveryId() {
+        val a = StoredAlert(SignalAlert("a", "msft", "BUY", "A", "", "2026-09-02T08:00:00Z"), false)
+        val b = StoredAlert(SignalAlert("b", "googl", "SELL", "B", "", "2026-09-02T09:00:00Z"), false)
+        val next = AlertCenterState.clear(listOf(a, b), mapOf("old" to 10L), 2222L)
+        assertTrue(next.items.isEmpty())
+        assertEquals(2222L, next.tombstones["a"])
+        assertEquals(2222L, next.tombstones["b"])
+        assertEquals(10L, next.tombstones["old"])
+    }
 }
