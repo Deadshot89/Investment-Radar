@@ -33,6 +33,9 @@ test("12M forecast direction flip creates a dedicated explained alert", () => {
   assert.equal(alert.level, "REVIEW");
   assert.match(alert.message, /\+5\.0 %/);
   assert.match(alert.message, /-3\.4 %/);
+  assert.match(alert.message, /Pessimistisch:/);
+  assert.match(alert.message, /Erwartet:/);
+  assert.match(alert.message, /Optimistisch:/);
   assert.match(alert.message, /Warum:/);
   assert.match(alert.message, /Momentum/);
 });
