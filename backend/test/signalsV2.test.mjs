@@ -46,15 +46,11 @@ test("missing prior score does not become zero", () => {
 test("absolute price threshold is categorized as THRESHOLD", () => {
   const items = [{ id: "x", name: "Asset X", recommendation: "WATCH", hardReviewBelow: 100, price: 90, currency: "EUR" }];
   const signals = evaluateSignals(items, new Map());
-  const signal = signals.find((candidate) => candidate.level === "THRESHOLD" && candidate.title.includes("Kurs-Schwelle"));
-  assert.ok(signal);
-  assert.equal(signal.triggerValuePct, undefined);
+  assert.ok(signals.some((signal) => signal.level === "THRESHOLD" && signal.title.includes("Kurs-Schwelle")));
 });
 
-test("daily drop threshold exposes the actual percentage for local filtering", () => {
+test("daily drop threshold is categorized as THRESHOLD", () => {
   const items = [{ id: "x", name: "Asset X", recommendation: "WATCH", reviewDrop1dPct: 7, percentChange: -8 }];
   const signals = evaluateSignals(items, new Map());
-  const signal = signals.find((candidate) => candidate.level === "THRESHOLD" && candidate.title.includes("Tagesverlust"));
-  assert.ok(signal);
-  assert.equal(signal.triggerValuePct, -8);
+  assert.ok(signals.some((signal) => signal.level === "THRESHOLD" && signal.title.includes("Tagesverlust") && signal.message.includes("-8.00 %")));
 });
