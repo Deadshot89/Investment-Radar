@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 SRC="android/app/src/main/java/de/tobias/investmentradar/PortfolioDashboard.kt"
+MAIN="android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt"
 test -f "$SRC"
 grep -q 'Depotwert' "$SRC"
 grep -q 'Einstand' "$SRC"
@@ -9,3 +10,6 @@ grep -q 'Größte Position' "$SRC"
 grep -q 'Teilwert' "$SRC"
 grep -q 'Kurs fehlt' "$SRC"
 grep -q 'onOpenDetail' "$SRC"
+grep -q 'PortfolioDashboard(' "$MAIN"
+grep -q 'personalById = personalById' "$MAIN"
+! grep -q 'private fun PortfolioScreen(' "$MAIN"
