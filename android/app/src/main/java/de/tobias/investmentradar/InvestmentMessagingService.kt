@@ -21,9 +21,15 @@ class InvestmentMessagingService : FirebaseMessagingService() {
         val id = data["alertId"] ?: "${System.currentTimeMillis()}"
         val itemId = data["itemId"] ?: ""
         val createdAt = data["createdAt"] ?: SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US).format(Date())
+        val alert = SignalAlert(id, itemId, level, title, body, createdAt)
+        val preferences = AlertPreferencesStore.read(this)
 
-        AlertStore.add(this, SignalAlert(id, itemId, level, title, body, createdAt))
-        showNotification(title, body, level, id.hashCode())
+        if (AlertPolicy.shouldStore(alert, preferences)) {
+            AlertStore.add(this, alert)
+        }
+        if (AlertPolicy.shouldNotify(alert, preferences)) {
+            showNotification(title, body, level, id.hashCode())
+        }
     }
 
     private fun showNotification(title: String, body: String, level: String, id: Int) {
@@ -32,13 +38,15 @@ class InvestmentMessagingService : FirebaseMessagingService() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             manager.createNotificationChannel(
                 NotificationChannel(channelId, "Investment-Alarme", NotificationManager.IMPORTANCE_HIGH).apply {
-                    description = "Kauf-, Verkaufs- und Pruefsignale"
+                    description = "Kauf-, Verkaufs-, Prüf- und Schwellenwertsignale"
                 }
             )
         }
-        val intent = Intent(this, MainActivity::class.java)
+        val intent = Intent(this, MainActivity::class.java).apply {
+            putExtra("openAlerts", true)
+        }
         val pendingIntent = PendingIntent.getActivity(
-            this, 0, intent,
+            this, id, intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val notification = NotificationCompat.Builder(this, channelId)
@@ -57,6 +65,7 @@ class InvestmentMessagingService : FirebaseMessagingService() {
         "SELL" -> "🔴"
         "REVIEW" -> "🟠"
         "BUY" -> "🟢"
+        "THRESHOLD" -> "🟡"
         else -> "🔵"
     }
 }
