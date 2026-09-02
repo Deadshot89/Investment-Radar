@@ -24,7 +24,7 @@ export function evaluateSignals(items, quotes = new Map(), context = {}) {
 
     if (price != null && item.hardReviewBelow != null && price <= Number(item.hardReviewBelow)) {
       result.push(make(
-        item, "REVIEW", `${item.name}: Kurs-Schwelle erreicht`,
+        item, "THRESHOLD", `${item.name}: Kurs-Schwelle erreicht`,
         `Kurs ${fmt(price)} ${currency} liegt unter der Prüfschwelle ${fmt(Number(item.hardReviewBelow))}. Kein automatischer Verkauf – Gründe prüfen.`,
         now, `below-${item.hardReviewBelow}`
       ));
@@ -33,7 +33,7 @@ export function evaluateSignals(items, quotes = new Map(), context = {}) {
     const dropThreshold = Math.abs(Number(item.reviewDrop1dPct ?? 0));
     if (percentChange != null && dropThreshold > 0 && percentChange <= -dropThreshold) {
       result.push(make(
-        item, "REVIEW", `${item.name}: ungewöhnlicher Tagesverlust`,
+        item, "THRESHOLD", `${item.name}: ungewöhnlicher Tagesverlust`,
         `Tagesbewegung ${percentChange.toFixed(2)} %. Prüfe Nachrichten und Investmentthese; normale Schwankungen unterhalb dieser Schwelle lösen keinen Alarm aus.`,
         now, `drop-threshold-${dropThreshold}`
       ));
