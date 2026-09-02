@@ -9,6 +9,39 @@ data class DashboardData(
     val alerts: List<SignalAlert>
 )
 
+data class MomentumSnapshot(
+    val d1: Double? = null,
+    val m1: Double? = null,
+    val m3: Double? = null,
+    val m6: Double? = null,
+    val m12: Double? = null,
+    val score: Int? = null,
+    val coveragePct: Int? = null,
+    val stale: Boolean = false,
+    val source: String = "",
+    val asOf: String? = null,
+    val error: String? = null
+)
+
+data class FundamentalSnapshot(
+    val pe: Double? = null,
+    val priceToSales: Double? = null,
+    val evToEbitda: Double? = null,
+    val freeCashFlowYield: Double? = null,
+    val revenueGrowth: Double? = null,
+    val epsGrowth: Double? = null,
+    val operatingMargin: Double? = null,
+    val netMargin: Double? = null,
+    val roe: Double? = null,
+    val roic: Double? = null,
+    val debtToEquity: Double? = null,
+    val coveragePct: Int? = null,
+    val stale: Boolean = false,
+    val source: String = "",
+    val asOf: String? = null,
+    val error: String? = null
+)
+
 data class InvestmentItem(
     val id: String,
     val type: String,
@@ -30,7 +63,19 @@ data class InvestmentItem(
     val marketOpen: Boolean?,
     val dataSource: String,
     val dataDelayed: Boolean,
-    val dataError: String?
+    val dataError: String?,
+    val scoreTotal: Int? = null,
+    val scoreQuality: Int? = null,
+    val scoreValuation: Int? = null,
+    val scoreGrowth: Int? = null,
+    val scoreMomentum: Int? = null,
+    val scoreRisk: Int? = null,
+    val coverage: Int? = null,
+    val recommendation: String = "",
+    val recommendationReasons: List<String> = emptyList(),
+    val momentum: MomentumSnapshot? = null,
+    val fundamentals: FundamentalSnapshot? = null,
+    val analysisAsOf: String? = null
 )
 
 data class SignalAlert(
