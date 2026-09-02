@@ -14,14 +14,14 @@ class AlertPolicyTest {
 
     @Test fun reviewAndSellDefaultToEnabled() {
         val prefs = AlertPreferences()
-        assertTrue(AlertPolicy.shouldNotify(SignalAlert("1", "x", "REVIEW", "", "", ""), prefs, isHeld = true))
-        assertTrue(AlertPolicy.shouldNotify(SignalAlert("2", "x", "SELL", "", "", ""), prefs, isHeld = true))
+        assertTrue(AlertPolicy.shouldNotify(SignalAlert("1", "x", "REVIEW", "", "", ""), prefs))
+        assertTrue(AlertPolicy.shouldNotify(SignalAlert("2", "x", "SELL", "", "", ""), prefs))
     }
 
-    @Test fun heldOnlyReviewSuppressesReviewForNonHoldings() {
-        val prefs = AlertPreferences(heldOnlyForReview = true)
-        val alert = SignalAlert("1", "watch-only", "REVIEW", "Prüfen", "Text", "")
-        assertFalse(AlertPolicy.shouldNotify(alert, prefs, isHeld = false))
-        assertTrue(AlertPolicy.shouldNotify(alert, prefs, isHeld = true))
+    @Test fun thresholdPreferenceControlsThresholdNotification() {
+        val alert = SignalAlert("3", "x", "THRESHOLD", "", "", "")
+        assertTrue(AlertPolicy.shouldNotify(alert, AlertPreferences(thresholdEnabled = true)))
+        assertFalse(AlertPolicy.shouldNotify(alert, AlertPreferences(thresholdEnabled = false)))
+        assertTrue(AlertPolicy.shouldStore(alert, AlertPreferences(thresholdEnabled = false)))
     }
 }
