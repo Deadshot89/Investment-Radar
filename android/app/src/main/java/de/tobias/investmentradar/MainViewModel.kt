@@ -69,7 +69,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
                 .onSuccess {
                     val application = getApplication<Application>()
-                    _alerts.value = AlertStore.mergeRemote(application, it.alerts)
+                    val relevantAlerts = it.alerts.filter { alert -> AlertPolicy.isRelevantForPortfolio(alert, _holdingIds.value) }
+                    _alerts.value = AlertStore.mergeRemote(application, relevantAlerts)
                     _state.value = UiState.Ready(it)
                 }
                 .onFailure { e ->
@@ -106,7 +107,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val next = current.removePurchaseIfValid(purchaseId) ?: return false
         savePosition(next)
         return true
-    }
+n    }
 
     fun upsertSale(itemId: String, sale: PortfolioSale): Boolean {
         val current = _positions.value[itemId] ?: PortfolioPosition(itemId)
