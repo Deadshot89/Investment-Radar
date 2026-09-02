@@ -16,3 +16,5 @@ if [ "$COUNT" -ne 1 ]; then
   echo "Expected exactly one shared RecommendationEngine.plan call, found $COUNT"
   exit 1
 fi
+
+echo "PASS shared portfolio-aware personal plan"
