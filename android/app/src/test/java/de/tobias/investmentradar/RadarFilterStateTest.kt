@@ -10,13 +10,7 @@ class RadarFilterStateTest {
         val etf = radarItem("spyi", name = "SPDR ACWI IMI", ticker = "SPYI", isin = "IE00B3YLTY66", type = "ETF")
 
         listOf("micro", "MSFT", "594918", "aktie").forEach { query ->
-            val result = RadarFilterEngine.apply(
-                listOf(stock, etf),
-                RadarFilterState(query = query),
-                emptySet(),
-                emptySet(),
-                emptyMap()
-            )
+            val result = RadarFilterEngine.apply(listOf(stock, etf), RadarFilterState(query = query), emptySet(), emptySet(), emptyMap())
             assertEquals(listOf("msft"), result.map { it.id })
         }
     }
@@ -32,15 +26,7 @@ class RadarFilterStateTest {
             dataQuality = RadarDataQualityFilter.FULL,
             risk = RadarRiskFilter.LOW
         )
-
-        val result = RadarFilterEngine.apply(
-            listOf(buyHeld, buyNotHeld),
-            state,
-            setOf("a"),
-            emptySet(),
-            emptyMap()
-        )
-
+        val result = RadarFilterEngine.apply(listOf(buyHeld, buyNotHeld), state, setOf("a"), emptySet(), emptyMap())
         assertEquals(listOf("a"), result.map { it.id })
     }
 
@@ -48,19 +34,8 @@ class RadarFilterStateTest {
     fun watchlistAndNotHeldFiltersCombine() {
         val a = radarItem("a")
         val b = radarItem("b")
-        val state = RadarFilterState(
-            holding = RadarHoldingFilter.NOT_HELD,
-            watchlistOnly = true
-        )
-
-        val result = RadarFilterEngine.apply(
-            listOf(a, b),
-            state,
-            holdingIds = setOf("a"),
-            watchlistIds = setOf("a", "b"),
-            allocationById = emptyMap()
-        )
-
+        val state = RadarFilterState(holding = RadarHoldingFilter.NOT_HELD, watchlistOnly = true)
+        val result = RadarFilterEngine.apply(listOf(a, b), state, setOf("a"), setOf("a", "b"), emptyMap())
         assertEquals(listOf("b"), result.map { it.id })
     }
 
@@ -70,31 +45,10 @@ class RadarFilterStateTest {
         val reducedMedium = radarItem("reduced-medium", coverage = 50, risk = 3)
         val insufficientHigh = radarItem("insufficient-high", coverage = 49, risk = 4)
         val missingCoverage = radarItem("missing-coverage", coverage = null, risk = 5)
-
-        assertEquals(
-            listOf("full-low"),
-            RadarFilterEngine.apply(
-                listOf(fullLow, reducedMedium, insufficientHigh, missingCoverage),
-                RadarFilterState(dataQuality = RadarDataQualityFilter.FULL, risk = RadarRiskFilter.LOW),
-                emptySet(), emptySet(), emptyMap()
-            ).map { it.id }
-        )
-        assertEquals(
-            listOf("reduced-medium"),
-            RadarFilterEngine.apply(
-                listOf(fullLow, reducedMedium, insufficientHigh, missingCoverage),
-                RadarFilterState(dataQuality = RadarDataQualityFilter.REDUCED, risk = RadarRiskFilter.MEDIUM),
-                emptySet(), emptySet(), emptyMap()
-            ).map { it.id }
-        )
-        assertEquals(
-            listOf("insufficient-high", "missing-coverage"),
-            RadarFilterEngine.apply(
-                listOf(fullLow, reducedMedium, insufficientHigh, missingCoverage),
-                RadarFilterState(dataQuality = RadarDataQualityFilter.INSUFFICIENT, risk = RadarRiskFilter.HIGH),
-                emptySet(), emptySet(), emptyMap()
-            ).map { it.id }
-        )
+        val items = listOf(fullLow, reducedMedium, insufficientHigh, missingCoverage)
+        assertEquals(listOf("full-low"), RadarFilterEngine.apply(items, RadarFilterState(dataQuality = RadarDataQualityFilter.FULL, risk = RadarRiskFilter.LOW), emptySet(), emptySet(), emptyMap()).map { it.id })
+        assertEquals(listOf("reduced-medium"), RadarFilterEngine.apply(items, RadarFilterState(dataQuality = RadarDataQualityFilter.REDUCED, risk = RadarRiskFilter.MEDIUM), emptySet(), emptySet(), emptyMap()).map { it.id })
+        assertEquals(listOf("insufficient-high", "missing-coverage"), RadarFilterEngine.apply(items, RadarFilterState(dataQuality = RadarDataQualityFilter.INSUFFICIENT, risk = RadarRiskFilter.HIGH), emptySet(), emptySet(), emptyMap()).map { it.id })
     }
 
     @Test
@@ -102,13 +56,7 @@ class RadarFilterStateTest {
         val high = radarItem("high", momentumM6 = 18.0)
         val low = radarItem("low", momentumM6 = -3.0)
         val missing = radarItem("missing", momentumM6 = null)
-
-        val result = RadarFilterEngine.apply(
-            listOf(missing, low, high),
-            RadarFilterState(sort = RadarSortOption.MOMENTUM_6M),
-            emptySet(), emptySet(), emptyMap()
-        )
-
+        val result = RadarFilterEngine.apply(listOf(missing, low, high), RadarFilterState(sort = RadarSortMode.MOMENTUM_6M), emptySet(), emptySet(), emptyMap())
         assertEquals(listOf("high", "low", "missing"), result.map { it.id })
     }
 
@@ -116,13 +64,7 @@ class RadarFilterStateTest {
     fun allocationSortUsesPersonalPlanAmounts() {
         val a = radarItem("a")
         val b = radarItem("b")
-
-        val result = RadarFilterEngine.apply(
-            listOf(a, b),
-            RadarFilterState(sort = RadarSortOption.ALLOCATION),
-            emptySet(), emptySet(), mapOf("a" to 10, "b" to 60)
-        )
-
+        val result = RadarFilterEngine.apply(listOf(a, b), RadarFilterState(sort = RadarSortMode.ALLOCATION), emptySet(), emptySet(), mapOf("a" to 10, "b" to 60))
         assertEquals(listOf("b", "a"), result.map { it.id })
     }
 
@@ -131,18 +73,8 @@ class RadarFilterStateTest {
         val up = radarItem("up", percentChange = 3.0)
         val down = radarItem("down", percentChange = -2.0)
         val missing = radarItem("missing", percentChange = null)
-
-        val asc = RadarFilterEngine.apply(
-            listOf(missing, up, down),
-            RadarFilterState(sort = RadarSortOption.DAY_ASC),
-            emptySet(), emptySet(), emptyMap()
-        )
-        val desc = RadarFilterEngine.apply(
-            listOf(missing, up, down),
-            RadarFilterState(sort = RadarSortOption.DAY_DESC),
-            emptySet(), emptySet(), emptyMap()
-        )
-
+        val asc = RadarFilterEngine.apply(listOf(missing, up, down), RadarFilterState(sort = RadarSortMode.DAY_ASC), emptySet(), emptySet(), emptyMap())
+        val desc = RadarFilterEngine.apply(listOf(missing, up, down), RadarFilterState(sort = RadarSortMode.DAY_DESC), emptySet(), emptySet(), emptyMap())
         assertEquals(listOf("down", "up", "missing"), asc.map { it.id })
         assertEquals(listOf("up", "down", "missing"), desc.map { it.id })
     }
@@ -159,14 +91,7 @@ class RadarFilterStateTest {
         scoreTotal: Int? = 70,
         percentChange: Double? = null,
         momentumM6: Double? = null
-    ): InvestmentItem = testInvestmentItem(
-        id = id,
-        type = type,
-        recommendation = recommendation,
-        scoreTotal = scoreTotal,
-        coverage = coverage,
-        risk = risk
-    ).copy(
+    ): InvestmentItem = testInvestmentItem(id = id, type = type, recommendation = recommendation, scoreTotal = scoreTotal, coverage = coverage, risk = risk).copy(
         name = name,
         ticker = ticker,
         isin = isin,
