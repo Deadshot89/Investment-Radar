@@ -26,38 +26,36 @@ jobs:
           path = Path('android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt')
           text = path.read_text()
 
-          old_call = '''                            2 -> PortfolioScreen(
-                                items = s.data.items.filter { it.id in holdingIds },
-                                positions = positions,
-                                customItems = customItems,
-                                onOpenDetail = { id ->
-                                    detailReturnTab = 2
-                                    selectedDetailId = id
-                                },
-                                onEdit = { investmentDialogItem = it },
-                                onRemove = vm::removeHolding,
-                                onAddCustom = { customAssetDialog = true },
-                                onEditCustom = { editingCustomAsset = it },
-                                onRemoveCustom = vm::removeCustomInvestment
-                            )'''
-          new_call = '''                            2 -> PortfolioDashboard(
-                                items = s.data.items,
-                                positions = positions,
-                                customItems = customItems,
-                                personalById = personalById,
-                                onOpenDetail = { id ->
-                                    detailReturnTab = 2
-                                    selectedDetailId = id
-                                },
-                                onEdit = { investmentDialogItem = it },
-                                onRemove = vm::removeHolding,
-                                onAddCustom = { customAssetDialog = true },
-                                onEditCustom = { editingCustomAsset = it },
-                                onRemoveCustom = vm::removeCustomInvestment
-                            )'''
-          if old_call not in text:
+          token = '2 -> PortfolioScreen('
+          token_pos = text.find(token)
+          if token_pos < 0:
               raise SystemExit('Expected PortfolioScreen call not found')
-          text = text.replace(old_call, new_call, 1)
+          call_start = text.rfind('\n', 0, token_pos) + 1
+          indent = text[call_start:token_pos]
+          next_marker = '\n' + indent + 'else -> AlertsScreen('
+          call_end = text.find(next_marker, token_pos)
+          if call_end < 0:
+              raise SystemExit('Expected AlertsScreen marker not found')
+
+          lines = [
+              '2 -> PortfolioDashboard(',
+              '    items = s.data.items,',
+              '    positions = positions,',
+              '    customItems = customItems,',
+              '    personalById = personalById,',
+              '    onOpenDetail = { id ->',
+              '        detailReturnTab = 2',
+              '        selectedDetailId = id',
+              '    },',
+              '    onEdit = { investmentDialogItem = it },',
+              '    onRemove = vm::removeHolding,',
+              '    onAddCustom = { customAssetDialog = true },',
+              '    onEditCustom = { editingCustomAsset = it },',
+              '    onRemoveCustom = vm::removeCustomInvestment',
+              ')',
+          ]
+          new_call = '\n'.join(indent + line for line in lines)
+          text = text[:call_start] + new_call + text[call_end:]
 
           start_marker = '@Composable\nprivate fun PortfolioScreen('
           end_marker = '@Composable\nprivate fun CustomInvestmentDialog('
