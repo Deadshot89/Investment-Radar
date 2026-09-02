@@ -175,15 +175,19 @@ fun InvestmentRadarUi(vm: MainViewModel = viewModel(), initialTab: Int = 0) {
                             onEditBudget = { budgetDialog = true },
                             onOpenRadar = { radarFocusId = null; tab = 1 }
                         )
-                        1 -> RadarScreen(
+                        1 -> RadarScreenV2(
                             items = s.data.items,
                             holdingIds = holdingIds,
                             watchlistIds = watchlistIds,
-                            focusItemId = radarFocusId,
-                            onClearFocus = { radarFocusId = null },
+                            personalById = RecommendationEngine.plan(
+                                s.data.items,
+                                budget,
+                                PortfolioAnalysis.values(s.data.items, positions, customItems)
+                            ).items.associateBy { it.itemId },
                             onToggleWatchlist = vm::toggleWatchlist,
                             onBought = { investmentDialogItem = it },
-                            onEditInvestment = { investmentDialogItem = it }
+                            onEditInvestment = { investmentDialogItem = it },
+                            onOpenDetail = { id -> radarFocusId = id }
                         )
                         2 -> PortfolioScreen(
                             items = s.data.items.filter { it.id in holdingIds },
@@ -450,141 +454,6 @@ private fun DashboardScreen(
                 color = RadarMuted,
                 modifier = Modifier.padding(top = 6.dp)
             )
-        }
-    }
-}
-
-private enum class RadarSortOption(val label: String) {
-    SCORE("Score"), DAY("Tag"), RISK("Risiko"), NAME("Name")
-}
-
-@Composable
-private fun RadarScreen(
-    items: List<InvestmentItem>,
-    holdingIds: Set<String>,
-    watchlistIds: Set<String>,
-    focusItemId: String?,
-    onClearFocus: () -> Unit,
-    onToggleWatchlist: (String) -> Unit,
-    onBought: (InvestmentItem) -> Unit,
-    onEditInvestment: (InvestmentItem) -> Unit
-) {
-    val context = LocalContext.current
-    var query by remember { mutableStateOf("") }
-    var filter by remember { mutableStateOf("ALLE") }
-    var sortOption by remember { mutableStateOf(RadarSortOption.SCORE) }
-
-    val filteredItems = items
-        .filter { item ->
-            val recommendation = RecommendationPresentation.effectiveRecommendation(item)
-            val matchesFocus = focusItemId == null || item.id == focusItemId
-            val matchesQuery = query.isBlank() ||
-                item.name.contains(query, ignoreCase = true) ||
-                item.ticker.contains(query, ignoreCase = true) ||
-                item.isin.contains(query, ignoreCase = true)
-            val matchesFilter = when (filter) {
-                "KAUFEN" -> recommendation == "BUY"
-                "PORTFOLIO" -> item.id in holdingIds
-                "ETF" -> item.type.equals("ETF", ignoreCase = true)
-                "EIGENE" -> item.status.equals("EIGEN", ignoreCase = true)
-                "WATCHLIST" -> item.id in watchlistIds
-                "PRÜFEN" -> recommendation == "REVIEW"
-                else -> true
-            }
-            matchesFocus && matchesQuery && matchesFilter
-        }
-        .let { filtered ->
-            when (sortOption) {
-                RadarSortOption.SCORE -> filtered.sortedByDescending { it.scoreTotal ?: Int.MIN_VALUE }
-                RadarSortOption.DAY -> filtered.sortedByDescending { it.percentChange ?: Double.NEGATIVE_INFINITY }
-                RadarSortOption.RISK -> filtered.sortedByDescending { it.risk }
-                RadarSortOption.NAME -> filtered.sortedBy { it.name.lowercase(Locale.GERMANY) }
-            }
-        }
-
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
-        contentPadding = PaddingValues(bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        item {
-            NeonPanel(accent = RadarPurple) {
-                Text("RADAR", style = MaterialTheme.typography.labelLarge, color = RadarPurple, fontWeight = FontWeight.Bold)
-                Text("40 Werte · Analyse V2", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
-                if (focusItemId != null) {
-                    FilledTonalButton(onClick = onClearFocus, modifier = Modifier.fillMaxWidth()) { Text("Alarm-Fokus aufheben") }
-                }
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    label = { Text("Suchen nach Name, Ticker oder ISIN") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(selected = filter == "ALLE", onClick = { filter = "ALLE" }, label = { Text("Alle") }, modifier = Modifier.weight(1f))
-                        FilterChip(selected = filter == "KAUFEN", onClick = { filter = "KAUFEN" }, label = { Text("Kaufen") }, modifier = Modifier.weight(1f))
-                        FilterChip(selected = filter == "PORTFOLIO", onClick = { filter = "PORTFOLIO" }, label = { Text("Portfolio") }, modifier = Modifier.weight(1f))
-                    }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(selected = filter == "ETF", onClick = { filter = "ETF" }, label = { Text("ETF") }, modifier = Modifier.weight(1f))
-                        FilterChip(selected = filter == "EIGENE", onClick = { filter = "EIGENE" }, label = { Text("Eigene Werte") }, modifier = Modifier.weight(1f))
-                        FilterChip(selected = filter == "PRÜFEN", onClick = { filter = "PRÜFEN" }, label = { Text("Prüfen") }, modifier = Modifier.weight(1f))
-                    }
-                    FilterChip(selected = filter == "WATCHLIST", onClick = { filter = "WATCHLIST" }, label = { Text("Watchlist (${watchlistIds.size})") }, modifier = Modifier.fillMaxWidth())
-                }
-                Text("SORTIERUNG", style = MaterialTheme.typography.labelSmall, color = RadarMuted, fontWeight = FontWeight.Bold)
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    RadarSortOption.entries.forEach { option ->
-                        FilterChip(selected = sortOption == option, onClick = { sortOption = option }, label = { Text(option.label) }, modifier = Modifier.weight(1f))
-                    }
-                }
-                Text("${filteredItems.size} Treffer", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
-            }
-        }
-        if (filteredItems.isEmpty()) {
-            item { NeonPanel(accent = RadarYellow) { Text("Keine Treffer", fontWeight = FontWeight.Black); Text("Passe die Suche oder den Filter an.", color = RadarMuted) } }
-        }
-        items(filteredItems) { item ->
-            val label = RecommendationPresentation.label(item)
-            NeonPanel(accent = recommendationColor(label)) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text(item.name, fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
-                        Text("${item.ticker} · ${item.isin}", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
-                    }
-                    StatusPill(label)
-                }
-                Text(priceLine(item), color = RadarMuted)
-                PortfolioBadgeRow(
-                    listOf(
-                        "Score" to RecommendationPresentation.scoreText(item.scoreTotal),
-                        "Daten" to item.coverage?.let { "$it %" }.orEmpty().ifBlank { "–" },
-                        "Risiko" to "${item.risk}/5",
-                        "Typ" to item.type
-                    )
-                )
-                RecommendationPresentation.topReasons(item).forEach { reason -> Text("• $reason", style = MaterialTheme.typography.bodySmall) }
-                ScoreBreakdownCard(item)
-                if (item.price != null && item.dataSource.isNotBlank()) {
-                    Text("Kursquelle ${item.dataSource}${if (item.dataDelayed) " · verzögert" else " · Live"}", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
-                }
-                OutlinedButton(onClick = { TradeRepublicNavigator.open(context, item) }, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Default.OpenInNew, null)
-                    Spacer(Modifier.width(7.dp))
-                    Text("Trade Republic öffnen")
-                }
-                FilledTonalButton(onClick = { onToggleWatchlist(item.id) }, modifier = Modifier.fillMaxWidth()) {
-                    Text(if (item.id in watchlistIds) "Von Watchlist entfernen" else "Zur Watchlist")
-                }
-                if (item.id in holdingIds) {
-                    Text("✓ Im Portfolio · Prüf-/Verkaufsalarme aktiv", color = RadarGreen, fontWeight = FontWeight.Bold)
-                    FilledTonalButton(onClick = { onEditInvestment(item) }, modifier = Modifier.fillMaxWidth()) { Text("Transaktionen verwalten") }
-                } else {
-                    Button(onClick = { onBought(item) }, modifier = Modifier.fillMaxWidth()) { Text("Als gekauft markieren") }
-                }
-            }
         }
     }
 }
