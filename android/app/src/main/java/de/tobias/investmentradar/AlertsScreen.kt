@@ -31,10 +31,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
-enum class AlertFilter(val label: String, val level: String?) {
-    ALL("Alle", null), BUY("Kauf", "BUY"), REVIEW("Prüfen", "REVIEW"), SELL("Verkauf", "SELL")
-}
-
 @Composable
 fun AlertsScreen(
     alerts: List<StoredAlert>,
@@ -49,7 +45,7 @@ fun AlertsScreen(
     var showSettings by rememberSaveable { mutableStateOf(false) }
     var confirmClear by rememberSaveable { mutableStateOf(false) }
     val filter = AlertFilter.entries.firstOrNull { it.name == filterName } ?: AlertFilter.ALL
-    val visible = alerts.filter { stored -> filter.level == null || stored.alert.level.equals(filter.level, true) }
+    val visible = alerts.filter { stored -> filter.matches(stored.alert.level) }
     val unread = alerts.count { !it.isRead }
 
     LazyColumn(
