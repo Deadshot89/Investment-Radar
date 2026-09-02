@@ -1,0 +1,36 @@
+name: Android Contract Tests
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'android/**'
+      - '.github/workflows/android-contract-tests.yml'
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run 1.2.0 source contracts
+        shell: bash
+        run: |
+          set +e
+          failed=0
+          for test_file in \
+            android/tests/test-analysis-v2-ui.sh \
+            android/tests/test-portfolio-allocation-ui.sh \
+            android/tests/test-alert-policy-wiring.sh \
+            android/tests/test-alert-center-ui.sh \
+            android/tests/test-alert-center-wiring.sh \
+            android/tests/test-update-status-ui.sh \
+            android/tests/test-trade-republic-navigator-wiring.sh; do
+            echo "=== $test_file ==="
+            bash "$test_file"
+            status=$?
+            if [ "$status" -ne 0 ]; then
+              echo "FAIL $test_file"
+              failed=1
+            fi
+          done
+          exit "$failed"
