@@ -1,0 +1,40 @@
+name: Apply Investment Radar 1.1.27
+
+permissions:
+  contents: write
+
+on:
+  push:
+    branches:
+      - ir127-work
+    paths:
+      - '.github/workflows/apply-ir127.yml'
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ir127-work
+      - name: Apply verified 1.1.27 patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 -d _assistant_ir127.patch.gz.b64 | gunzip > /tmp/ir127.patch
+          git apply --whitespace=fix /tmp/ir127.patch
+          bash scripts/test-1.1.27-portfolio-fallback.sh
+          cd backend
+          npm install --no-audit --no-fund
+          npm test
+          cd ..
+          rm -f _assistant_ir127.patch.gz.b64 .github/workflows/apply-ir127.yml
+      - name: Commit 1.1.27
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'Investment Radar Builder'
+          git config user.email 'actions@github.com'
+          git add -A
+          git commit -m 'Investment Radar 1.1.27 portfolio and quote fixes'
+          git push origin HEAD:ir127-work
