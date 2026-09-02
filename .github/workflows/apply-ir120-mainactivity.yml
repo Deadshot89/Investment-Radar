@@ -1,0 +1,42 @@
+name: Apply IR120 MainActivity Migration
+
+permissions:
+  contents: write
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'scripts/apply-ir120-mainactivity.py'
+      - '.github/workflows/apply-ir120-mainactivity.yml'
+
+jobs:
+  apply:
+    if: github.ref == 'refs/heads/ir120-implementation'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ir120-implementation
+          fetch-depth: 0
+
+      - name: Apply deterministic migration
+        run: python scripts/apply-ir120-mainactivity.py
+
+      - name: Verify migration diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          git diff -- android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt
+          test -n "$(git status --porcelain android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt)"
+
+      - name: Commit migrated MainActivity
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "Deadshot89"
+          git config user.email "86518220+Deadshot89@users.noreply.github.com"
+          git add android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt
+          git commit -m "feat: wire Investment Radar 1.2.0 Android UI"
+          git push origin HEAD:ir120-implementation
