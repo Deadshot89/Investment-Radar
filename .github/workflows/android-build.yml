@@ -228,14 +228,24 @@ jobs:
           cp "$APK" "$RELEASE_APK"
 
           if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "❌ Release $TAG existiert bereits. App-Version erhöhen, statt dieselbe Version zu überschreiben." >> "$GITHUB_STEP_SUMMARY"
-            exit 4
+            EXISTING_DIR="$RUNNER_TEMP/existing-release"
+            mkdir -p "$EXISTING_DIR"
+            gh release download "$TAG" --pattern "investment-radar.apk" --dir "$EXISTING_DIR"
+            EXISTING_APK="$EXISTING_DIR/investment-radar.apk"
+            test -s "$EXISTING_APK"
+            CURRENT_SHA=$(sha256sum "$RELEASE_APK" | awk '{print $1}')
+            EXISTING_SHA=$(sha256sum "$EXISTING_APK" | awk '{print $1}')
+            if [ "$CURRENT_SHA" != "$EXISTING_SHA" ]; then
+              echo "❌ Release $TAG existiert bereits mit einer anderen APK. Version erhöhen, statt dieselbe Version zu überschreiben." >> "$GITHUB_STEP_SUMMARY"
+              exit 4
+            fi
+            echo "✅ Release $TAG existiert bereits und ist identisch; unverändert beibehalten." >> "$GITHUB_STEP_SUMMARY"
+          else
+            gh release create "$TAG" "$RELEASE_APK#investment-radar.apk" \
+              --title "Investment Radar $VERSION_NAME" \
+              --notes "Automatisch veröffentlichte, dauerhaft signierte Investment-Radar-APK."
+            echo "✅ Release $TAG für In-App-Updates veröffentlicht." >> "$GITHUB_STEP_SUMMARY"
           fi
-
-          gh release create "$TAG" "$RELEASE_APK#investment-radar.apk" \
-            --title "Investment Radar $VERSION_NAME" \
-            --notes "Automatisch veröffentlichte, dauerhaft signierte Investment-Radar-APK."
-          echo "✅ Release $TAG für In-App-Updates veröffentlicht." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload APK
         if: success()
