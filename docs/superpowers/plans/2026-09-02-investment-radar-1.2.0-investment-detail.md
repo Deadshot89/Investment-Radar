@@ -16,6 +16,7 @@
 - Opening detail must not call `ApiClient` or a provider.
 - Missing scores, coverage, fundamentals or momentum display “Nicht verfügbar”, never `0`.
 - Momentum: 1D, 1M, 3M, 6M, 12M; render only non-null values.
+- Trend label uses existing momentum only: 3M+6M both >0 = `Positiver Trend`; both <0 = `Negativer Trend`; any other case with at least one of 3M/6M available = `Gemischter Trend`; both missing = `Nicht verfügbar`.
 - History fresh <=6h; fundamentals fresh <=24h; cache usable <=7d; >7d stale.
 - Freshness precedence: STALE > PARTIAL > CACHED > CURRENT.
 - Sources are shown only when actually present.
@@ -111,7 +112,7 @@ fun olderThanSevenDaysIsStaleWithHighestPrecedence() {
 - [ ] **Step 2: Run RED**
 
 ```bash
-cd android && ./gradlew testReleaseUnitTest --tests 'de.tobias.investmentradar.DataFreshnessTest'
+(cd android && ./gradlew testReleaseUnitTest --tests 'de.tobias.investmentradar.DataFreshnessTest')
 ```
 Expected: compile failure because `DataFreshness` does not exist.
 
@@ -136,8 +137,8 @@ ETF fundamentals are expected only when the ETF item actually has a nonblank fun
 - [ ] **Step 4: Run GREEN and commit**
 
 ```bash
-cd android && ./gradlew testReleaseUnitTest --tests 'de.tobias.investmentradar.DataFreshnessTest'
-git add app/src/main/java/de/tobias/investmentradar/DataFreshness.kt app/src/test/java/de/tobias/investmentradar/DataFreshnessTest.kt
+(cd android && ./gradlew testReleaseUnitTest --tests 'de.tobias.investmentradar.DataFreshnessTest')
+git add android/app/src/main/java/de/tobias/investmentradar/DataFreshness.kt android/app/src/test/java/de/tobias/investmentradar/DataFreshnessTest.kt
 git commit -m "feat: classify investment data freshness"
 ```
 
@@ -228,6 +229,9 @@ grep -q 'Momentum' "$SRC"
 grep -q 'Risk' "$SRC"
 grep -q 'Coverage' "$SRC"
 for period in 1D 1M 3M 6M 12M; do grep -q "$period" "$SRC"; done
+grep -q 'Positiver Trend' "$SRC"
+grep -q 'Negativer Trend' "$SRC"
+grep -q 'Gemischter Trend' "$SRC"
 grep -q 'Datenquellen' "$SRC"
 grep -q 'Trade Republic öffnen' "$SRC"
 grep -q 'Nicht verfügbar' "$SRC"
@@ -249,10 +253,11 @@ Order:
 4. `ScoreBreakdownCard(item)`.
 5. Coverage + `DataFreshness.summarize(item)` status.
 6. Momentum cards only for non-null d1/m1/m3/m6/m12.
-7. Fundamental rows only for non-null metrics; otherwise `Fundamentaldaten nicht verfügbar`.
-8. Top reasons.
-9. `Datenquellen`: quote/history/fundamental source or `Quelle nicht verfügbar`, plus available timestamps.
-10. Watchlist, transaction/portfolio and Trade Republic actions.
+7. Compact trend label derived exactly from m3/m6 using the global rule; no new numeric threshold.
+8. Fundamental rows only for non-null metrics; otherwise `Fundamentaldaten nicht verfügbar`.
+9. Top reasons.
+10. `Datenquellen`: quote/history/fundamental source or `Quelle nicht verfügbar`, plus available timestamps.
+11. Watchlist, transaction/portfolio and Trade Republic actions.
 
 Use Material 3 directly; do not depend on file-private MainActivity helpers. Do not call `ApiClient`.
 
@@ -266,7 +271,7 @@ If both item/customItem are null, show `Wertpapier nicht mehr verfügbar` plus B
 
 ```bash
 bash android/tests/test-investment-detail-ui.sh
-cd android && ./gradlew testReleaseUnitTest
+(cd android && ./gradlew testReleaseUnitTest)
 ```
 Expected: PASS.
 
@@ -314,7 +319,7 @@ Update the existing portfolio card signature with the same id-based callback unt
 
 ```bash
 bash android/tests/test-investment-detail-ui.sh
-cd android && ./gradlew testReleaseUnitTest
+(cd android && ./gradlew testReleaseUnitTest)
 git add android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt android/app/src/main/java/de/tobias/investmentradar/RadarScreen.kt android/tests/test-investment-detail-ui.sh
 git commit -m "feat: navigate to shared investment details"
 ```
@@ -322,5 +327,5 @@ git commit -m "feat: navigate to shared investment details"
 ### Task 5: Verification checkpoint
 
 - [ ] Run all permanent Android contract scripts including detail and score-null contracts.
-- [ ] Run `cd android && ./gradlew testReleaseUnitTest` with zero failures.
+- [ ] Run `(cd android && ./gradlew testReleaseUnitTest)` with zero failures.
 - [ ] Push and require Android Contract Tests + Android JVM Tests green before the portfolio plan.
