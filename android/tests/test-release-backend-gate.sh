@@ -5,6 +5,8 @@ WF=".github/workflows/android-build.yml"
 
 grep -q 'Verify live backend before Android publish' "$WF"
 grep -q 'EXPECTED_BACKEND_VERSION: "1.2.0"' "$WF"
+grep -Fq 'BASE_URL: ${{ vars.INVESTMENT_API_BASE_URL }}' "$WF"
+grep -q "github.ref == 'refs/heads/main'" "$WF"
 grep -q '/api/health' "$WF"
 grep -q 'backendVersion' "$WF"
 grep -q 'Publish APK for in-app updates' "$WF"
