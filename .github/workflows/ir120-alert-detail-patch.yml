@@ -75,18 +75,20 @@ jobs:
           if 'title = { Text("Wertpapier nicht verfügbar") }' not in text:
               if dialog_marker not in text:
                   raise SystemExit('Update dialog marker not found')
-              dialog = '''    missingAlertItemMessage?.let { message ->
-        AlertDialog(
-            onDismissRequest = { missingAlertItemMessage = null },
-            title = { Text("Wertpapier nicht verfügbar") },
-            text = { Text(message) },
-            confirmButton = {
-                TextButton(onClick = { missingAlertItemMessage = null }) { Text("OK") }
-            }
-        )
-    }
-
-'''
+              dialog_lines = [
+                  '    missingAlertItemMessage?.let { message ->',
+                  '        AlertDialog(',
+                  '            onDismissRequest = { missingAlertItemMessage = null },',
+                  '            title = { Text("Wertpapier nicht verfügbar") },',
+                  '            text = { Text(message) },',
+                  '            confirmButton = {',
+                  '                TextButton(onClick = { missingAlertItemMessage = null }) { Text("OK") }',
+                  '            }',
+                  '        )',
+                  '    }',
+                  '',
+              ]
+              dialog = '\n'.join(dialog_lines) + '\n'
               text = text.replace(dialog_marker, dialog + dialog_marker, 1)
 
           path.write_text(text)
