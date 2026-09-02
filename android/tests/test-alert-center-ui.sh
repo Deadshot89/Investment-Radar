@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+UI="android/app/src/main/java/de/tobias/investmentradar/AlertsScreen.kt"
+STATE="android/app/src/main/java/de/tobias/investmentradar/AlertCenterState.kt"
+
+grep -q 'ALL("Alle")' "$STATE"
+grep -q 'BUY("Kauf")' "$STATE"
+grep -q 'REVIEW("Prüfen")' "$STATE"
+grep -q 'SELL("Verkauf")' "$STATE"
+grep -q 'level.equals("THRESHOLD"' "$STATE"
+grep -q 'filter.matches(stored.alert.level)' "$UI"
+grep -q 'Alle gelesen' "$UI"
+grep -q 'Alarmeinstellungen' "$UI"
+grep -q 'onDelete' "$UI"
+grep -q 'onClear' "$UI"

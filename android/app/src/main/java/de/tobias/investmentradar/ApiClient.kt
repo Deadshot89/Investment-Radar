@@ -7,49 +7,48 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 
-object ApiClient {
-    suspend fun loadDashboard(): DashboardData = withContext(Dispatchers.IO) {
-        NetworkRetryPolicy.execute {
-            loadDashboardOnce()
+internal fun recommendationFallback(recommendation: String, status: String): String =
+    recommendation.ifBlank {
+        when (status.trim().uppercase()) {
+            "KAUFEN", "BUY" -> "BUY"
+            "VERKAUFEN", "SELL", "VERKAUF PRÜFEN", "DRINGEND PRÜFEN", "DRINGEND_PRUEFEN", "REVIEW" -> "REVIEW"
+            "NICHT KAUFEN", "NO_BUY" -> "NO_BUY"
+            else -> "WATCH"
         }
     }
 
+object ApiClient {
+    suspend fun loadDashboard(): DashboardData = withContext(Dispatchers.IO) {
+        NetworkRetryPolicy.execute { loadDashboardOnce() }
+    }
 
     suspend fun loadCustomQuote(item: CustomInvestment): InvestmentItem = withContext(Dispatchers.IO) {
         NetworkRetryPolicy.execute { loadCustomQuoteOnce(item) }
     }
 
     private fun loadCustomQuoteOnce(item: CustomInvestment): InvestmentItem {
-        val baseUrl = BuildConfig.API_BASE_URL.trim().trimEnd('/')
-        require(baseUrl.startsWith("https://") && !baseUrl.contains("YOUR-FUNCTION-APP")) {
-            "Backend noch nicht eingerichtet. Azure Function App zuerst verbinden."
-        }
+        val baseUrl = checkedBaseUrl()
         val query = listOf(
             "id" to item.id, "name" to item.name, "ticker" to item.ticker, "isin" to item.isin,
             "type" to item.type, "risk" to item.risk.toString()
         ).joinToString("&") { (k, v) -> "$k=${java.net.URLEncoder.encode(v, "UTF-8")}" }
-        val conn = (URL("$baseUrl/api/custom-quote?$query").openConnection() as HttpURLConnection).apply {
-            requestMethod = "GET"
-            connectTimeout = NetworkRetryPolicy.CONNECT_TIMEOUT_MS
-            readTimeout = NetworkRetryPolicy.READ_TIMEOUT_MS
-            setRequestProperty("Accept", "application/json")
-        }
-        try {
-            val code = conn.responseCode
-            val stream = if (code in 200..299) conn.inputStream else conn.errorStream
-            val body = stream.bufferedReader().use { it.readText() }
-            if (code !in 200..299) error("Serverfehler $code: $body")
-            return parseInvestmentItem(JSONObject(body))
-        } finally {
-            conn.disconnect()
-        }
+        return getJson("$baseUrl/api/custom-quote?$query") { parseInvestmentItem(it) }
     }
+
     private fun loadDashboardOnce(): DashboardData {
+        val baseUrl = checkedBaseUrl()
+        return getJson("$baseUrl/api/dashboard", ::parseDashboard)
+    }
+
+    private fun checkedBaseUrl(): String {
         val baseUrl = BuildConfig.API_BASE_URL.trim().trimEnd('/')
         require(baseUrl.startsWith("https://") && !baseUrl.contains("YOUR-FUNCTION-APP")) {
             "Backend noch nicht eingerichtet. Azure Function App zuerst verbinden."
         }
-        val endpoint = "$baseUrl/api/dashboard"
+        return baseUrl
+    }
+
+    private fun <T> getJson(endpoint: String, parser: (JSONObject) -> T): T {
         val conn = (URL(endpoint).openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
             connectTimeout = NetworkRetryPolicy.CONNECT_TIMEOUT_MS
@@ -61,7 +60,7 @@ object ApiClient {
             val stream = if (code in 200..299) conn.inputStream else conn.errorStream
             val body = stream.bufferedReader().use { it.readText() }
             if (code !in 200..299) error("Serverfehler $code: $body")
-            return parseDashboard(JSONObject(body))
+            return parser(JSONObject(body))
         } finally {
             conn.disconnect()
         }
@@ -82,37 +81,58 @@ object ApiClient {
 
     private fun JSONArray?.toInvestmentItems(): List<InvestmentItem> {
         if (this == null) return emptyList()
-        return (0 until length()).mapNotNull { i ->
-            optJSONObject(i)?.let(::parseInvestmentItem)
-        }
+        return (0 until length()).mapNotNull { i -> optJSONObject(i)?.let(::parseInvestmentItem) }
     }
 
-    private fun parseInvestmentItem(o: JSONObject): InvestmentItem = InvestmentItem(
-        id = o.optString("id"), type = o.optString("type"), name = o.optString("name"),
-        ticker = o.optString("ticker"), isin = o.optString("isin"), tradeRepublicName = o.optString("tradeRepublicName"),
-        status = o.optString("status"), allocation = o.optInt("allocation", 0), risk = o.optInt("risk", 3),
-        price = if (o.isNull("price")) null else o.optDouble("price"),
-        priceEur = if (o.isNull("priceEur")) null else o.optDouble("priceEur"), currency = o.optString("currency", ""),
-        fxRateToEur = if (o.isNull("fxRateToEur")) null else o.optDouble("fxRateToEur"), fxSource = o.optString("fxSource", ""),
-        fxDelayed = o.optBoolean("fxDelayed", false), fxAsOf = if (o.isNull("fxAsOf")) null else o.optString("fxAsOf"),
-        percentChange = if (o.isNull("percentChange")) null else o.optDouble("percentChange"),
-        marketOpen = if (o.isNull("marketOpen")) null else o.optBoolean("marketOpen"), dataSource = o.optString("dataSource", ""),
-        dataDelayed = o.optBoolean("dataDelayed", false), dataError = if (o.isNull("dataError")) null else o.optString("dataError")
+    private fun parseInvestmentItem(o: JSONObject): InvestmentItem {
+        val status = o.optString("status")
+        val recommendation = recommendationFallback(o.optString("recommendation"), status)
+        return InvestmentItem(
+            id = o.optString("id"), type = o.optString("type"), name = o.optString("name"),
+            ticker = o.optString("ticker"), isin = o.optString("isin"), tradeRepublicName = o.optString("tradeRepublicName"),
+            status = status, allocation = o.optInt("allocation", 0), risk = o.optInt("risk", 3),
+            price = o.nullableDouble("price"), priceEur = o.nullableDouble("priceEur"), currency = o.optString("currency", ""),
+            fxRateToEur = o.nullableDouble("fxRateToEur"), fxSource = o.optString("fxSource", ""),
+            fxDelayed = o.optBoolean("fxDelayed", false), fxAsOf = o.nullableString("fxAsOf"),
+            percentChange = o.nullableDouble("percentChange"), marketOpen = o.nullableBoolean("marketOpen"),
+            dataSource = o.optString("dataSource", ""), dataDelayed = o.optBoolean("dataDelayed", false), dataError = o.nullableString("dataError"),
+            scoreTotal = o.nullableInt("scoreTotal"), scoreQuality = o.nullableInt("scoreQuality"), scoreValuation = o.nullableInt("scoreValuation"),
+            scoreGrowth = o.nullableInt("scoreGrowth"), scoreMomentum = o.nullableInt("scoreMomentum"), scoreRisk = o.nullableInt("scoreRisk"),
+            coverage = o.nullableInt("coverage"), recommendation = recommendation,
+            recommendationReasons = o.optJSONArray("recommendationReasons").toStrings(),
+            momentum = o.optJSONObject("momentum")?.let(::parseMomentum),
+            fundamentals = o.optJSONObject("fundamentals")?.let(::parseFundamentals),
+            analysisAsOf = o.nullableString("analysisAsOf")
+        )
+    }
+
+    private fun parseMomentum(o: JSONObject): MomentumSnapshot = MomentumSnapshot(
+        d1 = o.nullableDouble("d1"), m1 = o.nullableDouble("m1"), m3 = o.nullableDouble("m3"),
+        m6 = o.nullableDouble("m6"), m12 = o.nullableDouble("m12"), score = o.nullableInt("score"),
+        coveragePct = o.nullableInt("coveragePct"), stale = o.optBoolean("stale", false), source = o.optString("source", ""),
+        asOf = o.nullableString("asOf"), error = o.nullableString("error")
+    )
+
+    private fun parseFundamentals(o: JSONObject): FundamentalSnapshot = FundamentalSnapshot(
+        pe = o.nullableDouble("pe"), priceToSales = o.nullableDouble("priceToSales"), evToEbitda = o.nullableDouble("evToEbitda"),
+        freeCashFlowYield = o.nullableDouble("freeCashFlowYield"), revenueGrowth = o.nullableDouble("revenueGrowth"), epsGrowth = o.nullableDouble("epsGrowth"),
+        operatingMargin = o.nullableDouble("operatingMargin"), netMargin = o.nullableDouble("netMargin"), roe = o.nullableDouble("roe"),
+        roic = o.nullableDouble("roic"), debtToEquity = o.nullableDouble("debtToEquity"), coveragePct = o.nullableInt("coveragePct"),
+        stale = o.optBoolean("stale", false), source = o.optString("source", ""), asOf = o.nullableString("asOf"), error = o.nullableString("error")
     )
 
     private fun JSONArray?.toAlerts(): List<SignalAlert> {
         if (this == null) return emptyList()
         return (0 until length()).mapNotNull { i ->
             optJSONObject(i)?.let { o ->
-                SignalAlert(
-                    id = o.optString("id"),
-                    itemId = o.optString("itemId"),
-                    level = o.optString("level"),
-                    title = o.optString("title"),
-                    message = o.optString("message"),
-                    createdAt = o.optString("createdAt")
-                )
+                SignalAlert(o.optString("id"), o.optString("itemId"), o.optString("level"), o.optString("title"), o.optString("message"), o.optString("createdAt"))
             }
         }
     }
 }
+
+private fun JSONObject.nullableDouble(name: String): Double? = if (!has(name) || isNull(name)) null else optDouble(name).takeIf { it.isFinite() }
+private fun JSONObject.nullableInt(name: String): Int? = if (!has(name) || isNull(name)) null else optInt(name)
+private fun JSONObject.nullableString(name: String): String? = if (!has(name) || isNull(name)) null else optString(name).takeIf { it.isNotBlank() }
+private fun JSONObject.nullableBoolean(name: String): Boolean? = if (!has(name) || isNull(name)) null else optBoolean(name)
+private fun JSONArray?.toStrings(): List<String> = if (this == null) emptyList() else (0 until length()).mapNotNull { optString(it).takeIf(String::isNotBlank) }
