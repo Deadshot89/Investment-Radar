@@ -4,7 +4,7 @@
 
 **Goal:** Upgrade the portfolio into a KPI dashboard and make alert taps open the shared investment detail screen safely.
 
-**Architecture:** Portfolio aggregation is pure Kotlin and explicitly tracks incomplete-price coverage. Compose renders summary KPIs and position rows from that model. Alert navigation reuses the detail-selection state created by the investment-detail plan; no second detail path is introduced.
+**Architecture:** Portfolio aggregation is pure Kotlin and explicitly tracks incomplete-price coverage. Compose renders summary KPIs and position rows from that model with Material 3 primitives, independent of file-private helpers in `MainActivity.kt`. Alert navigation reuses `selectedDetailId` from the detail plan; no second navigation path or resolver subsystem is introduced.
 
 **Tech Stack:** Kotlin, Jetpack Compose Material 3, JUnit 4, existing `PortfolioPosition`, `RecommendationEngine`, `AlertCenterState`.
 
@@ -13,38 +13,34 @@
 ## Global Constraints
 
 - Portfolio data stays local on Android.
-- Missing market prices must never be treated as zero for current value or performance.
-- If one or more held positions lack a usable price, current portfolio value is labeled partial and total P/L percentage is not presented as complete.
-- Position weighting is based only on calculable current values and must be marked incomplete when not all held positions have prices.
+- Active/held position for KPI count means `position.shares > 0.0000001`.
+- Fully sold positions may remain in transaction history but do not count as held, do not need a current quote and do not affect concentration weight.
+- Missing market prices for active positions are never treated as zero.
+- If one or more active positions lack usable price, current value is labeled partial and complete total P/L percentage is withheld.
+- Position weighting is based only on calculable active current values and is visibly incomplete when any active position lacks price.
 - Existing 40% concentration logic remains unchanged.
-- Alert tap marks the alert read first, then opens the common detail screen when possible.
-- Unknown/missing alert `itemId` must not crash; alert remains readable and user gets a clear message.
+- Alert tap marks read first, then opens the common detail screen when the id exists.
+- Unknown/missing alert item does not crash; alert remains readable and a clear message is shown.
 
 ---
 
 ## File Structure
 
-- Create `android/app/src/main/java/de/tobias/investmentradar/PortfolioMetrics.kt` — pure aggregate/position KPI model.
-- Create `android/app/src/main/java/de/tobias/investmentradar/PortfolioDashboard.kt` — Compose KPI summary and position list.
+- Create `android/app/src/main/java/de/tobias/investmentradar/PortfolioMetrics.kt`.
+- Create `android/app/src/main/java/de/tobias/investmentradar/PortfolioDashboard.kt`.
 - Create `android/app/src/test/java/de/tobias/investmentradar/PortfolioMetricsTest.kt`.
-- Modify `android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt` — replace private portfolio body and route alert opens to `selectedDetailId`.
-- Modify `android/app/src/main/java/de/tobias/investmentradar/AlertsScreen.kt` only if a missing-item callback/message is cleaner there; do not duplicate item resolution.
-- Add `android/tests/test-portfolio-dashboard-ui.sh`.
+- Modify `android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt`.
+- Create `android/tests/test-portfolio-dashboard-ui.sh`.
 - Modify `android/tests/test-alert-center-wiring.sh`.
 - Modify `.github/workflows/android-contract-tests.yml`.
 
 ### Task 1: Pure portfolio KPI aggregation
 
-**Files:**
-- Create: `android/app/src/main/java/de/tobias/investmentradar/PortfolioMetrics.kt`
-- Create: `android/app/src/test/java/de/tobias/investmentradar/PortfolioMetricsTest.kt`
-
 **Interfaces:**
-- Consumes: `List<InvestmentItem>`, `Map<String, PortfolioPosition>`, `List<CustomInvestment>`.
-- Produces:
 ```kotlin
 data class PortfolioPositionMetrics(
     val itemId: String,
+    val active: Boolean,
     val investedCostBasis: Double,
     val currentValue: Double?,
     val unrealizedProfitLoss: Double?,
@@ -78,13 +74,18 @@ object PortfolioMetrics {
 }
 ```
 
-- [ ] **Step 1: Write failing complete-portfolio test**
+- [ ] **Step 1: Write tests with an explicit local fixture**
+
+```kotlin
+private fun portfolioItem(id: String, priceEur: Double?): InvestmentItem =
+    testInvestmentItem(id = id, priceEur = priceEur)
+```
 
 ```kotlin
 @Test
 fun completePortfolioCalculatesValueProfitAndLargestWeight() {
-    val a = fixtureItem(id = "a", priceEur = 20.0)
-    val b = fixtureItem(id = "b", priceEur = 10.0)
+    val a = portfolioItem("a", 20.0)
+    val b = portfolioItem("b", 10.0)
     val positions = mapOf(
         "a" to PortfolioPosition("a", investedAmount = 100.0, shares = 10.0),
         "b" to PortfolioPosition("b", investedAmount = 50.0, shares = 5.0)
@@ -92,19 +93,17 @@ fun completePortfolioCalculatesValueProfitAndLargestWeight() {
     val result = PortfolioMetrics.calculate(listOf(a, b), positions, emptyList())
     assertTrue(result.currentValueComplete)
     assertEquals(250.0, result.calculableCurrentValue, 0.001)
-    assertEquals(100.0, result.totalProfitLoss, 0.001)
+    assertEquals(100.0, result.totalProfitLoss!!, 0.001)
+    assertEquals(66.666, result.totalProfitLossPct!!, 0.01)
+    assertEquals(2, result.heldPositionCount)
     assertEquals("a", result.largestPositionId)
     assertEquals(80.0, result.largestWeightPct!!, 0.001)
 }
-```
 
-- [ ] **Step 2: Write failing missing-price test**
-
-```kotlin
 @Test
-fun missingPriceProducesPartialValueAndNoCompletePortfolioPerformance() {
-    val priced = fixtureItem(id = "a", priceEur = 20.0)
-    val missing = fixtureItem(id = "b", priceEur = null)
+fun missingActivePriceProducesPartialValueAndNoCompletePerformance() {
+    val priced = portfolioItem("a", 20.0)
+    val missing = portfolioItem("b", null)
     val positions = mapOf(
         "a" to PortfolioPosition("a", investedAmount = 100.0, shares = 10.0),
         "b" to PortfolioPosition("b", investedAmount = 50.0, shares = 5.0)
@@ -117,38 +116,55 @@ fun missingPriceProducesPartialValueAndNoCompletePortfolioPerformance() {
     assertNull(result.totalProfitLossPct)
     assertNull(result.positions.first { it.itemId == "b" }.currentValue)
 }
+
+@Test
+fun fullySoldPositionDoesNotRequireQuoteOrCountAsHeld() {
+    val sold = PortfolioPosition(
+        itemId = "sold",
+        purchases = listOf(PortfolioPurchase("p", "01.01.2026", 100.0, 10.0)),
+        sales = listOf(PortfolioSale("s", "02.01.2026", 120.0, 10.0))
+    )
+    val result = PortfolioMetrics.calculate(listOf(portfolioItem("sold", null)), mapOf("sold" to sold), emptyList())
+    assertEquals(0, result.heldPositionCount)
+    assertEquals(0, result.missingPriceCount)
+    assertTrue(result.currentValueComplete)
+}
 ```
 
-- [ ] **Step 3: Run focused tests and confirm RED**
+- [ ] **Step 2: Run RED**
 
 ```bash
 cd android && ./gradlew testReleaseUnitTest --tests 'de.tobias.investmentradar.PortfolioMetricsTest'
 ```
 Expected: compile failure because `PortfolioMetrics` does not exist.
 
-- [ ] **Step 4: Implement calculation with explicit price usability**
+- [ ] **Step 3: Implement explicit active/price rules**
 
-Resolve price in this order:
+Resolve quote for active positions:
 ```kotlin
 val marketPrice = itemById[id]?.priceEur?.takeIf { it.isFinite() && it > 0.0 }
 val manualPrice = customById[id]?.manualPriceEur?.takeIf { it.isFinite() && it > 0.0 }
 val usablePrice = marketPrice ?: manualPrice
+val active = position.shares > 0.0000001
 ```
 
-Do not fall back to `investedAmount` for `currentValue` in this new KPI model. A missing current price stays `null`.
+Rules:
+- Active + no usable price -> `currentValue=null`, `hasUsablePrice=false`, increment missing count.
+- Inactive/fully sold -> `currentValue=0.0`, `hasUsablePrice=true`, no missing count, weight 0/null.
+- Never fall back to `investedAmount` for current value.
+- `investedCostBasis` summary is sum of remaining cost basis (`position.investedAmount`) for active/open positions.
+- Total absolute P/L when complete is sum of each `position.totalProfitLoss(usablePrice)` including realized P/L.
+- Portfolio total P/L percent denominator is sum of `position.totalPurchasedAmount` across positions with transaction history; if denominator <=0, return null.
+- Weight denominator is total calculable current value of active positions.
 
-Compute total portfolio P/L only when `missingPriceCount == 0`. Position-level realized P/L may still be shown because it does not require a current quote.
-
-Weight denominator is `calculableCurrentValue`; positions without usable price have `weightPct = null`.
-
-- [ ] **Step 5: Run focused tests and confirm GREEN**
+- [ ] **Step 4: Run GREEN**
 
 ```bash
 cd android && ./gradlew testReleaseUnitTest --tests 'de.tobias.investmentradar.PortfolioMetricsTest'
 ```
 Expected: PASS.
 
-- [ ] **Step 6: Commit metrics**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add android/app/src/main/java/de/tobias/investmentradar/PortfolioMetrics.kt android/app/src/test/java/de/tobias/investmentradar/PortfolioMetricsTest.kt
@@ -157,15 +173,7 @@ git commit -m "feat: add portfolio dashboard metrics"
 
 ### Task 2: Portfolio Dashboard Compose extraction
 
-**Files:**
-- Create: `android/app/src/main/java/de/tobias/investmentradar/PortfolioDashboard.kt`
-- Add: `android/tests/test-portfolio-dashboard-ui.sh`
-- Modify: `android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt`
-- Modify: `.github/workflows/android-contract-tests.yml`
-
 **Interfaces:**
-- Consumes: `PortfolioMetricsSummary`, market/custom items, `PersonalRecommendation` map.
-- Produces:
 ```kotlin
 @Composable
 fun PortfolioDashboard(
@@ -198,34 +206,46 @@ grep -q 'Kurs fehlt' "$SRC"
 grep -q 'onOpenDetail' "$SRC"
 ```
 
-- [ ] **Step 2: Run and confirm RED**
+- [ ] **Step 2: Run RED**
 
 ```bash
 bash android/tests/test-portfolio-dashboard-ui.sh
 ```
-Expected: FAIL.
+Expected: FAIL because the file does not exist.
 
-- [ ] **Step 3: Implement KPI header**
+- [ ] **Step 3: Implement self-contained Material 3 dashboard**
 
-Use `PortfolioMetrics.calculate(...)` once per relevant state change via `remember(items, positions, customItems)`.
+Use `PortfolioMetrics.calculate(...)` once via:
+```kotlin
+val metrics = remember(items, positions, customItems) {
+    PortfolioMetrics.calculate(items, positions, customItems)
+}
+```
 
-Display:
-- `Depotwert` when complete, otherwise `Teilwert`.
-- `Einstand` from `investedCostBasis`.
-- `Gewinn / Verlust` absolute + percent only when `totalProfitLoss` and `totalProfitLossPct` are non-null.
+Header:
+- `Depotwert` if complete, `Teilwert` otherwise.
+- `Einstand`.
+- `Gewinn / Verlust` absolute + percent only when both are non-null.
 - held count.
-- largest position name/ticker + weight when available.
-- if `missingPriceCount > 0`, visible warning: `"${missingPriceCount} Position(en) ohne verwertbaren Kurs – Gesamtperformance unvollständig."`
+- largest active position + weight.
+- warning when missing count >0: `"${metrics.missingPriceCount} Position(en) ohne verwertbaren Kurs – Gesamtperformance unvollständig."`
 
-- [ ] **Step 4: Implement position cards from metrics**
+Use only Material 3 primitives and public modules; do not depend on `private` MainActivity helpers.
 
-For each held position show current value when calculable, cost basis, P/L, weight, recommendation/score, personal monthly allocation, concentration label and a `Details` action. Do not show `0 €` for missing current value; show `Kurs fehlt`.
+- [ ] **Step 4: Render position cards**
 
-- [ ] **Step 5: Remove the old private portfolio body from `MainActivity.kt` and call `PortfolioDashboard`**
+For each portfolio record show active/closed status, current value or `Kurs fehlt`, cost basis, P/L when computable, weight when computable, objective score/recommendation, personal monthly allocation, concentration label, `Details`, transaction management, and existing remove/custom-edit actions.
 
-`MainActivity` resolves `personalById` once and passes callbacks. Do not leave duplicated KPI math in the activity.
+`Details` always calls:
+```kotlin
+onOpenDetail(itemId)
+```
 
-- [ ] **Step 6: Add contract to CI and confirm GREEN**
+- [ ] **Step 5: Remove old private `PortfolioScreen` from `MainActivity.kt` and call `PortfolioDashboard`**
+
+Compute `personalById` once from the same `PersonalPlan` used elsewhere; do not duplicate KPI math in MainActivity.
+
+- [ ] **Step 6: Add contract to CI and run GREEN**
 
 ```bash
 bash android/tests/test-portfolio-dashboard-ui.sh
@@ -233,7 +253,7 @@ cd android && ./gradlew testReleaseUnitTest
 ```
 Expected: PASS.
 
-- [ ] **Step 7: Commit portfolio UI**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add android/app/src/main/java/de/tobias/investmentradar/PortfolioDashboard.kt android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt android/tests/test-portfolio-dashboard-ui.sh .github/workflows/android-contract-tests.yml
@@ -242,61 +262,51 @@ git commit -m "feat: add portfolio dashboard v2"
 
 ### Task 3: Alert-to-detail navigation
 
-**Files:**
-- Modify: `android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt`
-- Modify: `android/tests/test-alert-center-wiring.sh`
-- Add test: `android/app/src/test/java/de/tobias/investmentradar/AlertNavigationTest.kt` only if a pure resolver helper is introduced.
-
 **Interfaces:**
-- Consumes: existing `StoredAlert.alert.itemId`, selected-detail navigation from the investment-detail plan.
-- Produces optional pure resolver:
-```kotlin
-sealed interface AlertNavigationTarget {
-    data class Market(val itemId: String) : AlertNavigationTarget
-    data class Custom(val itemId: String) : AlertNavigationTarget
-    data object Missing : AlertNavigationTarget
-}
+- Consumes `StoredAlert.alert.itemId`, `s.data.items`, `customItems`, and the existing `selectedDetailId` state from the detail plan.
+- Produces no new navigation abstraction.
 
-object AlertNavigation {
-    fun resolve(itemId: String, marketIds: Set<String>, customIds: Set<String>): AlertNavigationTarget
-}
-```
-Use this helper if it keeps `MainActivity` simpler; otherwise the exact same resolution may stay inline because it is only a few lines.
-
-- [ ] **Step 1: Update alert wiring contract to require direct detail navigation**
+- [ ] **Step 1: Update wiring contract and confirm RED**
 
 ```bash
-grep -q 'markAlertRead' android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt
-grep -q 'selectedDetailId = stored.alert.itemId' android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt
-```
-Also reject the old behavior if still present:
-```bash
+grep -q 'markAlertRead(stored.alert.id)' android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt
+grep -q 'selectedDetailId = id' android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt
 ! grep -q 'radarFocusId = stored.alert.itemId' android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt
 ```
 
-- [ ] **Step 2: Run contract and confirm RED**
-
+Run:
 ```bash
 bash android/tests/test-alert-center-wiring.sh
 ```
 Expected: FAIL until old Radar-focus navigation is replaced.
 
-- [ ] **Step 3: Implement open behavior**
+- [ ] **Step 2: Implement exact open behavior**
+
+Add:
+```kotlin
+var missingAlertItemMessage by rememberSaveable { mutableStateOf<String?>(null) }
+```
 
 On alert tap:
 ```kotlin
 vm.markAlertRead(stored.alert.id)
 val id = stored.alert.itemId
 when {
-    s.data.items.any { it.id == id } -> selectedDetailId = id
-    customItems.any { it.id == id } -> selectedDetailId = id
+    s.data.items.any { it.id == id } -> {
+        detailReturnTab = 3
+        selectedDetailId = id
+    }
+    customItems.any { it.id == id } -> {
+        detailReturnTab = 3
+        selectedDetailId = id
+    }
     else -> missingAlertItemMessage = "Das Wertpapier ist im aktuellen Radar nicht mehr verfügbar."
 }
 ```
 
-Add `var missingAlertItemMessage by rememberSaveable { mutableStateOf<String?>(null) }` and render an `AlertDialog` with only an OK action when non-null. The alert remains in the center and its text remains readable.
+Render an `AlertDialog` for `missingAlertItemMessage` with title `Wertpapier nicht verfügbar`, message text, and one `OK` button that clears the message. The stored alert is not deleted.
 
-- [ ] **Step 4: Run alert contract + full JVM suite**
+- [ ] **Step 3: Run GREEN**
 
 ```bash
 bash android/tests/test-alert-center-wiring.sh
@@ -304,7 +314,7 @@ cd android && ./gradlew testReleaseUnitTest
 ```
 Expected: PASS.
 
-- [ ] **Step 5: Commit alert navigation**
+- [ ] **Step 4: Commit**
 
 ```bash
 git add android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt android/tests/test-alert-center-wiring.sh
@@ -313,6 +323,6 @@ git commit -m "feat: open investments directly from alerts"
 
 ### Task 4: Verification checkpoint
 
-- [ ] **Step 1:** Run all contract scripts, including `test-investment-detail-ui.sh` and `test-portfolio-dashboard-ui.sh`.
-- [ ] **Step 2:** Run `cd android && ./gradlew testReleaseUnitTest` and require zero failures.
-- [ ] **Step 3:** Push and require Android Contract Tests + Android JVM Tests green before the final release plan.
+- [ ] Run all permanent contract scripts, including detail and portfolio dashboard contracts.
+- [ ] Run `cd android && ./gradlew testReleaseUnitTest` with zero failures.
+- [ ] Push and require Android Contract Tests + Android JVM Tests green before final release integration.
