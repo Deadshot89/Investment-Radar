@@ -35,3 +35,4 @@ grep -q 'personalById = RecommendationEngine' "$SRC"
 
 bash android/tests/test-score-null-display.sh
 bash android/tests/test-investment-detail-ui.sh
+bash android/tests/test-investment-detail-wiring.sh
