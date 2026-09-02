@@ -28,24 +28,23 @@ function targetTopic(alert) {
   return process.env.ALERT_TOPIC?.trim() || "investment-alerts";
 }
 
+export function buildPushMessage(alert) {
+  return {
+    topic: targetTopic(alert),
+    data: {
+      alertId: String(alert.id ?? ""),
+      itemId: String(alert.itemId ?? ""),
+      level: String(alert.level ?? "INFO"),
+      title: String(alert.title ?? "Investment Radar"),
+      message: String(alert.message ?? ""),
+      createdAt: String(alert.createdAt ?? new Date().toISOString())
+    },
+    android: { priority: "high" }
+  };
+}
+
 export async function sendAlert(alert) {
   if (!ensureFirebase()) return false;
-  const topic = targetTopic(alert);
-  await getMessaging().send({
-    topic,
-    notification: { title: alert.title, body: alert.message },
-    data: {
-      alertId: alert.id,
-      itemId: alert.itemId,
-      level: alert.level,
-      title: alert.title,
-      message: alert.message,
-      createdAt: alert.createdAt
-    },
-    android: {
-      priority: "high",
-      notification: { channelId: "investment_alerts", priority: "high" }
-    }
-  });
+  await getMessaging().send(buildPushMessage(alert));
   return true;
 }
