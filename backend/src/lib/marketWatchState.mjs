@@ -2,8 +2,11 @@ export function updateAnalysisMemory(state, items) {
   const previousScores = {};
   const previousRecommendations = {};
   for (const item of items ?? []) {
-    const score = Number(item?.scoreTotal);
-    if (Number.isFinite(score)) previousScores[item.id] = score;
+    const rawScore = item?.scoreTotal;
+    if (rawScore != null && !(typeof rawScore === "string" && rawScore.trim() === "")) {
+      const score = Number(rawScore);
+      if (Number.isFinite(score)) previousScores[item.id] = score;
+    }
     const recommendation = String(item?.recommendation ?? "").trim().toUpperCase();
     if (recommendation) previousRecommendations[item.id] = recommendation;
   }
