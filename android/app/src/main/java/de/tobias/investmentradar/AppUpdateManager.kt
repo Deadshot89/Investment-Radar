@@ -1,5 +1,7 @@
 package de.tobias.investmentradar
 
+import android.app.Activity
+import android.app.Application
 import android.app.DownloadManager
 import android.content.ActivityNotFoundException
 import android.content.BroadcastReceiver
@@ -8,6 +10,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.net.Uri
 import android.os.Build
+import android.os.Bundle
 import android.os.Environment
 import android.provider.Settings
 import android.widget.Toast
@@ -75,20 +78,81 @@ object AppUpdateManager {
 
     fun openUpdate(context: Context, update: AppUpdateInfo) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !context.packageManager.canRequestPackageInstalls()) {
+            continueAfterInstallPermission(context, update)
+            return
+        }
+
+        startDownload(context, update)
+    }
+
+    private fun continueAfterInstallPermission(context: Context, update: AppUpdateInfo) {
+        val application = context.applicationContext as? Application
+        if (application == null) {
             Toast.makeText(
                 context,
                 "Einmal 'Aus dieser Quelle zulassen' aktivieren. Danach Update erneut drücken.",
                 Toast.LENGTH_LONG
             ).show()
-            context.startActivity(
-                Intent(
-                    Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                    Uri.parse("package:${context.packageName}")
-                ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            )
+            openUnknownSourceSettings(context)
             return
         }
 
+        val callback = object : Application.ActivityLifecycleCallbacks {
+            private var leftInvestmentRadar = false
+
+            override fun onActivityPaused(activity: Activity) {
+                if (activity.packageName == context.packageName) {
+                    leftInvestmentRadar = true
+                }
+            }
+
+            override fun onActivityResumed(activity: Activity) {
+                if (!leftInvestmentRadar || activity.packageName != context.packageName) return
+
+                application.unregisterActivityLifecycleCallbacks(this)
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || activity.packageManager.canRequestPackageInstalls()) {
+                    startDownload(activity, update)
+                } else {
+                    Toast.makeText(
+                        activity,
+                        "Freigabe wurde nicht aktiviert. Tippe erneut auf Update, wenn du es später versuchen möchtest.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+
+            override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) = Unit
+            override fun onActivityStarted(activity: Activity) = Unit
+            override fun onActivityStopped(activity: Activity) = Unit
+            override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) = Unit
+            override fun onActivityDestroyed(activity: Activity) = Unit
+        }
+
+        application.registerActivityLifecycleCallbacks(callback)
+        Toast.makeText(
+            context,
+            "Einmal 'Aus dieser Quelle zulassen' aktivieren. Das Update startet automatisch, sobald du zurückkehrst.",
+            Toast.LENGTH_LONG
+        ).show()
+
+        try {
+            openUnknownSourceSettings(context)
+        } catch (_: ActivityNotFoundException) {
+            application.unregisterActivityLifecycleCallbacks(callback)
+            Toast.makeText(context, "Android-Einstellung für App-Installationen konnte nicht geöffnet werden.", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun openUnknownSourceSettings(context: Context) {
+        context.startActivity(
+            Intent(
+                Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                Uri.parse("package:${context.packageName}")
+            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
+    }
+
+    private fun startDownload(context: Context, update: AppUpdateInfo) {
         val updatesDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
         if (updatesDir == null) {
             Toast.makeText(context, "Update-Speicher ist nicht verfügbar.", Toast.LENGTH_LONG).show()
