@@ -6,10 +6,12 @@ import { sendAlert } from "../lib/push.mjs";
 import { mergeRecentAlerts, updateAnalysisMemory } from "../lib/marketWatchState.mjs";
 
 app.timer("marketWatch", {
-  schedule: "0 */15 * * * *",
+  schedule: "0 */5 * * * *",
   runOnStartup: false,
   handler: async (_timer, context) => {
-    const snapshot = await buildAnalysisSnapshot({ refreshAnalysis: true });
+    // Quotes are fetched fresh on every snapshot. Slow history/fundamental analysis
+    // stays on its cache policy so the five-minute watcher does not hammer providers.
+    const snapshot = await buildAnalysisSnapshot({ refreshAnalysis: false });
     const state = snapshot.state;
     const signals = evaluateSignals(snapshot.items, snapshot.quotes, {
       previousScores: state.previousScores,
