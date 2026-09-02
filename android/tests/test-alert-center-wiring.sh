@@ -24,7 +24,7 @@ grep -Fq 'intent.getStringExtra("openItemId")' "$MAIN"
 grep -Fq 'selectedDetailId by remember { mutableStateOf(initialDetailId?.takeIf' "$MAIN"
 grep -Fq 'detailReturnTab by remember { mutableIntStateOf(if (initialDetailId.isNullOrBlank()) initialTab.coerceIn(0, 3) else 3) }' "$MAIN"
 
-# Ein Push muss auch verarbeitet werden, wenn MainActivity bereits läuft und Android onNewIntent nutzt.
+# Auch bei bereits laufender MainActivity muss ein neuer Push erneut zur Aktie navigieren.
 grep -Fq 'override fun onNewIntent(intent: Intent)' "$MAIN"
 grep -Fq 'pushNavigationRequest' "$MAIN"
 grep -Fq 'LaunchedEffect(pushNavigationRequest)' "$MAIN"
