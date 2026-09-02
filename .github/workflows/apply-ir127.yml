@@ -37,7 +37,7 @@ jobs:
           git config user.name 'Investment Radar Builder'
           git config user.email 'actions@github.com'
 
-          # Secret-bearing legacy side products are not part of 1.1.27.
+          # These legacy side products are not part of the verified 1.1.27 patch.
           rm -f backend/server.js backend/render.yaml
 
           git add \
@@ -45,12 +45,10 @@ jobs:
             android/app/src/main/java/de/tobias/investmentradar/CustomInvestmentStore.kt \
             android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt \
             android/app/src/main/java/de/tobias/investmentradar/MainViewModel.kt \
-            android/app/src/main/java/de/tobias/investmentradar/PortfolioStorage.kt \
-            backend/host.json \
-            backend/package-lock.json \
             backend/package.json \
-            backend/src/functions/investmentRadar.mjs \
-            .github/workflows/deploy-backend.yml \
+            backend/src/functions/health.mjs \
+            backend/src/lib/customAsset.mjs \
+            .github/workflows/backend-deploy.yml \
             HOTFIX_1.1.27.md \
             scripts/test-1.1.27-portfolio-fallback.sh
 
