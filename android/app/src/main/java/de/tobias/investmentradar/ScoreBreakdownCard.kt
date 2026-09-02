@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun ScoreBreakdownCard(item: InvestmentItem, modifier: Modifier = Modifier) {
+    val coverageText = item.coverage?.let { "$it %" } ?: "Nicht verfügbar"
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
@@ -26,7 +27,7 @@ fun ScoreBreakdownCard(item: InvestmentItem, modifier: Modifier = Modifier) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("Analyse V2", fontWeight = FontWeight.Black)
-                Text("Datenabdeckung ${item.coverage ?: 0} %", style = MaterialTheme.typography.labelMedium)
+                Text("Datenabdeckung $coverageText", style = MaterialTheme.typography.labelMedium)
             }
             ScoreLine("Qualität", item.scoreQuality)
             ScoreLine("Bewertung", item.scoreValuation)
@@ -49,11 +50,17 @@ private fun ScoreLine(label: String, score: Int?) {
     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(label, style = MaterialTheme.typography.bodySmall)
-            Text(score?.let { "$it/100" } ?: "–", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+            Text(
+                score?.let { "$it/100" } ?: "Nicht verfügbar",
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Bold
+            )
         }
-        LinearProgressIndicator(
-            progress = { ((score ?: 0).coerceIn(0, 100)) / 100f },
-            modifier = Modifier.fillMaxWidth()
-        )
+        if (score != null) {
+            LinearProgressIndicator(
+                progress = { score.coerceIn(0, 100) / 100f },
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
     }
 }
