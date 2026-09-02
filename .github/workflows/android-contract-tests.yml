@@ -25,7 +25,8 @@ jobs:
             android/tests/test-alert-center-ui.sh \
             android/tests/test-alert-center-wiring.sh \
             android/tests/test-update-status-ui.sh \
-            android/tests/test-trade-republic-navigator-wiring.sh; do
+            android/tests/test-trade-republic-navigator-wiring.sh \
+            android/tests/test-release-backend-gate.sh; do
             echo "=== $test_file ==="
             bash "$test_file"
             status=$?
