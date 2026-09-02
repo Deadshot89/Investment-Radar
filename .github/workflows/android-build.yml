@@ -184,6 +184,35 @@ jobs:
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK" | tee apk-signature.txt
           echo "✅ APK-Signatur erfolgreich geprüft." >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Verify live backend before Android publish
+        if: success() && github.ref == 'refs/heads/main'
+        env:
+          BASE_URL: ${{ vars.INVESTMENT_API_BASE_URL }}
+          EXPECTED_BACKEND_VERSION: "1.2.0"
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$BASE_URL"
+          HEALTH_URL="${BASE_URL%/}/api/health"
+          ok=false
+          last_version=""
+          for attempt in $(seq 1 24); do
+            status=$(curl --silent --show-error --max-time 20 --output /tmp/android-health.json --write-out "%{http_code}" "$HEALTH_URL" || true)
+            if [ "$status" = "200" ]; then
+              last_version=$(node -e 'const fs=require("fs"); try { const j=JSON.parse(fs.readFileSync("/tmp/android-health.json","utf8")); process.stdout.write(String(j.backendVersion ?? "")); } catch { process.stdout.write(""); }')
+              if [ "$last_version" = "$EXPECTED_BACKEND_VERSION" ]; then
+                ok=true
+                break
+              fi
+            fi
+            sleep 15
+          done
+          if [ "$ok" != "true" ]; then
+            echo "❌ Android-Publish blockiert: Backend ${last_version:-<fehlt>} statt $EXPECTED_BACKEND_VERSION." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo "✅ Backend $EXPECTED_BACKEND_VERSION live; Android-Publish freigegeben." >> "$GITHUB_STEP_SUMMARY"
+
       - name: Publish APK for in-app updates
         if: success() && github.ref == 'refs/heads/main'
         env:
