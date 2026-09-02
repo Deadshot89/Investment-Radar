@@ -16,6 +16,7 @@ app.timer("marketWatch", {
     const signals = evaluateSignals(snapshot.items, snapshot.quotes, {
       previousScores: state.previousScores,
       previousRecommendations: state.previousRecommendations,
+      previousForecast12m: state.previousForecast12m,
       // Backend emits held-only signals to asset-specific holding topics.
       // Only devices subscribed because that asset is held receive them.
       heldIds: new Set(snapshot.items.map((item) => item.id))
