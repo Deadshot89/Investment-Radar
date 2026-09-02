@@ -25,6 +25,17 @@ class AlertPolicyTest {
         assertTrue(AlertPolicy.shouldStore(alert, AlertPreferences(thresholdEnabled = false)))
     }
 
+    @Test fun customDailyDropThresholdSuppressesSmallerDropButKeepsPriceThreshold() {
+        val prefs = AlertPreferences(localDailyDropThresholdPct = 10.0)
+        val smallerDrop = SignalAlert("d1", "x", "THRESHOLD", "", "", "", triggerValuePct = -8.0)
+        val largeDrop = SignalAlert("d2", "x", "THRESHOLD", "", "", "", triggerValuePct = -11.0)
+        val priceThreshold = SignalAlert("p", "x", "THRESHOLD", "", "", "")
+        assertFalse(AlertPolicy.shouldNotify(smallerDrop, prefs))
+        assertTrue(AlertPolicy.shouldNotify(largeDrop, prefs))
+        assertTrue(AlertPolicy.shouldNotify(priceThreshold, prefs))
+        assertTrue(AlertPolicy.shouldStore(smallerDrop, prefs))
+    }
+
     @Test fun portfolioSpecificAlertsOnlyBelongToHeldAssets() {
         val empty = emptySet<String>()
         val held = setOf("msft")
