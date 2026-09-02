@@ -1,6 +1,9 @@
+import { forecast12m } from "./forecast12m.mjs";
+
 export function updateAnalysisMemory(state, items) {
   const previousScores = {};
   const previousRecommendations = {};
+  const previousForecast12m = {};
   for (const item of items ?? []) {
     const rawScore = item?.scoreTotal;
     if (rawScore != null && !(typeof rawScore === "string" && rawScore.trim() === "")) {
@@ -9,11 +12,13 @@ export function updateAnalysisMemory(state, items) {
     }
     const recommendation = String(item?.recommendation ?? "").trim().toUpperCase();
     if (recommendation) previousRecommendations[item.id] = recommendation;
+    if (item?.id) previousForecast12m[item.id] = forecast12m(item);
   }
   return {
     ...state,
     previousScores,
-    previousRecommendations
+    previousRecommendations,
+    previousForecast12m
   };
 }
 
