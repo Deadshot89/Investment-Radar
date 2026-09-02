@@ -99,6 +99,7 @@ function dedupeByFingerprint(alerts) {
   return alerts.filter((a) => !seen.has(a.fingerprint) && seen.add(a.fingerprint));
 }
 function finite(value) {
+  if (value == null || (typeof value === "string" && value.trim() === "")) return null;
   const n = typeof value === "number" ? value : Number(value);
   return Number.isFinite(n) ? n : null;
 }
