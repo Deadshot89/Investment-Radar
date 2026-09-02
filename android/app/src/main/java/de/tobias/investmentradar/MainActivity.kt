@@ -372,7 +372,7 @@ private fun DashboardScreen(
                     ) {
                         Icon(Icons.Default.OpenInNew, null)
                         Spacer(Modifier.width(6.dp))
-                        Text("Trade Republic", fontWeight = FontWeight.Bold)
+                        Text("Trade Republic öffnen", fontWeight = FontWeight.Bold)
                     }
                     OutlinedButton(
                         onClick = { openMarketQuote(context, top) },
@@ -538,7 +538,7 @@ private fun RadarScreen(
                 OutlinedButton(onClick = { openInvestment(context, item) }, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Default.OpenInNew, null)
                     Spacer(Modifier.width(7.dp))
-                    Text("Wertpapier öffnen")
+                    Text("Trade Republic öffnen")
                 }
                 FilledTonalButton(onClick = { onToggleWatchlist(item.id) }, modifier = Modifier.fillMaxWidth()) {
                     Text(if (item.id in watchlistIds) "Von Watchlist entfernen" else "Zur Watchlist")
@@ -769,7 +769,7 @@ private fun PortfolioScreen(
                 Text("Score ${reco.score}/100 · Risiko ${item.risk}/5", color = recommendationColor(reco.label), fontWeight = FontWeight.Bold)
                 Text(reco.reason, style = MaterialTheme.typography.bodySmall)
                 Button(onClick = { onEdit(item) }, modifier = Modifier.fillMaxWidth()) { Text("Transaktionen verwalten") }
-                OutlinedButton(onClick = { openInvestment(context, item) }, modifier = Modifier.fillMaxWidth()) { Text("Wertpapier öffnen") }
+                OutlinedButton(onClick = { openInvestment(context, item) }, modifier = Modifier.fillMaxWidth()) { Text("Trade Republic öffnen") }
                 customById[item.id]?.let { custom ->
                     if (custom.tradeRepublicUrl.isNotBlank()) {
                         OutlinedButton(onClick = { openSavedTradeRepublicUrl(context, custom.tradeRepublicUrl) }, modifier = Modifier.fillMaxWidth()) { Text("Gespeicherten Trade-Republic-Link öffnen") }
@@ -1331,29 +1331,66 @@ private fun InvestmentItem.toPlannerItem() = PlannerItem(
     percentChange = percentChange
 )
 
-private fun openInvestment(context: android.content.Context, item: InvestmentItem) {
-    val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-    clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Trade Republic ISIN", item.isin.trim()))
+private const val TRADE_REPUBLIC_STOCK_BASE_URL = "https://app.traderepublic.com/stocks/"
+private const val TRADE_REPUBLIC_BROWSE_URL = "https://app.traderepublic.com/browse/stock"
 
-    val tradeRepublicIntent = Intent(Intent.ACTION_MAIN).apply {
-        addCategory(Intent.CATEGORY_LAUNCHER)
-        setPackage("de.traderepublic.app")
+private fun openInvestment(context: android.content.Context, item: InvestmentItem) {
+    val isin = item.isin.trim().uppercase()
+    val fallbackSearch = isin.ifBlank { item.ticker.trim().uppercase() }
+    if (fallbackSearch.isNotBlank()) {
+        val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Trade Republic ISIN", fallbackSearch))
+    }
+
+    val hasDirectIsin = isTradeRepublicIsin(isin)
+    val targetUrl = if (hasDirectIsin) {
+        "$TRADE_REPUBLIC_STOCK_BASE_URL${Uri.encode(isin)}"
+    } else {
+        TRADE_REPUBLIC_BROWSE_URL
+    }
+
+    val targetIntent = Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)).apply {
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     }
 
     try {
-        context.startActivity(tradeRepublicIntent)
+        context.startActivity(targetIntent)
         android.widget.Toast.makeText(
             context,
-            "ISIN kopiert – in Trade Republic in die Suche einfügen",
+            if (hasDirectIsin) "Trade Republic öffnet ${item.ticker} direkt · ISIN zusätzlich kopiert" else "Trade Republic geöffnet · Suchwert kopiert",
             android.widget.Toast.LENGTH_LONG
         ).show()
     } catch (_: android.content.ActivityNotFoundException) {
+        openTradeRepublicFallback(context, fallbackSearch)
+    }
+}
+
+private fun isTradeRepublicIsin(value: String): Boolean =
+    value.matches(Regex("[A-Z]{2}[A-Z0-9]{9}[0-9]"))
+
+private fun openTradeRepublicFallback(context: android.content.Context, fallbackSearch: String) {
+    val browseIntent = Intent(Intent.ACTION_VIEW, Uri.parse(TRADE_REPUBLIC_BROWSE_URL)).apply {
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+    try {
+        context.startActivity(browseIntent)
         android.widget.Toast.makeText(
             context,
-            "Trade Republic konnte nicht geöffnet werden. ISIN wurde kopiert.",
+            if (fallbackSearch.isNotBlank()) "Trade-Republic-Aktienübersicht geöffnet · Suchwert kopiert" else "Trade-Republic-Aktienübersicht geöffnet",
             android.widget.Toast.LENGTH_LONG
         ).show()
+    } catch (_: android.content.ActivityNotFoundException) {
+        val launcherIntent = Intent(Intent.ACTION_MAIN).apply {
+            addCategory(Intent.CATEGORY_LAUNCHER)
+            setPackage("de.traderepublic.app")
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        try {
+            context.startActivity(launcherIntent)
+            android.widget.Toast.makeText(context, "Trade Republic geöffnet · Suchwert kopiert", android.widget.Toast.LENGTH_LONG).show()
+        } catch (_: android.content.ActivityNotFoundException) {
+            android.widget.Toast.makeText(context, "Trade Republic konnte nicht geöffnet werden. Suchwert wurde kopiert.", android.widget.Toast.LENGTH_LONG).show()
+        }
     }
 }
 

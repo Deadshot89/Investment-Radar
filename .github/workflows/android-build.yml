@@ -36,6 +36,10 @@ jobs:
         shell: bash
         run: bash android/tests/test-update-resume.sh
 
+      - name: Trade Republic link regression test
+        shell: bash
+        run: bash android/tests/test-trade-republic-links.sh
+
       - name: Validate build and signing configuration
         env:
           API_URL: ${{ vars.INVESTMENT_API_BASE_URL }}
