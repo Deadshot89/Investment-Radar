@@ -1,10 +1,12 @@
 import crypto from "node:crypto";
+import { directionLabel, forecast12m } from "./forecast12m.mjs";
 
 export function evaluateSignals(items, quotes = new Map(), context = {}) {
   const now = new Date().toISOString();
   const result = [];
   const previousScores = context.previousScores ?? {};
   const previousRecommendations = context.previousRecommendations ?? {};
+  const previousForecast12m = context.previousForecast12m ?? {};
   const heldIds = context.heldIds instanceof Set ? context.heldIds : new Set(context.heldIds ?? []);
 
   for (const item of items) {
@@ -32,10 +34,41 @@ export function evaluateSignals(items, quotes = new Map(), context = {}) {
 
     const dropThreshold = Math.abs(Number(item.reviewDrop1dPct ?? 0));
     if (percentChange != null && dropThreshold > 0 && percentChange <= -dropThreshold) {
+      const momentumReason = movementReason(item, percentChange);
       result.push(make(
         item, "THRESHOLD", `${item.name}: ungewöhnlicher Tagesverlust`,
-        `Tagesbewegung ${percentChange.toFixed(2)} %. Prüfe Nachrichten und Investmentthese; normale Schwankungen unterhalb dieser Schwelle lösen keinen Alarm aus.`,
+        `Tagesbewegung ${percentChange.toFixed(2)} %. Schwelle: -${dropThreshold.toFixed(2)} %. Warum: ${momentumReason}`,
         now, `drop-threshold-${dropThreshold}`
+      ));
+    } else if (percentChange != null && dropThreshold > 0 && percentChange >= dropThreshold) {
+      const momentumReason = movementReason(item, percentChange);
+      result.push(make(
+        item, "THRESHOLD", `${item.name}: ungewöhnlicher Tagesanstieg`,
+        `Tagesbewegung +${percentChange.toFixed(2)} %. Schwelle: +${dropThreshold.toFixed(2)} %. Warum: ${momentumReason}`,
+        now, `rise-threshold-${dropThreshold}`
+      ));
+    }
+
+    const currentForecast = forecast12m(item);
+    const previousForecast = previousForecast12m[item.id];
+    if (previousForecast && previousForecast.direction && previousForecast.direction !== currentForecast.direction) {
+      const prior = finite(previousForecast.expectedChangePct);
+      const current = currentForecast.expectedChangePct;
+      const from = directionLabel(previousForecast.direction);
+      const to = directionLabel(currentForecast.direction);
+      const level = currentForecast.direction === "UP" ? "BUY" : "REVIEW";
+      const title = currentForecast.direction === "DOWN"
+        ? `${item.name}: 12M-Prognose kippt nach unten`
+        : currentForecast.direction === "UP"
+          ? `${item.name}: 12M-Prognose dreht nach oben`
+          : `${item.name}: 12M-Prognose wird neutral`;
+      result.push(make(
+        item,
+        level,
+        title,
+        `12M-Prognose: ${from}${prior != null ? ` (${signed1(prior)} %)` : ""} → ${to} (${signed1(current)} %). Warum: ${currentForecast.reasons.join(" ")}`,
+        now,
+        `forecast-direction-${previousForecast.direction}-${currentForecast.direction}-${Math.round(current * 10)}`
       ));
     }
 
@@ -85,12 +118,24 @@ export function evaluateSignals(items, quotes = new Map(), context = {}) {
     if (recommendation === "BUY" && previousRecommendation && previousRecommendation !== "BUY") {
       result.push(make(
         item, "BUY", `${item.name}: neue Kaufchance`,
-        `Der Radar ist von ${previousRecommendation} auf BUY gewechselt${currentScore != null ? ` (Score ${Math.round(currentScore)}/100)` : ""}.`,
+        `Der Radar ist von ${previousRecommendation} auf BUY gewechselt${currentScore != null ? ` (Score ${Math.round(currentScore)}/100)` : ""}. 12M-Prognose: ${directionLabel(currentForecast.direction)} (${signed1(currentForecast.expectedChangePct)} %). Warum: ${currentForecast.reasons.join(" ")}`,
         now, `buy-transition-${previousRecommendation}-BUY`
       ));
     }
   }
   return dedupeByFingerprint(result);
+}
+
+function movementReason(item, percentChange) {
+  const m1 = finite(item?.momentum?.m1);
+  const m3 = finite(item?.momentum?.m3);
+  if (m1 != null && Math.sign(m1) === Math.sign(percentChange) && Math.abs(m1) >= 5) {
+    return `Die Bewegung bestätigt das 1M-Momentum (${signed1(m1)} %). Nachrichten und Fundamentaldaten trotzdem prüfen.`;
+  }
+  if (m3 != null && Math.sign(m3) === Math.sign(percentChange) && Math.abs(m3) >= 5) {
+    return `Die Bewegung passt zum 3M-Trend (${signed1(m3)} %). Nachrichten und Fundamentaldaten prüfen.`;
+  }
+  return "Die Tagesbewegung ist größer als die hinterlegte Alarmschwelle. Nachrichten, Volumen und Investmentthese prüfen.";
 }
 
 function make(item, level, title, message, createdAt, reason) {
@@ -107,3 +152,4 @@ function finite(value) {
   return Number.isFinite(n) ? n : null;
 }
 function fmt(n) { return Number(n).toFixed(2); }
+function signed1(n) { return `${Number(n) >= 0 ? "+" : ""}${Number(n).toFixed(1)}`; }
