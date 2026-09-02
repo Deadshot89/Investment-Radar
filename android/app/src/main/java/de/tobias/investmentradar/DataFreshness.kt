@@ -71,8 +71,7 @@ object DataFreshness {
 
     private fun FundamentalSnapshot?.hasUsableContent(): Boolean {
         val snapshot = this ?: return false
-        return snapshot.source.isNotBlank() ||
-            snapshot.pe != null ||
+        return snapshot.pe != null ||
             snapshot.priceToSales != null ||
             snapshot.evToEbitda != null ||
             snapshot.freeCashFlowYield != null ||
