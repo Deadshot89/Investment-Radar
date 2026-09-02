@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -87,6 +88,7 @@ fun InvestmentRadarUi(vm: MainViewModel = viewModel(), initialTab: Int = 0) {
     var tab by remember { mutableIntStateOf(initialTab.coerceIn(0, 3)) }
     var selectedDetailId by remember { mutableStateOf<String?>(null) }
     var detailReturnTab by remember { mutableIntStateOf(initialTab.coerceIn(0, 3)) }
+    var missingAlertItemMessage by rememberSaveable { mutableStateOf<String?>(null) }
     var budgetDialog by remember { mutableStateOf(false) }
     var investmentDialogItem by remember { mutableStateOf<InvestmentItem?>(null) }
     var customAssetDialog by remember { mutableStateOf(false) }
@@ -230,9 +232,17 @@ fun InvestmentRadarUi(vm: MainViewModel = viewModel(), initialTab: Int = 0) {
                                 preferences = alertPreferences,
                                 onOpen = { stored ->
                                     vm.markAlertRead(stored.alert.id)
-                                    if (s.data.items.any { it.id == stored.alert.itemId } || customItems.any { it.id == stored.alert.itemId }) {
-                                        detailReturnTab = 3
-                                        selectedDetailId = stored.alert.itemId
+                                    val id = stored.alert.itemId
+                                    when {
+                                        s.data.items.any { it.id == id } -> {
+                                            detailReturnTab = 3
+                                            selectedDetailId = id
+                                        }
+                                        customItems.any { it.id == id } -> {
+                                            detailReturnTab = 3
+                                            selectedDetailId = id
+                                        }
+                                        else -> missingAlertItemMessage = "Das Wertpapier ist im aktuellen Radar nicht mehr verfügbar."
                                     }
                                 },
                                 onMarkAllRead = vm::markAllAlertsRead,
@@ -289,6 +299,17 @@ fun InvestmentRadarUi(vm: MainViewModel = viewModel(), initialTab: Int = 0) {
             onSave = { item, _ ->
                 vm.updateCustomInvestment(item)
                 editingCustomAsset = null
+            }
+        )
+    }
+
+    missingAlertItemMessage?.let { message ->
+        AlertDialog(
+            onDismissRequest = { missingAlertItemMessage = null },
+            title = { Text("Wertpapier nicht verfügbar") },
+            text = { Text(message) },
+            confirmButton = {
+                TextButton(onClick = { missingAlertItemMessage = null }) { Text("OK") }
             }
         )
     }
