@@ -169,11 +169,12 @@ fun InvestmentRadarUi(vm: MainViewModel = viewModel(), initialTab: Int = 0) {
                     UiState.Loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
                     is UiState.Error -> ErrorView(s.message) { vm.refresh() }
                     is UiState.Ready -> {
-                        val personalById = RecommendationEngine.plan(
+                        val personalPlan = RecommendationEngine.plan(
                             s.data.items,
                             budget,
                             PortfolioAnalysis.values(s.data.items, positions, customItems)
-                        ).items.associateBy { it.itemId }
+                        )
+                        val personalById = personalPlan.items.associateBy { it.itemId }
                         val detailId = selectedDetailId
                         if (detailId != null) {
                             val detailItem = s.data.items.firstOrNull { it.id == detailId }
@@ -196,6 +197,7 @@ fun InvestmentRadarUi(vm: MainViewModel = viewModel(), initialTab: Int = 0) {
                                 holdingIds = holdingIds,
                                 positions = positions,
                                 watchlistIds = watchlistIds,
+                                personalPlan = personalPlan,
                                 onEditBudget = { budgetDialog = true },
                                 onOpenRadar = { selectedDetailId = null; tab = 1 }
                             )
@@ -352,16 +354,11 @@ private fun DashboardScreen(
     holdingIds: Set<String>,
     positions: Map<String, PortfolioPosition>,
     watchlistIds: Set<String>,
+    personalPlan: PersonalPlan,
     onEditBudget: () -> Unit,
     onOpenRadar: () -> Unit
 ) {
     val context = LocalContext.current
-    val currentValues = data.items.associate { item ->
-        val position = positions[item.id]
-        val value = position?.currentValue(euroComparablePrice(item)) ?: position?.investedAmount ?: 0.0
-        item.id to value.coerceAtLeast(0.0)
-    }
-    val personalPlan = RecommendationEngine.plan(data.items, budget, currentValues)
     val cashAmount = personalPlan.cashAmount
     val personalById = personalPlan.items.associateBy { it.itemId }
     val allocations = personalPlan.items.associate { it.itemId to it.allocationEur }
