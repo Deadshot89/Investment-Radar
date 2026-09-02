@@ -1,0 +1,22 @@
+# Investment Radar 1.2.0
+
+- Recommendation Engine V2 mit Quality-, Valuation-, Growth-, Momentum- und Risk-Score
+- automatische objektive Empfehlungen BUY / WATCH / NO_BUY / REVIEW statt statischer Vorgaben
+- Investment-Universum auf 40 kuratierte Aktien und ETFs erweitert
+- Fundamentaldaten mit Cache, Datenabdeckung und sauberem Missing-Data-Fallback
+- Momentum über 1D, 1M, 3M, 6M und 12M
+- persönliche Monatsbudget-Verteilung berücksichtigt Depotgewichtung, Konzentration und Risiko
+- ab 40 % Depotanteil werden Neukäufe grundsätzlich blockiert; Ausnahme nur wenn kein weniger konzentrierter BUY-Kandidat verfügbar ist
+- stärkere REVIEW-Logik bei Score-Einbruch, Trendbruch, Schwellenwerten und fundamentaler Verschlechterung
+- BUY-Alarme nur bei echtem Übergang zu BUY, keine Start-Push-Flut
+- Firebase Data-Messages respektieren lokale Alarm-Einstellungen
+- neues Alarmcenter mit gelesen/ungelesen, Filtern, Löschen, Alle-gelesen und Alarm-Einstellungen
+- gelöschte Backend-Alarme werden durch lokale Tombstones nicht sofort erneut eingespielt
+- Trade-Republic-Navigation in eigenes Modul ausgelagert mit direktem HTTPS-Handoff und Fallback
+- manuelle Updateprüfung zeigt jetzt auch „Version aktuell“ bzw. einen Fehler an
+- Dashboard und Radar zeigen Score-Aufschlüsselung und persönliche Kaufallokation
+- teure History-/Fundamentaldaten werden gecacht; Dashboard bleibt cache-first, der 15-Minuten-Marktjob aktualisiert die Analyse
+- Feature-Branches dürfen das Azure-Produktivbackend nicht deployen
+- Android 1.2.0 / versionCode 31
+- Backend 1.2.0 / Analysis Model V2
+- keine automatische Orderausführung oder automatische Verkäufe
