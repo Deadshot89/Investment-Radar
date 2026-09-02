@@ -64,6 +64,7 @@ function inverseMap(value, good, bad) {
 function present(values) { return values.filter(Number.isFinite); }
 function averageOrNull(values) { return values.length ? Math.round(values.reduce((a, b) => a + b, 0) / values.length) : null; }
 function numberOrNull(value) {
+  if (value == null || (typeof value === "string" && value.trim() === "")) return null;
   const n = typeof value === "number" ? value : Number(value);
   return Number.isFinite(n) ? n : null;
 }
