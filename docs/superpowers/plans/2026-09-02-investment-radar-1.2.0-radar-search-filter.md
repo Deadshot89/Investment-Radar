@@ -4,7 +4,7 @@
 
 **Goal:** Replace the current single-filter Radar implementation with reusable local search, combinable filters and the approved sort options, while moving Radar logic out of `MainActivity.kt`.
 
-**Architecture:** Pure filtering/sorting lives in a focused Kotlin engine with immutable state. Compose owns only transient session UI state and delegates all list calculation to the engine. `MainViewModel` already merges custom-investment quote/fallback items into `DashboardData.items`, so the same engine covers the 40 curated values and local custom investments without another data path. The extracted Radar screen uses Material 3 directly and does not depend on file-private UI helpers in `MainActivity.kt`.
+**Architecture:** Pure filtering/sorting lives in a focused Kotlin engine with immutable state. Compose owns only transient session UI state and delegates all list calculation to the engine. `MainViewModel` already merges custom-investment quote/fallback items into `DashboardData.items`, so the same engine covers curated and local values. The extracted screen uses Material 3 directly and does not depend on file-private helpers in `MainActivity.kt`.
 
 **Tech Stack:** Kotlin, Jetpack Compose Material 3, JUnit 4, GitHub Actions shell regression tests.
 
@@ -12,37 +12,30 @@
 
 ## Global Constraints
 
-- Search covers only already-loaded `DashboardData.items`; this includes local custom investments after `MainViewModel.refresh` merges their quote/fallback item.
-- No external unrestricted symbol search.
-- Search fields: name, ticker/symbol, ISIN and type.
-- Filters must be combinable: recommendation, type, held/not held, watchlist-only, data quality and risk.
-- Data quality: FULL = coverage >= 70, REDUCED = coverage 50..69, INSUFFICIENT = coverage < 50 or null.
-- Risk buckets: LOW = risk 1..2, MEDIUM = risk 3, HIGH = risk 4..5.
-- Sort options: score descending, personal allocation descending, 6M momentum descending, day ascending, day descending, name A-Z.
-- Null numeric sort values always sort last.
-- Default sort is score descending.
-- Filter/sort state survives recomposition during the current app session but need not persist across app restarts.
-- No new market-data request may be triggered by search/filter/sort.
+- Search only already-loaded `DashboardData.items`; no external symbol search.
+- Search: name, ticker, ISIN, type.
+- Combinable filters: recommendation, type, held/not-held, watchlist-only, data quality, risk.
+- Data quality: FULL >=70, REDUCED 50..69, INSUFFICIENT <50 or null.
+- Risk: LOW 1..2, MEDIUM 3, HIGH 4..5.
+- Sort: score desc, monthly allocation desc, 6M momentum desc, day asc, day desc, name A-Z.
+- Null numeric sort values always last.
+- Default sort: score desc.
+- UI state persists only for the current Compose session.
+- Filtering/sorting must not call `ApiClient` or any provider.
 
 ---
 
 ## File Structure
 
-- Create `android/app/src/main/java/de/tobias/investmentradar/RadarFilterState.kt` — filter enums, state and pure `RadarFilterEngine`.
-- Create `android/app/src/main/java/de/tobias/investmentradar/RadarScreen.kt` — self-contained Material 3 Radar UI.
-- Create `android/app/src/test/java/de/tobias/investmentradar/RadarFilterStateTest.kt` — pure search/filter/sort tests with a local fixture helper.
-- Modify `android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt` — remove private Radar implementation and call extracted `RadarScreen`.
-- Modify `android/tests/test-analysis-v2-ui.sh` — assert search/filter/sort controls live in the extracted screen.
+- Create `android/app/src/main/java/de/tobias/investmentradar/RadarFilterState.kt`.
+- Create `android/app/src/main/java/de/tobias/investmentradar/RadarScreen.kt`.
+- Create `android/app/src/test/java/de/tobias/investmentradar/RadarFilterStateTest.kt`.
+- Modify `android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt`.
+- Modify `android/tests/test-analysis-v2-ui.sh`.
 
 ### Task 1: Pure Radar filter model
 
-**Files:**
-- Create: `android/app/src/main/java/de/tobias/investmentradar/RadarFilterState.kt`
-- Create: `android/app/src/test/java/de/tobias/investmentradar/RadarFilterStateTest.kt`
-
 **Interfaces:**
-- Consumes: `InvestmentItem` and `RecommendationPresentation.effectiveRecommendation(item)`.
-- Produces:
 ```kotlin
 enum class RadarRecommendationFilter { ALL, BUY, WATCH, NO_BUY, REVIEW }
 enum class RadarTypeFilter { ALL, STOCK, ETF }
@@ -73,9 +66,8 @@ object RadarFilterEngine {
 }
 ```
 
-- [ ] **Step 1: Write the test file with a local fixture helper and failing search/filter tests**
+- [ ] **Step 1: Write failing tests with a local fixture helper**
 
-At the bottom of `RadarFilterStateTest.kt`, define:
 ```kotlin
 private fun radarItem(
     id: String,
@@ -105,7 +97,6 @@ private fun radarItem(
 )
 ```
 
-Tests:
 ```kotlin
 @Test
 fun searchMatchesNameTickerIsinAndType() {
@@ -119,8 +110,8 @@ fun searchMatchesNameTickerIsinAndType() {
 
 @Test
 fun filtersCombineInsteadOfReplacingEachOther() {
-    val buyHeld = radarItem("a", recommendation = "BUY", type = "ETF", coverage = 82, risk = 2)
-    val buyNotHeld = radarItem("b", recommendation = "BUY", type = "ETF", coverage = 82, risk = 2)
+    val a = radarItem("a", recommendation = "BUY", type = "ETF", coverage = 82, risk = 2)
+    val b = radarItem("b", recommendation = "BUY", type = "ETF", coverage = 82, risk = 2)
     val state = RadarFilterState(
         recommendation = RadarRecommendationFilter.BUY,
         type = RadarTypeFilter.ETF,
@@ -128,90 +119,63 @@ fun filtersCombineInsteadOfReplacingEachOther() {
         dataQuality = RadarDataQualityFilter.FULL,
         risk = RadarRiskFilter.LOW
     )
-    val result = RadarFilterEngine.apply(listOf(buyHeld, buyNotHeld), state, setOf("a"), emptySet(), emptyMap())
-    assertEquals(listOf("a"), result.map { it.id })
+    assertEquals(
+        listOf("a"),
+        RadarFilterEngine.apply(listOf(a, b), state, setOf("a"), emptySet(), emptyMap()).map { it.id }
+    )
 }
 ```
 
-- [ ] **Step 2: Run focused tests and confirm RED**
+- [ ] **Step 2: Run RED**
 
 ```bash
 cd android && ./gradlew testReleaseUnitTest --tests 'de.tobias.investmentradar.RadarFilterStateTest'
 ```
-Expected: compile failure because `RadarFilterState`/`RadarFilterEngine` do not exist.
+Expected: compile failure because Radar filter types do not exist.
 
-- [ ] **Step 3: Implement immutable state and matching rules**
+- [ ] **Step 3: Implement matching rules**
 
-Implement `matchesQuery` with `trim()` and case-insensitive matching against `name`, `ticker`, `isin`, `type`.
-
-Recommendation matching must use:
-```kotlin
-RecommendationPresentation.effectiveRecommendation(item)
-```
-Mapping:
-```text
-BUY -> BUY
-WATCH -> WATCH
-NO_BUY -> NO_BUY
-REVIEW -> REVIEW
-```
-
-Type matching:
-```kotlin
-val isEtf = item.type.equals("ETF", ignoreCase = true)
-```
-Everything not ETF is STOCK for this filter.
-
-Coverage/risk mapping follows the exact global constraints above.
+Search uses trimmed case-insensitive matching against `name`, `ticker`, `isin`, `type`.
+Recommendation matching uses `RecommendationPresentation.effectiveRecommendation(item)`.
+Type uses `item.type.equals("ETF", true)`; all non-ETF items are STOCK.
+Coverage/risk use the exact global buckets.
+Watchlist is an independent boolean gate.
 
 - [ ] **Step 4: Add sorting tests**
 
 ```kotlin
 @Test
-fun sixMonthMomentumSortsNullLast() {
-    val high = radarItem("high", momentumM6 = 18.0)
-    val low = radarItem("low", momentumM6 = -3.0)
-    val missing = radarItem("missing", momentumM6 = null)
-    val result = RadarFilterEngine.apply(
-        listOf(missing, low, high),
-        RadarFilterState(sort = RadarSortOption.MOMENTUM_6M),
-        emptySet(), emptySet(), emptyMap()
-    )
-    assertEquals(listOf("high", "low", "missing"), result.map { it.id })
+fun momentumAndDaySortKeepNullLast() {
+    val high = radarItem("high", momentumM6 = 18.0, percentChange = 3.0)
+    val low = radarItem("low", momentumM6 = -3.0, percentChange = -2.0)
+    val missing = radarItem("missing")
+
+    val m6 = RadarFilterEngine.apply(listOf(missing, low, high), RadarFilterState(sort = RadarSortOption.MOMENTUM_6M), emptySet(), emptySet(), emptyMap())
+    val asc = RadarFilterEngine.apply(listOf(missing, high, low), RadarFilterState(sort = RadarSortOption.DAY_ASC), emptySet(), emptySet(), emptyMap())
+    val desc = RadarFilterEngine.apply(listOf(missing, low, high), RadarFilterState(sort = RadarSortOption.DAY_DESC), emptySet(), emptySet(), emptyMap())
+
+    assertEquals(listOf("high", "low", "missing"), m6.map { it.id })
+    assertEquals(listOf("low", "high", "missing"), asc.map { it.id })
+    assertEquals(listOf("high", "low", "missing"), desc.map { it.id })
 }
 
 @Test
-fun allocationSortUsesPersonalPlanAmounts() {
+fun allocationSortUsesPersonalAmounts() {
     val a = radarItem("a")
     val b = radarItem("b")
-    val result = RadarFilterEngine.apply(
-        listOf(a, b),
-        RadarFilterState(sort = RadarSortOption.ALLOCATION),
-        emptySet(), emptySet(), mapOf("a" to 10, "b" to 60)
-    )
+    val result = RadarFilterEngine.apply(listOf(a, b), RadarFilterState(sort = RadarSortOption.ALLOCATION), emptySet(), emptySet(), mapOf("a" to 10, "b" to 60))
     assertEquals(listOf("b", "a"), result.map { it.id })
-}
-
-@Test
-fun dayAscendingAndDescendingKeepNullLast() {
-    val up = radarItem("up", percentChange = 3.0)
-    val down = radarItem("down", percentChange = -2.0)
-    val missing = radarItem("missing", percentChange = null)
-    val asc = RadarFilterEngine.apply(listOf(missing, up, down), RadarFilterState(sort = RadarSortOption.DAY_ASC), emptySet(), emptySet(), emptyMap())
-    val desc = RadarFilterEngine.apply(listOf(missing, up, down), RadarFilterState(sort = RadarSortOption.DAY_DESC), emptySet(), emptySet(), emptyMap())
-    assertEquals(listOf("down", "up", "missing"), asc.map { it.id })
-    assertEquals(listOf("up", "down", "missing"), desc.map { it.id })
 }
 ```
 
-- [ ] **Step 5: Run focused tests and confirm GREEN**
+- [ ] **Step 5: Run GREEN**
 
 ```bash
 cd android && ./gradlew testReleaseUnitTest --tests 'de.tobias.investmentradar.RadarFilterStateTest'
 ```
 Expected: PASS.
 
-- [ ] **Step 6: Commit pure model**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add android/app/src/main/java/de/tobias/investmentradar/RadarFilterState.kt android/app/src/test/java/de/tobias/investmentradar/RadarFilterStateTest.kt
@@ -220,14 +184,7 @@ git commit -m "feat: add combinable radar filters"
 
 ### Task 2: Extract and upgrade Radar Compose screen
 
-**Files:**
-- Create: `android/app/src/main/java/de/tobias/investmentradar/RadarScreen.kt`
-- Modify: `android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt`
-- Modify: `android/tests/test-analysis-v2-ui.sh`
-
 **Interfaces:**
-- Consumes: `RadarFilterEngine`, `PersonalRecommendation`, current merged `InvestmentItem` list.
-- Produces:
 ```kotlin
 @Composable
 fun RadarScreen(
@@ -237,14 +194,13 @@ fun RadarScreen(
     personalById: Map<String, PersonalRecommendation>,
     onToggleWatchlist: (String) -> Unit,
     onBought: (InvestmentItem) -> Unit,
-    onEditInvestment: (InvestmentItem) -> Unit,
-    onOpenDetail: (String) -> Unit
+    onEditInvestment: (InvestmentItem) -> Unit
 )
 ```
+The detail plan adds `onOpenDetail` later; this task must not ship a dead Details button.
 
-- [ ] **Step 1: Update shell contract and confirm RED**
+- [ ] **Step 1: Make `test-analysis-v2-ui.sh` require the extracted screen and controls**
 
-Required checks:
 ```bash
 SRC="android/app/src/main/java/de/tobias/investmentradar/RadarScreen.kt"
 test -f "$SRC"
@@ -257,70 +213,49 @@ grep -q 'RadarSortOption.ALLOCATION' "$SRC"
 grep -q 'RadarSortOption.MOMENTUM_6M' "$SRC"
 grep -q 'RadarSortOption.DAY_ASC' "$SRC"
 grep -q 'RadarSortOption.DAY_DESC' "$SRC"
-grep -q 'onOpenDetail' "$SRC"
 ```
 
-Run:
+- [ ] **Step 2: Run contract and confirm RED**
+
 ```bash
 bash android/tests/test-analysis-v2-ui.sh
 ```
 Expected: FAIL because `RadarScreen.kt` does not exist.
 
-- [ ] **Step 2: Implement the extracted screen without using `MainActivity.kt` file-private helpers**
+- [ ] **Step 3: Implement self-contained Material 3 Radar UI**
 
-Use only Material 3 primitives (`Card`, `Text`, `FilterChip`, `OutlinedTextField`, `Button`, `OutlinedButton`) plus public modules such as `RecommendationPresentation`, `ScoreBreakdownCard` and `TradeRepublicNavigator`.
+Use `Card`, `Text`, `FilterChip`, `OutlinedTextField`, `Button`, `OutlinedButton`, `RecommendationPresentation`, `ScoreBreakdownCard`, `TradeRepublicNavigator`. Do not reference `private` colors/functions from `MainActivity.kt`.
 
-Use session state:
+Session state:
 ```kotlin
 var filters by remember { mutableStateOf(RadarFilterState()) }
 ```
-This intentionally satisfies the approved current-session requirement without adding persistence.
 
-Compute:
+Visible list:
 ```kotlin
 val visibleItems = remember(items, filters, holdingIds, watchlistIds, personalById) {
     RadarFilterEngine.apply(
-        items = items,
-        state = filters,
-        holdingIds = holdingIds,
-        watchlistIds = watchlistIds,
-        allocationById = personalById.mapValues { it.value.allocationEur }
+        items,
+        filters,
+        holdingIds,
+        watchlistIds,
+        personalById.mapValues { it.value.allocationEur }
     )
 }
 ```
 
-UI groups:
-- Search field.
-- Recommendation: Alle/Kaufen/Beobachten/Nicht kaufen/Prüfen.
-- Type: Alle/Aktie/ETF.
-- Depot: Alle/Im Depot/Nicht im Depot.
-- Independent Watchlist-only toggle.
-- Data: Alle/Vollständig/Reduziert/Unzureichend.
-- Risk: Alle/Niedrig/Mittel/Hoch.
-- Sort: Score/Monatskauf/6M/Tag ↑/Tag ↓/Name.
+UI groups: search; recommendation; type; depot; watchlist toggle; data quality; risk; sort. Each card shows identity, recommendation, score, coverage, 6M momentum if available, day move if available and personal monthly allocation.
 
-Each card shows name, ticker, recommendation, score, coverage, 6M momentum when available, day change when available, personal allocation and a `Details` action:
-```kotlin
-OutlinedButton(onClick = { onOpenDetail(item.id) }) { Text("Details") }
-```
+- [ ] **Step 4: Remove old private `RadarSortOption` and private `RadarScreen` from `MainActivity.kt`**
 
-- [ ] **Step 3: Remove the old private `RadarSortOption` and private `RadarScreen` from `MainActivity.kt`**
-
-Do not leave a second filtering implementation. The only Radar matching/sorting code after this task is `RadarFilterEngine`.
-
-- [ ] **Step 4: Compute personal allocation once in the Ready branch and pass it**
-
+`MainActivity` computes:
 ```kotlin
 val currentValues = PortfolioAnalysis.values(s.data.items, positions, customItems)
-val radarPersonalById = RecommendationEngine
-    .plan(s.data.items, budget, currentValues)
-    .items
-    .associateBy { it.itemId }
+val radarPersonalById = RecommendationEngine.plan(s.data.items, budget, currentValues).items.associateBy { it.itemId }
 ```
+and passes that into the extracted screen. No filtering/sorting logic remains in `MainActivity`.
 
-Call the extracted screen with `onOpenDetail = { id -> /* detail plan wires selectedDetailId */ }`. Until the detail plan runs, use a no-op lambda or existing Radar focus behavior only if needed for compilation; the detail plan replaces it immediately. Do not add new navigation logic to `RadarFilterEngine`.
-
-- [ ] **Step 5: Run contract + JVM suite and confirm GREEN**
+- [ ] **Step 5: Run GREEN**
 
 ```bash
 bash android/tests/test-analysis-v2-ui.sh
@@ -328,34 +263,15 @@ cd android && ./gradlew testReleaseUnitTest
 ```
 Expected: PASS.
 
-- [ ] **Step 6: Commit extracted Radar UI**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add android/app/src/main/java/de/tobias/investmentradar/RadarScreen.kt android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt android/tests/test-analysis-v2-ui.sh
 git commit -m "feat: add radar search filters and sorting"
 ```
 
-### Task 3: Branch verification checkpoint
+### Task 3: Verification checkpoint
 
-- [ ] **Step 1: Run permanent contract scripts**
-
-```bash
-for f in \
-  android/tests/test-analysis-v2-ui.sh \
-  android/tests/test-portfolio-allocation-ui.sh \
-  android/tests/test-alert-policy-wiring.sh \
-  android/tests/test-alert-center-ui.sh \
-  android/tests/test-alert-center-wiring.sh \
-  android/tests/test-update-status-ui.sh \
-  android/tests/test-trade-republic-navigator-wiring.sh; do bash "$f"; done
-```
-Expected: all PASS.
-
-- [ ] **Step 2: Run Android unit suite**
-
-```bash
-cd android && ./gradlew testReleaseUnitTest
-```
-Expected: PASS with zero failed tests.
-
-- [ ] **Step 3: Push branch and require GitHub Android Contract Tests + Android JVM Tests green before moving to the detail plan.**
+- [ ] Run all existing permanent Android contract scripts.
+- [ ] Run `cd android && ./gradlew testReleaseUnitTest`.
+- [ ] Push and require Android Contract Tests + Android JVM Tests green before the investment-detail plan.
