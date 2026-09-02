@@ -1,0 +1,79 @@
+name: IR120 Portfolio Integration Patch
+
+on:
+  push:
+    branches:
+      - ir120-implementation
+    paths:
+      - '.github/workflows/ir120-portfolio-integration-patch.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ir120-implementation
+          fetch-depth: 0
+      - name: Patch portfolio integration
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt')
+          text = path.read_text()
+
+          old_call = '''                            2 -> PortfolioScreen(
+                                items = s.data.items.filter { it.id in holdingIds },
+                                positions = positions,
+                                customItems = customItems,
+                                onOpenDetail = { id ->
+                                    detailReturnTab = 2
+                                    selectedDetailId = id
+                                },
+                                onEdit = { investmentDialogItem = it },
+                                onRemove = vm::removeHolding,
+                                onAddCustom = { customAssetDialog = true },
+                                onEditCustom = { editingCustomAsset = it },
+                                onRemoveCustom = vm::removeCustomInvestment
+                            )'''
+          new_call = '''                            2 -> PortfolioDashboard(
+                                items = s.data.items,
+                                positions = positions,
+                                customItems = customItems,
+                                personalById = personalById,
+                                onOpenDetail = { id ->
+                                    detailReturnTab = 2
+                                    selectedDetailId = id
+                                },
+                                onEdit = { investmentDialogItem = it },
+                                onRemove = vm::removeHolding,
+                                onAddCustom = { customAssetDialog = true },
+                                onEditCustom = { editingCustomAsset = it },
+                                onRemoveCustom = vm::removeCustomInvestment
+                            )'''
+          if old_call not in text:
+              raise SystemExit('Expected PortfolioScreen call not found')
+          text = text.replace(old_call, new_call, 1)
+
+          start_marker = '@Composable\nprivate fun PortfolioScreen('
+          end_marker = '@Composable\nprivate fun CustomInvestmentDialog('
+          start = text.find(start_marker)
+          end = text.find(end_marker, start)
+          if start < 0 or end < 0:
+              raise SystemExit('Expected legacy PortfolioScreen block not found')
+          text = text[:start] + text[end:]
+          path.write_text(text)
+      - name: Commit patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'investment-radar-ci'
+          git config user.email 'investment-radar-ci@users.noreply.github.com'
+          git add android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt
+          git diff --cached --check
+          git commit -m 'refactor: integrate portfolio dashboard v2'
+          git push origin HEAD:ir120-implementation
