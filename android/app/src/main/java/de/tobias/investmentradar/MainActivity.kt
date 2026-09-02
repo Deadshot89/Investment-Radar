@@ -78,6 +78,7 @@ fun InvestmentRadarUi(vm: MainViewModel = viewModel()) {
     val holdingIds by vm.holdingIds.collectAsState()
     val positions by vm.positions.collectAsState()
     val customItems by vm.customItems.collectAsState()
+    val watchlistIds by vm.watchlistIds.collectAsState()
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("investment_radar_settings", 0) }
     var budget by remember { mutableIntStateOf(prefs.getInt("monthly_budget", 100).coerceIn(10, 10000)) }
@@ -151,10 +152,20 @@ fun InvestmentRadarUi(vm: MainViewModel = viewModel()) {
                     UiState.Loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
                     is UiState.Error -> ErrorView(s.message) { vm.refresh() }
                     is UiState.Ready -> when (tab) {
-                        0 -> DashboardScreen(s.data, budget, onEditBudget = { budgetDialog = true })
+                        0 -> DashboardScreen(
+                            data = s.data,
+                            budget = budget,
+                            holdingIds = holdingIds,
+                            positions = positions,
+                            watchlistIds = watchlistIds,
+                            onEditBudget = { budgetDialog = true },
+                            onOpenRadar = { tab = 1 }
+                        )
                         1 -> RadarScreen(
                             items = s.data.items,
                             holdingIds = holdingIds,
+                            watchlistIds = watchlistIds,
+                            onToggleWatchlist = vm::toggleWatchlist,
                             onBought = { investmentDialogItem = it },
                             onEditInvestment = { investmentDialogItem = it }
                         )
@@ -244,7 +255,15 @@ fun InvestmentRadarUi(vm: MainViewModel = viewModel()) {
 }
 
 @Composable
-private fun DashboardScreen(data: DashboardData, budget: Int, onEditBudget: () -> Unit) {
+private fun DashboardScreen(
+    data: DashboardData,
+    budget: Int,
+    holdingIds: Set<String>,
+    positions: Map<String, PortfolioPosition>,
+    watchlistIds: Set<String>,
+    onEditBudget: () -> Unit,
+    onOpenRadar: () -> Unit
+) {
     val context = LocalContext.current
     val plannerItems = data.items.map { it.toPlannerItem() }
     val allocations = InvestmentPlanner.plan(plannerItems, budget).associate { it.id to it.amount }
@@ -253,6 +272,25 @@ private fun DashboardScreen(data: DashboardData, budget: Int, onEditBudget: () -
         .maxByOrNull { InvestmentPlanner.recommendation(it.toPlannerItem()).score }
         ?: data.items.firstOrNull { it.id == data.topPickId }
         ?: data.items.firstOrNull()
+
+    val reviewItems = data.items.filter { item ->
+        item.id in holdingIds && InvestmentPlanner.recommendation(item.toPlannerItem()).label.let { label ->
+            label.contains("PRÜFEN", ignoreCase = true) || label.contains("VERKAUF", ignoreCase = true)
+        }
+    }
+    val buyCandidates = data.items
+        .filter { InvestmentPlanner.recommendation(it.toPlannerItem()).label == "KAUFEN" }
+        .sortedByDescending { InvestmentPlanner.recommendation(it.toPlannerItem()).score }
+    val missingQuoteItems = data.items.filter { it.status.equals("EIGEN", true) && it.price == null }
+    val portfolioValues = data.items.mapNotNull { item ->
+        val position = positions[item.id] ?: return@mapNotNull null
+        position.currentValue(euroComparablePrice(item))?.let { value -> item to value }
+    }
+    val portfolioTotal = portfolioValues.sumOf { it.second }
+    val concentration = portfolioValues.maxByOrNull { it.second }?.let { (item, value) ->
+        if (portfolioTotal > 0.0) item to (value / portfolioTotal * 100.0) else null
+    }
+    val concentrationWarning = concentration?.takeIf { it.second >= 40.0 }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
@@ -272,6 +310,28 @@ private fun DashboardScreen(data: DashboardData, budget: Int, onEditBudget: () -
                 DarkMetricCard("MARKT", data.marketLight.uppercase(), marketAccent(data.marketLight), Modifier.weight(1f))
                 DarkMetricCard("BUDGET", "$budget €", RadarBlue, Modifier.weight(1f), onClick = onEditBudget)
                 DarkMetricCard("SIGNAL", if (top != null) "AKTIV" else "WARTEN", RadarGreen, Modifier.weight(1f))
+            }
+        }
+
+        item {
+            NeonPanel(accent = if (reviewItems.isNotEmpty() || concentrationWarning != null) RadarYellow else RadarCyan) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Jetzt relevant", color = RadarCyan, fontWeight = FontWeight.Black, style = MaterialTheme.typography.labelLarge)
+                        Text("Deine wichtigsten Punkte auf einen Blick", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
+                    }
+                    StatusPill(if (reviewItems.isNotEmpty()) "PRÜFEN" else "AKTUELL")
+                }
+                RelevantRow("Kaufkandidaten", buyCandidates.take(3).joinToString { it.ticker }.ifBlank { "Keine" }, RadarGreen)
+                RelevantRow("Prüfsignale", reviewItems.joinToString { it.ticker }.ifBlank { "Keine" }, if (reviewItems.isEmpty()) RadarMuted else RadarYellow)
+                RelevantRow("Watchlist", "${watchlistIds.size} Werte", RadarPurple)
+                if (missingQuoteItems.isNotEmpty()) {
+                    RelevantRow("Kursdaten fehlen", missingQuoteItems.joinToString { it.ticker }, RadarYellow)
+                }
+                concentrationWarning?.let { (item, share) ->
+                    RelevantRow("Konzentration", "${item.ticker} ${String.format(Locale.GERMANY, "%.1f", share)} %", RadarRed)
+                }
+                TextButton(onClick = onOpenRadar, modifier = Modifier.align(Alignment.End)) { Text("Radar öffnen") }
             }
         }
 
@@ -362,6 +422,8 @@ private enum class RadarSortOption(val label: String) {
 private fun RadarScreen(
     items: List<InvestmentItem>,
     holdingIds: Set<String>,
+    watchlistIds: Set<String>,
+    onToggleWatchlist: (String) -> Unit,
     onBought: (InvestmentItem) -> Unit,
     onEditInvestment: (InvestmentItem) -> Unit
 ) {
@@ -382,6 +444,7 @@ private fun RadarScreen(
                 "PORTFOLIO" -> item.id in holdingIds
                 "ETF" -> item.type.equals("ETF", ignoreCase = true)
                 "EIGENE" -> item.status.equals("EIGEN", ignoreCase = true)
+                "WATCHLIST" -> item.id in watchlistIds
                 "PRÜFEN" -> reco.label.contains("PRÜFEN", ignoreCase = true) || reco.label.contains("VERKAUF", ignoreCase = true)
                 else -> true
             }
@@ -422,6 +485,9 @@ private fun RadarScreen(
                         FilterChip(selected = filter == "ETF", onClick = { filter = "ETF" }, label = { Text("ETF") }, modifier = Modifier.weight(1f))
                         FilterChip(selected = filter == "EIGENE", onClick = { filter = "EIGENE" }, label = { Text("Eigene Werte") }, modifier = Modifier.weight(1f))
                         FilterChip(selected = filter == "PRÜFEN", onClick = { filter = "PRÜFEN" }, label = { Text("Prüfen") }, modifier = Modifier.weight(1f))
+                    }
+                    Row(Modifier.fillMaxWidth()) {
+                        FilterChip(selected = filter == "WATCHLIST", onClick = { filter = "WATCHLIST" }, label = { Text("Watchlist (${watchlistIds.size})") }, modifier = Modifier.fillMaxWidth())
                     }
                 }
                 Text("SORTIERUNG", style = MaterialTheme.typography.labelSmall, color = RadarMuted, fontWeight = FontWeight.Bold)
@@ -472,6 +538,9 @@ private fun RadarScreen(
                     Icon(Icons.Default.OpenInNew, null)
                     Spacer(Modifier.width(7.dp))
                     Text("Wertpapier öffnen")
+                }
+                FilledTonalButton(onClick = { onToggleWatchlist(item.id) }, modifier = Modifier.fillMaxWidth()) {
+                    Text(if (item.id in watchlistIds) "Von Watchlist entfernen" else "Zur Watchlist")
                 }
                 if (item.id in holdingIds) {
                     Text("✓ Im Portfolio · Verkaufsalarm aktiv", color = RadarGreen, fontWeight = FontWeight.Bold)
@@ -761,6 +830,21 @@ private fun CustomInvestmentDialog(
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } }
     )
+}
+
+@Composable
+private fun RelevantRow(label: String, value: String, accent: Color) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(Color(0x0DFFFFFF), RoundedCornerShape(14.dp))
+            .padding(horizontal = 12.dp, vertical = 9.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, color = RadarMuted, style = MaterialTheme.typography.bodySmall)
+        Text(value, color = accent, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall)
+    }
 }
 
 @Composable

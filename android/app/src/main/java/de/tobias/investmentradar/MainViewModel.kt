@@ -33,6 +33,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _customItems = MutableStateFlow(CustomInvestmentStore.read(app))
     val customItems: StateFlow<List<CustomInvestment>> = _customItems.asStateFlow()
 
+    private val _watchlistIds = MutableStateFlow(WatchlistStore.read(app))
+    val watchlistIds: StateFlow<Set<String>> = _watchlistIds.asStateFlow()
+
     init {
         refresh()
         viewModelScope.launch {
@@ -129,6 +132,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val app = getApplication<Application>()
         CustomInvestmentStore.remove(app, itemId)
         _customItems.value = CustomInvestmentStore.read(app)
+        _watchlistIds.value = WatchlistStore.remove(app, itemId)
         removeHolding(itemId)
         refresh(silent = true)
     }
@@ -140,6 +144,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (FirebaseBootstrap.isConfigured()) {
             FirebaseMessaging.getInstance().unsubscribeFromTopic(holdingTopic(itemId))
         }
+    }
+
+
+    fun toggleWatchlist(itemId: String) {
+        val app = getApplication<Application>()
+        _watchlistIds.value = WatchlistStore.toggle(app, itemId)
     }
 
     fun localAlerts(): List<SignalAlert> = AlertStore.read(getApplication())
