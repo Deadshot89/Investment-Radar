@@ -70,6 +70,7 @@ fun InvestmentDetailScreen(
     ).any { it != null }
     val momentum = effectiveItem.momentum
     val fundamentals = effectiveItem.fundamentals
+    val forecast = ForecastEngine.forecast(effectiveItem)
     val trend = detailTrend(momentum)
     val comparablePrice = effectiveItem.priceEur
         ?: effectiveItem.price?.takeIf { effectiveItem.currency.isBlank() || effectiveItem.currency.equals("EUR", ignoreCase = true) }
@@ -104,6 +105,29 @@ fun InvestmentDetailScreen(
                 HorizontalDivider()
                 DetailValueRow("Empfehlung", RecommendationPresentation.label(effectiveItem))
                 DetailValueRow("Gesamtscore", effectiveItem.scoreTotal?.let { "$it/100" } ?: "Nicht verfügbar")
+            }
+        }
+
+        item {
+            DetailCard {
+                Text("PROGNOSE", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Black)
+                Text("1 Monat · 3 Monate · 6 Monate · 12 Monate", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
+                Text(
+                    "Eine modellbasierte Einschätzung aus Qualität, Bewertung, Wachstum, Momentum, Risiko und Datenabdeckung – kein garantierter Zielkurs.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall
+                )
+                forecast.points.forEachIndexed { index, point ->
+                    if (index > 0) HorizontalDivider()
+                    Text("${point.horizon.label} · ${point.direction}", fontWeight = FontWeight.Black)
+                    DetailValueRow("Basis", detailForecastScenario(point.targetPriceEur, point.expectedChangePct))
+                    DetailValueRow("Bear", detailForecastScenario(point.bearTargetPriceEur, point.bearChangePct))
+                    DetailValueRow("Bull", detailForecastScenario(point.bullTargetPriceEur, point.bullChangePct))
+                    Text("Warum diese Prognose?", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                    point.reasons.take(2).forEach { reason ->
+                        Text("• $reason", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
             }
         }
 
@@ -341,3 +365,7 @@ private fun detailMoney(value: Double): String = String.format(Locale.GERMANY, "
 private fun detailSignedMoney(value: Double): String = String.format(Locale.GERMANY, "%+.2f €", value)
 private fun detailShares(value: Double): String = String.format(Locale.GERMANY, "%.6f", value).trimEnd('0').trimEnd(',')
 private fun detailTimestamp(value: String): String = value.replace('T', ' ').removeSuffix("Z")
+
+private fun detailForecastScenario(targetPriceEur: Double?, changePct: Double): String =
+    targetPriceEur?.let { String.format(Locale.GERMANY, "%.2f € (%+.1f %%)", it, changePct) }
+        ?: String.format(Locale.GERMANY, "%+.1f %% · Zielpreis nicht verfügbar", changePct)

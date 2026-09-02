@@ -391,9 +391,9 @@ private fun DashboardScreen(
         }
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                DarkMetricCard("MARKT", data.marketLight.uppercase(), marketAccent(data.marketLight), Modifier.weight(1f))
+                DarkMetricCard("MARKT", data.marketLight.uppercase(), RadarYellow, Modifier.weight(1f))
                 DarkMetricCard("BUDGET", "$budget €", RadarBlue, Modifier.weight(1f), onClick = onEditBudget)
-                DarkMetricCard("SIGNAL", if (top != null) "AKTIV" else "WARTEN", if (top != null) RadarGreen else RadarYellow, Modifier.weight(1f))
+                DarkMetricCard("SIGNAL", if (top != null) "AKTIV" else "WARTEN", RadarGreen, Modifier.weight(1f), valueStyle = if (top == null) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleLarge)
             }
         }
 
@@ -865,11 +865,18 @@ private fun RecommendationRow(item: InvestmentItem, personal: PersonalRecommenda
 }
 
 @Composable
-private fun DarkMetricCard(label: String, value: String, accent: Color, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null) {
+private fun DarkMetricCard(
+    label: String,
+    value: String,
+    accent: Color,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+    valueStyle: androidx.compose.ui.text.TextStyle? = null
+) {
     val clickModifier = if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
     NeonPanel(modifier.then(clickModifier), accent) {
         Text(label, style = MaterialTheme.typography.labelSmall, color = RadarMuted)
-        Text(value, fontWeight = FontWeight.Black, color = accent, style = MaterialTheme.typography.titleLarge)
+        Text(value, fontWeight = FontWeight.Black, color = accent, style = valueStyle ?: MaterialTheme.typography.titleLarge)
         Text("Live Übersicht", style = MaterialTheme.typography.labelSmall, color = accent.copy(alpha = 0.78f))
     }
 }

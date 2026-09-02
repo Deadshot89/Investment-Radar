@@ -215,6 +215,14 @@ private fun RadarResultCard(
             }
             item.percentChange?.let { Text("Tag ${formatRadarPercent(it)}", color = if (it >= 0.0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error) }
             item.momentum?.m6?.let { Text("6M ${formatRadarPercent(it)}", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            ForecastEngine.forecast(item).points.firstOrNull { it.horizon == ForecastHorizon.TWELVE_MONTHS }?.let { point ->
+                Text(
+                    "12M Prognose ${point.direction} · ${formatRadarPercent(point.expectedChangePct)} · ${formatRadarRange(point)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold
+                )
+            }
             personal?.let {
                 Text(
                     "Monatskauf ${it.allocationEur} € · Depot ${String.format(Locale.GERMANY, "%.1f", it.currentWeightPct)} % · ${it.concentrationLabel}",
@@ -285,3 +293,13 @@ private fun RadarSortMode.sortLabel(): String = when (this) {
 }
 
 private fun formatRadarPercent(value: Double): String = String.format(Locale.GERMANY, "%+.1f %%", value)
+
+private fun formatRadarRange(point: ForecastPoint): String {
+    val low = point.bearTargetPriceEur
+    val high = point.bullTargetPriceEur
+    return if (low != null && high != null) {
+        String.format(Locale.GERMANY, "%.2f–%.2f €", low, high)
+    } else {
+        String.format(Locale.GERMANY, "%+.1f bis %+.1f %%", point.bearChangePct, point.bullChangePct)
+    }
+}
