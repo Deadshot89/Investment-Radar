@@ -97,24 +97,29 @@ private fun openTradeRepublicFallback(context: android.content.Context, fallback
 }
 '''
 
-if old_function not in text:
-    raise SystemExit("old openInvestment function not found")
-text = text.replace(old_function, new_function, 1)
+if 'private const val TRADE_REPUBLIC_STOCK_BASE_URL = "https://app.traderepublic.com/stocks/"' not in text:
+    if old_function not in text:
+        raise SystemExit("old openInvestment function not found")
+    text = text.replace(old_function, new_function, 1)
 
-if text.count('Text("Wertpapier öffnen")') != 2:
-    raise SystemExit(f"expected two Wertpapier öffnen labels, found {text.count('Text(\"Wertpapier öffnen\")')}")
-text = text.replace('Text("Wertpapier öffnen")', 'Text("Trade Republic öffnen")')
-text = text.replace('Text("Trade Republic", fontWeight = FontWeight.Bold)', 'Text("Trade Republic öffnen", fontWeight = FontWeight.Bold)', 1)
-main_path.write_text(text, encoding="utf-8")
+    if text.count('Text("Wertpapier öffnen")') != 2:
+        raise SystemExit(f"expected two Wertpapier öffnen labels, found {text.count('Text(\"Wertpapier öffnen\")')}")
+    text = text.replace('Text("Wertpapier öffnen")', 'Text("Trade Republic öffnen")')
+    text = text.replace('Text("Trade Republic", fontWeight = FontWeight.Bold)', 'Text("Trade Republic öffnen", fontWeight = FontWeight.Bold)', 1)
+    main_path.write_text(text, encoding="utf-8")
+else:
+    if text.count('Text("Trade Republic öffnen")') < 2:
+        raise SystemExit("Trade Republic direct-link source is only partially applied")
 
 build = build_path.read_text(encoding="utf-8")
-if 'versionCode = 29' not in build or 'versionName = "1.1.28"' not in build:
-    raise SystemExit("expected 1.1.28 build version not found")
-build = build.replace('versionCode = 29', 'versionCode = 30', 1)
-build = build.replace('versionName = "1.1.28"', 'versionName = "1.1.29"', 1)
-build = build.replace('// Build trigger: Investment Radar 1.1.28', '// Build trigger: Investment Radar 1.1.29', 1)
-build_path.write_text(build, encoding="utf-8")
+if 'versionCode = 29' in build and 'versionName = "1.1.28"' in build:
+    build = build.replace('versionCode = 29', 'versionCode = 30', 1)
+    build = build.replace('versionName = "1.1.28"', 'versionName = "1.1.29"', 1)
+    build = build.replace('// Build trigger: Investment Radar 1.1.28', '// Build trigger: Investment Radar 1.1.29', 1)
+    build_path.write_text(build, encoding="utf-8")
+elif 'versionCode = 30' not in build or 'versionName = "1.1.29"' not in build:
+    raise SystemExit("unexpected Android version while applying 1.1.29")
 
 hotfix_path.write_text('''# Investment Radar 1.1.29\n\n- Trade-Republic-Aktien werden über die ISIN direkt in der Trade-Republic-Web-App geöffnet\n- Android kann den Link an die Trade-Republic-App oder an den Browser übergeben\n- ISIN bzw. Ticker wird zusätzlich in die Zwischenablage kopiert\n- Fallback auf das Trade-Republic-Aktienuniversum, wenn keine gültige ISIN vorhanden ist\n- klare Buttons „Trade Republic öffnen“ in Empfehlung, Radar und Portfolio\n- Android 1.1.29 / versionCode 30\n- Backend bleibt 1.1.27\n''', encoding="utf-8")
 
-print("Applied Investment Radar 1.1.29 Trade Republic links")
+print("Investment Radar 1.1.29 Trade Republic links are applied")
