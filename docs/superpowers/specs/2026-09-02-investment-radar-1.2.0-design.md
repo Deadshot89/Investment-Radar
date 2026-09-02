@@ -1,7 +1,7 @@
 # Investment Radar 1.2.0 – Design
 
 Date: 2026-09-02
-Status: proposed, awaiting user review
+Status: approved by user on 2026-09-02
 Target: Android app + Azure Functions backend
 
 ## 1. Goal
