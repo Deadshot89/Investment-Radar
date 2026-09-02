@@ -24,6 +24,11 @@ grep -Fq 'intent.getStringExtra("openItemId")' "$MAIN"
 grep -Fq 'selectedDetailId by remember { mutableStateOf(initialDetailId?.takeIf' "$MAIN"
 grep -Fq 'detailReturnTab by remember { mutableIntStateOf(if (initialDetailId.isNullOrBlank()) initialTab.coerceIn(0, 3) else 3) }' "$MAIN"
 
+# Ein Push muss auch verarbeitet werden, wenn MainActivity bereits läuft und Android onNewIntent nutzt.
+grep -Fq 'override fun onNewIntent(intent: Intent)' "$MAIN"
+grep -Fq 'pushNavigationRequest' "$MAIN"
+grep -Fq 'LaunchedEffect(pushNavigationRequest)' "$MAIN"
+
 if grep -Fq 'private fun AlertsScreen(' "$MAIN"; then
   echo 'Legacy private AlertsScreen still present in MainActivity'
   exit 1
@@ -31,3 +36,4 @@ fi
 
 echo "PASS 1.2.0 alert center wiring"
 echo "PASS push detail deep link"
+echo "PASS push navigation while app is open"
