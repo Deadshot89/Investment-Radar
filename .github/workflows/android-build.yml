@@ -40,6 +40,22 @@ jobs:
         shell: bash
         run: bash android/tests/test-trade-republic-links.sh
 
+      - name: Analysis V2 UI regression test
+        shell: bash
+        run: bash android/tests/test-analysis-v2-ui.sh
+
+      - name: Portfolio allocation UI regression test
+        shell: bash
+        run: bash android/tests/test-portfolio-allocation-ui.sh
+
+      - name: Alert policy wiring regression test
+        shell: bash
+        run: bash android/tests/test-alert-policy-wiring.sh
+
+      - name: Alert center UI regression test
+        shell: bash
+        run: bash android/tests/test-alert-center-ui.sh
+
       - name: Validate build and signing configuration
         env:
           API_URL: ${{ vars.INVESTMENT_API_BASE_URL }}
@@ -88,6 +104,32 @@ jobs:
           test -s "$KEYSTORE_PATH"
           keytool -list -keystore "$KEYSTORE_PATH" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
           echo "ANDROID_KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
+
+      - name: Android JVM unit tests
+        working-directory: android
+        env:
+          API_URL: ${{ vars.INVESTMENT_API_BASE_URL }}
+          FB_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
+          FB_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+          FB_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FB_SENDER_ID: ${{ secrets.FIREBASE_SENDER_ID }}
+          REPOSITORY_SLUG: ${{ github.repository }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          gradle --no-daemon :app:testDebugUnitTest \
+            -PINVESTMENT_API_BASE_URL="$API_URL" \
+            -PFIREBASE_APP_ID="$FB_APP_ID" \
+            -PFIREBASE_API_KEY="$FB_API_KEY" \
+            -PFIREBASE_PROJECT_ID="$FB_PROJECT_ID" \
+            -PFIREBASE_SENDER_ID="$FB_SENDER_ID" \
+            -PGITHUB_REPOSITORY="$REPOSITORY_SLUG" \
+            -PANDROID_KEYSTORE_PATH="$ANDROID_KEYSTORE_PATH" \
+            -PANDROID_KEYSTORE_PASSWORD="$KEYSTORE_PASSWORD" \
+            -PANDROID_KEY_ALIAS="$KEY_ALIAS" \
+            -PANDROID_KEY_PASSWORD="$KEY_PASSWORD"
 
       - name: Build signed release APK
         id: apk_build
