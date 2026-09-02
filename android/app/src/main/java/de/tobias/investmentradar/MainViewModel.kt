@@ -107,7 +107,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val next = current.removePurchaseIfValid(purchaseId) ?: return false
         savePosition(next)
         return true
-n    }
+    }
 
     fun upsertSale(itemId: String, sale: PortfolioSale): Boolean {
         val current = _positions.value[itemId] ?: PortfolioPosition(itemId)
