@@ -21,3 +21,9 @@ test("BUY events use the global topic", () => {
   const message = buildPushMessage({ id: "2", itemId: "msft", level: "BUY", title: "Kauf", message: "Chance", createdAt: "x" });
   assert.equal(message.topic, "investment-alerts");
 });
+
+test("THRESHOLD events stay holding-specific so local threshold settings can suppress them", () => {
+  const message = buildPushMessage({ id: "3", itemId: "msft", level: "THRESHOLD", title: "Schwelle", message: "Grund", createdAt: "x" });
+  assert.equal(message.topic, "holding-msft");
+  assert.equal(message.data.level, "THRESHOLD");
+});
