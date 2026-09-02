@@ -67,9 +67,12 @@ export function evaluateSignals(items, quotes = new Map(), context = {}) {
       ));
     }
 
-    const revenueGrowth = finite(item?.fundamentals?.revenueGrowth ?? item?.fundamentals?.metrics?.revenueGrowth);
-    const epsGrowth = finite(item?.fundamentals?.epsGrowth ?? item?.fundamentals?.metrics?.epsGrowth);
-    if (held && revenueGrowth != null && epsGrowth != null && revenueGrowth <= -0.10 && epsGrowth <= -0.20) {
+    const fundamentals = item?.fundamentals;
+    const revenueGrowth = finite(fundamentals?.revenueGrowth ?? fundamentals?.metrics?.revenueGrowth);
+    const epsGrowth = finite(fundamentals?.epsGrowth ?? fundamentals?.metrics?.epsGrowth);
+    const fundamentalCoverage = finite(fundamentals?.coveragePct);
+    const fundamentalDataSufficient = fundamentalCoverage != null && fundamentalCoverage >= 50 && fundamentals?.stale !== true;
+    if (held && fundamentalDataSufficient && revenueGrowth != null && epsGrowth != null && revenueGrowth <= -0.10 && epsGrowth <= -0.20) {
       result.push(make(
         item, "REVIEW", `${item.name}: fundamentale Verschlechterung`,
         "Umsatz- und Gewinnwachstum sind gleichzeitig deutlich negativ. Investmentthese prüfen.",
