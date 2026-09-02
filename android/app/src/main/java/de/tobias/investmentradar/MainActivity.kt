@@ -68,13 +68,24 @@ class MainActivity : ComponentActivity() {
                 FirebaseMessaging.getInstance().subscribeToTopic(MainViewModel.holdingTopic(itemId))
             }
         }
-        setContent { InvestmentRadarUi(initialTab = if (intent.getBooleanExtra("openAlerts", false)) 3 else 0) }
+        val openItemId = intent.getStringExtra("openItemId")?.takeIf { it.isNotBlank() }
+        val openAlerts = intent.getBooleanExtra("openAlerts", false)
+        setContent {
+            InvestmentRadarUi(
+                initialTab = if (openAlerts || openItemId != null) 3 else 0,
+                initialDetailId = openItemId
+            )
+        }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun InvestmentRadarUi(vm: MainViewModel = viewModel(), initialTab: Int = 0) {
+fun InvestmentRadarUi(
+    vm: MainViewModel = viewModel(),
+    initialTab: Int = 0,
+    initialDetailId: String? = null
+) {
     val state by vm.state.collectAsState()
     val holdingIds by vm.holdingIds.collectAsState()
     val positions by vm.positions.collectAsState()
@@ -86,8 +97,8 @@ fun InvestmentRadarUi(vm: MainViewModel = viewModel(), initialTab: Int = 0) {
     val prefs = remember { context.getSharedPreferences("investment_radar_settings", 0) }
     var budget by remember { mutableIntStateOf(prefs.getInt("monthly_budget", 100).coerceIn(10, 10000)) }
     var tab by remember { mutableIntStateOf(initialTab.coerceIn(0, 3)) }
-    var selectedDetailId by remember { mutableStateOf<String?>(null) }
-    var detailReturnTab by remember { mutableIntStateOf(initialTab.coerceIn(0, 3)) }
+    var selectedDetailId by remember { mutableStateOf(initialDetailId?.takeIf { it.isNotBlank() }) }
+    var detailReturnTab by remember { mutableIntStateOf(if (initialDetailId.isNullOrBlank()) initialTab.coerceIn(0, 3) else 3) }
     var missingAlertItemMessage by rememberSaveable { mutableStateOf<String?>(null) }
     var budgetDialog by remember { mutableStateOf(false) }
     var investmentDialogItem by remember { mutableStateOf<InvestmentItem?>(null) }
