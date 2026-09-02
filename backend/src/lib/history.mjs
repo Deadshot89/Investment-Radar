@@ -9,7 +9,7 @@ const YAHOO_BASES = [
 const FRESH_MS = 6 * 60 * 60 * 1000;
 const MAX_STALE_MS = 7 * 24 * 60 * 60 * 1000;
 
-export async function loadHistory(items, { fetchImpl = fetch, now = Date.now() } = {}) {
+export async function loadHistory(items, { fetchImpl = fetch, now = Date.now(), refresh = true } = {}) {
   const cache = await loadAnalysisCache("history-cache");
   const key = process.env.TWELVE_DATA_API_KEY?.trim();
   const result = new Map();
@@ -19,6 +19,26 @@ export async function loadHistory(items, { fetchImpl = fetch, now = Date.now() }
     const cached = cache[item.id];
     if (isFresh(cached, FRESH_MS, now) && Array.isArray(cached.points)) {
       result.set(item.id, { ...calculateMomentum(cached.points, now), source: cached.source || "Cache", stale: false });
+      return;
+    }
+
+    if (!refresh) {
+      const age = now - Date.parse(String(cached?.fetchedAt ?? ""));
+      if (Array.isArray(cached?.points) && Number.isFinite(age) && age <= MAX_STALE_MS) {
+        result.set(item.id, {
+          ...calculateMomentum(cached.points, now),
+          source: `Cache · ${cached.source || "Historie"}`,
+          stale: true,
+          error: "Historie wird im Hintergrund aktualisiert"
+        });
+      } else {
+        result.set(item.id, {
+          ...calculateMomentum([], now),
+          source: "",
+          stale: false,
+          error: "Historie wird im Hintergrund geladen"
+        });
+      }
       return;
     }
 
