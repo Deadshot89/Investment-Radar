@@ -32,9 +32,16 @@ object AppUpdateManager {
     private const val RELEASE_ASSET_NAME = "investment-radar.apk"
     private const val APK_MIME = "application/vnd.android.package-archive"
 
-    suspend fun check(context: Context): AppUpdateInfo? = withContext(Dispatchers.IO) {
+    suspend fun check(context: Context): AppUpdateInfo? = when (val result = checkResult(context)) {
+        is UpdateCheckResult.Available -> result.update
+        is UpdateCheckResult.Current, is UpdateCheckResult.Error -> null
+    }
+
+    suspend fun checkResult(context: Context): UpdateCheckResult = withContext(Dispatchers.IO) {
         val repository = BuildConfig.GITHUB_REPOSITORY.trim()
-        if (repository.isBlank() || !repository.contains('/')) return@withContext null
+        if (repository.isBlank() || !repository.contains('/')) {
+            return@withContext UpdateCheckResult.Error("GitHub-Repository für Updates ist nicht konfiguriert.")
+        }
 
         val connection = (URL("https://api.github.com/repos/$repository/releases/latest").openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
@@ -45,15 +52,22 @@ object AppUpdateManager {
         }
 
         try {
-            if (connection.responseCode !in 200..299) return@withContext null
+            val responseCode = connection.responseCode
+            if (responseCode !in 200..299) {
+                return@withContext UpdateCheckResult.Error("GitHub antwortet mit HTTP $responseCode.")
+            }
             val payload = connection.inputStream.bufferedReader().use { it.readText() }
             val json = JSONObject(payload)
             val latestVersion = json.optString("tag_name").removePrefix("v").trim()
-            if (latestVersion.isBlank() || !isNewerVersion(latestVersion, BuildConfig.VERSION_NAME)) {
-                return@withContext null
+            if (latestVersion.isBlank()) {
+                return@withContext UpdateCheckResult.Error("Die neueste Release-Version konnte nicht gelesen werden.")
+            }
+            if (!isNewerVersion(latestVersion, BuildConfig.VERSION_NAME)) {
+                return@withContext UpdateCheckResult.Current(BuildConfig.VERSION_NAME)
             }
 
-            val assets = json.optJSONArray("assets") ?: return@withContext null
+            val assets = json.optJSONArray("assets")
+                ?: return@withContext UpdateCheckResult.Error("Das Release enthält keine Update-Dateien.")
             var apkUrl = ""
             for (index in 0 until assets.length()) {
                 val asset = assets.optJSONObject(index) ?: continue
@@ -62,15 +76,19 @@ object AppUpdateManager {
                     break
                 }
             }
-            if (apkUrl.isBlank()) return@withContext null
+            if (apkUrl.isBlank()) {
+                return@withContext UpdateCheckResult.Error("Die Update-APK '$RELEASE_ASSET_NAME' fehlt im neuesten Release.")
+            }
 
-            AppUpdateInfo(
-                versionName = latestVersion,
-                notes = json.optString("body").trim(),
-                apkUrl = apkUrl
+            UpdateCheckResult.Available(
+                AppUpdateInfo(
+                    versionName = latestVersion,
+                    notes = json.optString("body").trim(),
+                    apkUrl = apkUrl
+                )
             )
-        } catch (_: Exception) {
-            null
+        } catch (error: Exception) {
+            UpdateCheckResult.Error(error.message ?: "Verbindung zu GitHub fehlgeschlagen.")
         } finally {
             connection.disconnect()
         }
