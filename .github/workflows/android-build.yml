@@ -228,12 +228,13 @@ jobs:
           cp "$APK" "$RELEASE_APK"
 
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" "$RELEASE_APK#investment-radar.apk" --clobber
-          else
-            gh release create "$TAG" "$RELEASE_APK#investment-radar.apk" \
-              --title "Investment Radar $VERSION_NAME" \
-              --notes "Automatisch veröffentlichte, dauerhaft signierte Investment-Radar-APK."
+            echo "❌ Release $TAG existiert bereits. App-Version erhöhen, statt dieselbe Version zu überschreiben." >> "$GITHUB_STEP_SUMMARY"
+            exit 4
           fi
+
+          gh release create "$TAG" "$RELEASE_APK#investment-radar.apk" \
+            --title "Investment Radar $VERSION_NAME" \
+            --notes "Automatisch veröffentlichte, dauerhaft signierte Investment-Radar-APK."
           echo "✅ Release $TAG für In-App-Updates veröffentlicht." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload APK
