@@ -4,7 +4,7 @@
 
 **Goal:** Add one reusable investment-detail view that explains the full Analysis V2 result, data freshness, momentum, fundamentals, portfolio context and actions without extra market-data requests.
 
-**Architecture:** The detail screen receives already-loaded `InvestmentItem`/local portfolio state. Data freshness and presentation are computed by pure Kotlin helpers. `MainActivity` owns only the selected detail id and back navigation; the screen performs no provider/network call.
+**Architecture:** The detail screen receives already-loaded `InvestmentItem` plus optional local `CustomInvestment`/portfolio state. Custom investments are already merged into `DashboardData.items` by `MainViewModel`, so the common detail screen deliberately supports both `item` and `customItem` being present for the same id. Data freshness and presentation are computed by pure Kotlin helpers. `MainActivity` owns only the selected detail id and back navigation; the screen performs no provider/network call.
 
 **Tech Stack:** Kotlin, Jetpack Compose Material 3, JUnit 4, existing Recommendation/Portfolio/Trade Republic modules.
 
@@ -16,13 +16,13 @@
 - No new provider request when detail opens.
 - Missing score/fundamental/momentum values render as “Nicht verfügbar”, never `0`.
 - Momentum horizons: 1D, 1M, 3M, 6M, 12M; show only values that exist.
-- Show objective recommendation, total score, five component scores, coverage and top reasons.
+- Show objective recommendation, total score, five component scores, coverage and top reasons when Analysis V2 fields exist.
 - Show personal monthly allocation and current portfolio weighting when available.
 - Show source/freshness information without inventing sources.
 - History fresh <= 6h; fundamentals fresh <= 24h; cache may be reused <= 7d; >7d is stale.
 - Overall freshness precedence: STALE > PARTIAL > CACHED > CURRENT.
 - Trade Republic remains explicit user action.
-- Custom/local investment detail must degrade gracefully when Analysis V2 data is unavailable.
+- Custom/local investment detail must use its merged quote `InvestmentItem` when present, but degrade gracefully when Analysis V2 fields are unavailable.
 
 ---
 
@@ -30,12 +30,11 @@
 
 - Create `android/app/src/main/java/de/tobias/investmentradar/DataFreshness.kt` — pure freshness/source model.
 - Create `android/app/src/main/java/de/tobias/investmentradar/InvestmentDetailScreen.kt` — shared Compose detail view.
-- Create `android/app/src/test/java/de/tobias/investmentradar/DataFreshnessTest.kt`.
-- Create `android/app/src/test/java/de/tobias/investmentradar/InvestmentDetailModelTest.kt` if a small detail model builder is introduced.
+- Create `android/app/src/test/java/de/tobias/investmentradar/DataFreshnessTest.kt` — deterministic age/precedence tests.
 - Modify `android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt` — selected-detail navigation only.
 - Modify `android/app/src/main/java/de/tobias/investmentradar/RadarScreen.kt` — call `onOpenDetail`.
-- Modify `android/tests/test-analysis-v2-ui.sh` or add `android/tests/test-investment-detail-ui.sh`.
-- Modify `.github/workflows/android-contract-tests.yml` to run the new detail contract if added.
+- Create `android/tests/test-investment-detail-ui.sh`.
+- Modify `.github/workflows/android-contract-tests.yml` to run the new detail contract.
 
 ### Task 1: Deterministic data-freshness model
 
@@ -168,7 +167,10 @@ fun InvestmentDetailScreen(
     onOpenPortfolio: () -> Unit
 )
 ```
-Exactly one of `item` or `customItem` should normally be non-null. If both are null, render a non-crashing “Wertpapier nicht mehr verfügbar” panel and Back action.
+Resolution rules are explicit:
+- Backend/curated item: `item != null`, `customItem == null`.
+- Local custom item after `MainViewModel.refresh`: `item != null` (merged quote/fallback `InvestmentItem`) and `customItem != null` (local metadata).
+- Missing/deleted target: both null.
 
 - [ ] **Step 1: Write RED UI contract**
 
@@ -215,9 +217,11 @@ Render sections in this order:
 
 Do not call `ApiClient`, `fetch`, or any provider method from this screen.
 
-- [ ] **Step 4: Implement custom-item graceful detail**
+- [ ] **Step 4: Implement custom-item merged-detail behavior**
 
-For `customItem != null && item == null` show identity, manual EUR price if present, local position stats if present, watchlist state and stored Trade-Republic action. Show “Analyse V2 für diesen eigenen Wert nicht verfügbar” instead of empty score/fundamental sections.
+When `customItem != null`, use its local name/ticker/ISIN/type and saved Trade-Republic URL as authoritative metadata, while still using the merged `item` for current quote fields. If `item.scoreTotal == null` and all five score components are null, show “Analyse V2 für diesen eigenen Wert nicht verfügbar” instead of rendering zero score rows. Manual EUR price may be shown as local fallback context. Position stats remain available from `position`.
+
+If both `item` and `customItem` are null, show “Wertpapier nicht mehr verfügbar” and an `Zurück` action; do not invoke any other callback.
 
 - [ ] **Step 5: Add contract to workflow and confirm GREEN**
 
@@ -240,7 +244,6 @@ git commit -m "feat: add investment detail screen"
 **Files:**
 - Modify: `android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt`
 - Modify: `android/app/src/main/java/de/tobias/investmentradar/RadarScreen.kt`
-- Modify: current portfolio screen location; if still private in `MainActivity.kt`, add only callbacks now and leave full extraction for the portfolio plan.
 
 **Interfaces:**
 - Produces transient app state:
@@ -266,13 +269,13 @@ Expected: FAIL on missing `selectedDetailId` wiring.
 
 - [ ] **Step 3: Wire selected id without adding navigation dependency**
 
-Inside the Ready branch resolve:
+Inside the Ready branch resolve both sources because custom items are also present in `s.data.items`:
 ```kotlin
 val selectedMarketItem = s.data.items.firstOrNull { it.id == selectedDetailId }
 val selectedCustomItem = customItems.firstOrNull { it.id == selectedDetailId }
 ```
 
-If `selectedDetailId != null`, render `InvestmentDetailScreen` instead of the tab body. `onBack` clears the id. Any bottom-nav selection also clears the detail id before changing tabs.
+If `selectedDetailId != null`, render `InvestmentDetailScreen` instead of the tab body and pass both resolved values. `onBack` clears the id and restores `detailReturnTab`. Any bottom-nav selection clears `selectedDetailId` before changing tabs.
 
 For personal recommendation:
 ```kotlin
@@ -280,9 +283,13 @@ val currentValues = PortfolioAnalysis.values(s.data.items, positions, customItem
 val personalById = RecommendationEngine.plan(s.data.items, budget, currentValues).items.associateBy { it.itemId }
 ```
 
-- [ ] **Step 4: Add visible Details action to Radar and Portfolio cards**
+- [ ] **Step 4: Add visible Details action to Radar cards and the existing portfolio cards**
 
-Radar calls `onOpenDetail(item)`. Portfolio market cards call the same callback. Custom portfolio cards pass their local id through a separate `onOpenCustomDetail(id)` callback if necessary; both set `selectedDetailId`.
+Use one id-based callback everywhere:
+```kotlin
+onOpenDetail: (String) -> Unit
+```
+Radar passes `item.id`. Existing portfolio cards, including custom items, pass their item id. `MainActivity` sets `detailReturnTab = tab` and `selectedDetailId = id`.
 
 - [ ] **Step 5: Run contracts + unit suite**
 
@@ -301,6 +308,6 @@ git commit -m "feat: navigate to shared investment details"
 
 ### Task 4: Verification checkpoint
 
-- [ ] **Step 1: Run all Android contract scripts including the new detail contract.**
-- [ ] **Step 2: Run `cd android && ./gradlew testReleaseUnitTest`.**
-- [ ] **Step 3: Push and require both Android Contract Tests and Android JVM Tests to be green before starting the portfolio plan.**
+- [ ] **Step 1:** Run all Android contract scripts including the new detail contract.
+- [ ] **Step 2:** Run `cd android && ./gradlew testReleaseUnitTest`.
+- [ ] **Step 3:** Push and require both Android Contract Tests and Android JVM Tests to be green before starting the portfolio plan.
