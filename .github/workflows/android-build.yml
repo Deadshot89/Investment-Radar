@@ -32,6 +32,10 @@ jobs:
         with:
           gradle-version: '8.13'
 
+      - name: Updater regression test
+        shell: bash
+        run: bash android/tests/test-update-resume.sh
+
       - name: Validate build and signing configuration
         env:
           API_URL: ${{ vars.INVESTMENT_API_BASE_URL }}
@@ -135,7 +139,7 @@ jobs:
           echo "✅ APK-Signatur erfolgreich geprüft." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Publish APK for in-app updates
-        if: success()
+        if: success() && github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
