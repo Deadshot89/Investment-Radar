@@ -32,3 +32,5 @@ grep -q 'personalById = RecommendationEngine' "$SRC"
 ! grep -q 'private enum class RadarSortOption' "$SRC"
 ! grep -q 'focusItemId: String?' "$SRC"
 ! grep -q 'private fun RadarScreen(' "$SRC"
+
+bash android/tests/test-score-null-display.sh
