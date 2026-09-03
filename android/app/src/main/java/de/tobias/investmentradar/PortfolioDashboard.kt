@@ -10,20 +10,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import java.util.Locale
 
 @Composable
@@ -34,11 +27,11 @@ fun PortfolioDashboard(
     personalById: Map<String, PersonalRecommendation>,
     onOpenDetail: (String) -> Unit,
     onEdit: (InvestmentItem) -> Unit,
-    onSetTrackedShares: (String) -> Unit,
     onRemove: (String) -> Unit,
     onAddCustom: () -> Unit,
     onEditCustom: (CustomInvestment) -> Unit,
-    onRemoveCustom: (String) -> Unit
+    onRemoveCustom: (String) -> Unit,
+    vm: MainViewModel = viewModel()
 ) {
     val context = LocalContext.current
     val metrics = remember(items, positions, customItems) {
@@ -50,6 +43,7 @@ fun PortfolioDashboard(
         itemById[id]?.name ?: customById[id]?.name ?: id
     }
     val costBasisComplete = metrics.positions.filter { it.active }.all { it.costBasisKnown }
+    var trackedSharesDialogItemId by remember { mutableStateOf<String?>(null) }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
@@ -138,7 +132,7 @@ fun PortfolioDashboard(
                 if (!row.costBasisKnown && position?.snapshotValueEur != null) {
                     PortfolioDashboardValue(
                         "Stückzahl",
-                        position.trackedShares?.let { String.format(Locale.GERMANY, "%.6f", it).trimEnd('0').trimEnd(',') } ?: "Nicht erfasst"
+                        position.trackedShares?.let(::portfolioShares) ?: "Nicht erfasst"
                     )
                 }
 
@@ -154,7 +148,7 @@ fun PortfolioDashboard(
                 }
 
                 if (!row.costBasisKnown && position?.snapshotValueEur != null) {
-                    OutlinedButton(onClick = { onSetTrackedShares(row.itemId) }, modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(onClick = { trackedSharesDialogItemId = row.itemId }, modifier = Modifier.fillMaxWidth()) {
                         Text(if (position.trackedShares == null) "Stückzahl ergänzen" else "Stückzahl ändern")
                     }
                     Text(
@@ -193,6 +187,44 @@ fun PortfolioDashboard(
             }
         }
     }
+
+    trackedSharesDialogItemId?.let { itemId ->
+        val position = positions[itemId]
+        val name = itemById[itemId]?.name ?: customById[itemId]?.name ?: itemId
+        var input by remember(itemId, position?.trackedShares) {
+            mutableStateOf(position?.trackedShares?.let(::portfolioShares).orEmpty())
+        }
+        val parsed = input.trim().replace(',', '.').toDoubleOrNull()?.takeIf { it.isFinite() && it > 0.0 }
+        AlertDialog(
+            onDismissRequest = { trackedSharesDialogItemId = null },
+            title = { Text("Stückzahl ergänzen") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(name, fontWeight = FontWeight.Bold)
+                    Text("Trage die aktuelle Stückzahl aus deinem Depot ein. Damit wird der Depotwert künftig aus Stückzahl × aktuellem Kurs berechnet. Kaufpreis und Gewinn/Verlust bleiben unbekannt, bis echte Kaufdaten erfasst sind.")
+                    OutlinedTextField(
+                        value = input,
+                        onValueChange = { input = it },
+                        label = { Text("Stückzahl") },
+                        singleLine = true,
+                        supportingText = { if (input.isNotBlank() && parsed == null) Text("Bitte eine Zahl größer als 0 eingeben.") }
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    enabled = parsed != null,
+                    onClick = {
+                        val value = parsed ?: return@Button
+                        if (vm.setTrackedShares(itemId, value)) trackedSharesDialogItemId = null
+                    }
+                ) { Text("Stückzahl speichern") }
+            },
+            dismissButton = {
+                TextButton(onClick = { trackedSharesDialogItemId = null }) { Text("Abbrechen") }
+            }
+        )
+    }
 }
 
 @Composable
@@ -214,3 +246,4 @@ private fun portfolioMoney(value: Double): String = String.format(Locale.GERMANY
 private fun portfolioSignedMoney(value: Double): String = String.format(Locale.GERMANY, "%+.2f €", value)
 private fun portfolioPercent(value: Double): String = String.format(Locale.GERMANY, "%.1f %%", value)
 private fun portfolioSignedPercent(value: Double): String = String.format(Locale.GERMANY, "%+.1f %%", value)
+private fun portfolioShares(value: Double): String = String.format(Locale.GERMANY, "%.6f", value).trimEnd('0').trimEnd(',')
