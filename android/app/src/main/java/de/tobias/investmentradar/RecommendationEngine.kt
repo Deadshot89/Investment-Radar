@@ -30,7 +30,7 @@ object RecommendationEngine {
             val portfolioWeight = if (portfolioTotal > 0.0) (cleanValues[item.id] ?: 0.0) / portfolioTotal * 100.0 else 0.0
             val score = item.scoreTotal ?: 0
             val objectiveBuy = item.recommendation.equals("BUY", true)
-            val raw = if (objectiveBuy && score >= 75) {
+            val raw = if (!item.portfolioOnly && objectiveBuy && score >= 75) {
                 (score - 74).toDouble() * concentrationFactor(portfolioWeight) * riskFactor(item.risk)
             } else 0.0
             item.id to WeightRow(item, portfolioWeight, raw)
@@ -45,7 +45,7 @@ object RecommendationEngine {
 
         if (totalWeight <= 0.0) {
             val fallback = weights.values
-                .filter { row -> row.item.recommendation.equals("BUY", true) && (row.item.scoreTotal ?: 0) >= 75 }
+                .filter { row -> !row.item.portfolioOnly && row.item.recommendation.equals("BUY", true) && (row.item.scoreTotal ?: 0) >= 75 }
                 .minWithOrNull(
                     compareBy<WeightRow> { it.portfolioWeight }
                         .thenBy { it.item.risk }
@@ -110,6 +110,7 @@ object RecommendationEngine {
     ) {
         fun toRecommendation(allocation: Int, fallbackOverride: Boolean = false): PersonalRecommendation {
             val concentration = when {
+                item.portfolioOnly -> "PORTFOLIO"
                 fallbackOverride -> "AUSNAHME"
                 portfolioWeight >= 40.0 -> "BLOCKIERT"
                 portfolioWeight >= 30.0 -> "STARK REDUZIERT"
@@ -117,6 +118,7 @@ object RecommendationEngine {
                 else -> "OK"
             }
             val explanation = when {
+                item.portfolioOnly -> "Nur Portfolio-Tracking; keine automatische Kaufempfehlung"
                 !item.recommendation.equals("BUY", true) -> "Kein objektives Kaufsignal"
                 fallbackOverride -> "Ausnahme: kein weniger konzentrierter BUY-Kandidat verfügbar"
                 portfolioWeight >= 40.0 -> "Kein Neukauf: Position ist bereits stark konzentriert"
