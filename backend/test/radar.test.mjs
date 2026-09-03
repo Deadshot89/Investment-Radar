@@ -9,6 +9,15 @@ const base = [
   { id: "p", type: "AKTIE", name: "Portfolio Only", ticker: "PPP", isin: "NO0000000004", region: "EUROPE", country: "NO", sector: "Industrials", risk: 5, dataQualityTier: "A", universeActive: true, portfolioOnly: true, tradeRepublicEligible: true }
 ];
 
+const strongFundamentals = {
+  qualityScore: 88,
+  valuationScore: 78,
+  growthScore: 82,
+  coveragePct: 100,
+  metrics: {}
+};
+const strongMomentum = { d1: 2, m1: 8, m3: 15, m6: 20, m12: 30, score: 80, coveragePct: 100 };
+
 test("applyFilters searches name ticker and ISIN and supports type/region/risk", () => {
   assert.deepEqual(applyFilters(base, { query: "gamma" }).map((x) => x.id), ["c"]);
   assert.deepEqual(applyFilters(base, { query: "BBB" }).map((x) => x.id), ["b"]);
@@ -48,8 +57,8 @@ test("unverified Trade Republic item cannot become purchaseEligible even if scor
   const result = await queryRadar({}, {
     loadUniverse: async () => candidate,
     loadQuotes: async () => new Map([["c", { price: 100, currency: "EUR", percentChange: 2, source: "TEST" }]]),
-    loadHistory: async () => new Map([["c", { d1: 2, m1: 8, m3: 15, m6: 20, m12: 30, score: 100, coveragePct: 100 }]]),
-    loadFundamentals: async () => new Map([["c", { metrics: { pe: 5, revenueGrowth: 30, epsGrowth: 30, operatingMargin: 30, netMargin: 20, roe: 30, roic: 25, debtToEquity: 0.1 }, coveragePct: 100 }]]),
+    loadHistory: async () => new Map([["c", strongMomentum]]),
+    loadFundamentals: async () => new Map([["c", strongFundamentals]]),
     loadEurRateDetails: async () => new Map()
   });
   assert.equal(result.items[0].purchaseEligible, false);
@@ -61,14 +70,11 @@ test("BUY filter is applied after analysis and never promotes unverified candida
     { ...base[0], risk: 1, tradeRepublicEligible: true },
     { ...base[2], risk: 1, tradeRepublicEligible: null }
   ];
-  const quote = (id) => [id, { price: 100, currency: "EUR", percentChange: 2, source: "TEST" }];
-  const momentum = (id) => [id, { d1: 2, m1: 8, m3: 15, m6: 20, m12: 30, score: 100, coveragePct: 100 }];
-  const fundamentals = (id) => [id, { metrics: { pe: 5, revenueGrowth: 30, epsGrowth: 30, operatingMargin: 30, netMargin: 20, roe: 30, roic: 25, debtToEquity: 0.1 }, coveragePct: 100 }];
   const result = await queryRadar({ recommendation: "BUY", page: 1, pageSize: 40 }, {
     loadUniverse: async () => candidates,
-    loadQuotes: async (items) => new Map(items.map((item) => quote(item.id))),
-    loadHistory: async (items) => new Map(items.map((item) => momentum(item.id))),
-    loadFundamentals: async (items) => new Map(items.map((item) => fundamentals(item.id))),
+    loadQuotes: async (items) => new Map(items.map((item) => [item.id, { price: 100, currency: "EUR", percentChange: 0.8, source: "TEST" }])),
+    loadHistory: async (items) => new Map(items.map((item) => [item.id, strongMomentum])),
+    loadFundamentals: async (items) => new Map(items.map((item) => [item.id, strongFundamentals])),
     loadEurRateDetails: async () => new Map()
   });
   assert.equal(result.total, 1);
