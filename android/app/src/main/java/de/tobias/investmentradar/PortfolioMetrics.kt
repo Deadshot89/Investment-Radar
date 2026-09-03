@@ -66,33 +66,32 @@ object PortfolioMetrics {
         val metrics = drafts.map { draft ->
             val position = draft.position
             val realized = position.realizedProfitLoss()
-            val snapshotOnly = position.shares <= 0.0000001 && position.snapshotValueEur != null
-            val costBasisKnown = !snapshotOnly
+            val costBasisKnown = !draft.active || position.performanceCostBasisKnown
             val unrealized = when {
                 !draft.active -> 0.0
-                snapshotOnly -> null
-                else -> draft.usablePrice?.let { position.unrealizedProfitLoss(it) }
+                !costBasisKnown -> null
+                else -> position.unrealizedProfitLoss(draft.usablePrice)
             }
             val unrealizedPct = when {
-                !draft.active || snapshotOnly -> null
-                else -> draft.usablePrice?.let { position.unrealizedProfitLossPercent(it) }
+                !draft.active || !costBasisKnown -> null
+                else -> position.unrealizedProfitLossPercent(draft.usablePrice)
             }
             val total = when {
                 !draft.active -> realized
-                snapshotOnly -> null
-                else -> draft.usablePrice?.let { position.totalProfitLoss(it) }
+                !costBasisKnown -> null
+                else -> position.totalProfitLoss(draft.usablePrice)
             }
             val totalPct = when {
                 !draft.active -> if (position.totalPurchasedAmount > 0.0) realized / position.totalPurchasedAmount * 100.0 else null
-                snapshotOnly -> null
-                else -> draft.usablePrice?.let { position.totalProfitLossPercent(it) }
+                !costBasisKnown -> null
+                else -> position.totalProfitLossPercent(draft.usablePrice)
             }
             val weight = if (draft.active && draft.currentValue != null && weightDenominator != null) draft.currentValue / weightDenominator * 100.0 else null
 
             PortfolioPositionMetrics(
                 itemId = draft.itemId,
                 active = draft.active,
-                investedCostBasis = if (draft.active) position.investedAmount else 0.0,
+                investedCostBasis = if (draft.active) position.activeCostBasis else 0.0,
                 costBasisKnown = costBasisKnown,
                 currentValue = draft.currentValue,
                 unrealizedProfitLoss = unrealized,
@@ -105,11 +104,11 @@ object PortfolioMetrics {
             )
         }
 
-        val investedCostBasis = activeDrafts.filterNot { it.position.shares <= 0.0000001 && it.position.snapshotValueEur != null }.sumOf { it.position.investedAmount }
-        val totalPurchasedAmount = drafts.sumOf { it.position.totalPurchasedAmount }
         val activeMetrics = metrics.filter { it.active }
+        val investedCostBasis = activeMetrics.filter { it.costBasisKnown }.sumOf { it.investedCostBasis }
+        val performanceDenominator = activeMetrics.filter { it.costBasisKnown }.sumOf { it.investedCostBasis }
         val completeTotalProfitLoss = if (currentValueComplete && activeMetrics.all { it.totalProfitLoss != null }) metrics.sumOf { it.totalProfitLoss ?: 0.0 } else null
-        val completeTotalProfitLossPct = if (completeTotalProfitLoss != null && totalPurchasedAmount > 0.0) completeTotalProfitLoss / totalPurchasedAmount * 100.0 else null
+        val completeTotalProfitLossPct = if (completeTotalProfitLoss != null && performanceDenominator > 0.0) completeTotalProfitLoss / performanceDenominator * 100.0 else null
         val largest = metrics.asSequence().filter { it.active && it.weightPct != null }.maxByOrNull { it.weightPct ?: Double.NEGATIVE_INFINITY }
 
         return PortfolioMetricsSummary(
