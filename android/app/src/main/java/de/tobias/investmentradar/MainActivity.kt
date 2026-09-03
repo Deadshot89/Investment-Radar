@@ -521,6 +521,7 @@ private fun DashboardScreen(
                 )
                 Text(personal?.explanation ?: RecommendationPresentation.topReasons(top).joinToString(" · ").ifBlank { "Analyse liegt vor." }, color = RadarText)
                 Text(priceLine(top), color = RadarMuted)
+                LiveForecastSummary(top)
                 ScoreBreakdownCard(top)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
@@ -944,6 +945,7 @@ private fun RecommendationRow(item: InvestmentItem, personal: PersonalRecommenda
                 Icon(Icons.Default.OpenInNew, null, tint = RadarCyan, modifier = Modifier.size(18.dp))
             }
         }
+        LiveForecastSummary(item, compact = true)
     }
 }
 
