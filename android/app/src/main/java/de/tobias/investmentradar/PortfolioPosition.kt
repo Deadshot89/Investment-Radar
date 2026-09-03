@@ -33,11 +33,13 @@ data class PortfolioLedgerSummary(
 
 data class PortfolioPosition(
     val itemId: String,
+    val snapshotValueEur: Double? = null,
     val purchases: List<PortfolioPurchase> = emptyList(),
     val sales: List<PortfolioSale> = emptyList()
 ) {
     constructor(itemId: String, investedAmount: Double, shares: Double) : this(
         itemId = itemId,
+        snapshotValueEur = null,
         purchases = if (investedAmount > 0.0 || shares > 0.0) {
             listOf(
                 PortfolioPurchase(
@@ -143,24 +145,30 @@ data class PortfolioPosition(
 
     fun realizedProfitLoss(): Double = ledgerSummary().realizedProfitLoss
 
+    fun isActiveHolding(): Boolean =
+        shares > EPSILON || snapshotValueEur?.let { it.isFinite() && it > 0.0 } == true
+
     fun currentValue(currentPrice: Double?): Double? =
-        if (shares <= EPSILON && sales.isNotEmpty()) 0.0 else if (shares > EPSILON && currentPrice != null && currentPrice >= 0.0) shares * currentPrice else null
+        snapshotValueEur?.takeIf { it.isFinite() && it >= 0.0 }
+            ?: if (shares <= EPSILON && sales.isNotEmpty()) 0.0
+            else if (shares > EPSILON && currentPrice != null && currentPrice >= 0.0) shares * currentPrice
+            else null
 
     fun unrealizedProfitLoss(currentPrice: Double?): Double? =
-        currentValue(currentPrice)?.minus(investedAmount)
+        if (shares <= EPSILON && snapshotValueEur != null) null else currentValue(currentPrice)?.minus(investedAmount)
 
     fun unrealizedProfitLossPercent(currentPrice: Double?): Double? =
-        if (investedAmount > EPSILON) unrealizedProfitLoss(currentPrice)?.div(investedAmount)?.times(100.0) else null
+        if (shares <= EPSILON && snapshotValueEur != null) null
+        else if (investedAmount > EPSILON) unrealizedProfitLoss(currentPrice)?.div(investedAmount)?.times(100.0) else null
 
     fun totalProfitLoss(currentPrice: Double?): Double? =
-        unrealizedProfitLoss(currentPrice)?.plus(realizedProfitLoss())
+        if (shares <= EPSILON && snapshotValueEur != null) null else unrealizedProfitLoss(currentPrice)?.plus(realizedProfitLoss())
 
     fun totalProfitLossPercent(currentPrice: Double?): Double? {
         val totalBuys = totalPurchasedAmount
         return if (totalBuys > EPSILON) totalProfitLoss(currentPrice)?.div(totalBuys)?.times(100.0) else null
     }
 
-    // Compatibility for existing portfolio UI/tests: profitLoss refers to unrealized P/L of the open position.
     fun profitLoss(currentPrice: Double?): Double? = unrealizedProfitLoss(currentPrice)
 
     fun profitLossPercent(currentPrice: Double?): Double? = unrealizedProfitLossPercent(currentPrice)
