@@ -23,6 +23,7 @@ jobs:
             android/tests/test-portfolio-dashboard-ui.sh \
             android/tests/test-portfolio-snapshot-ui.sh \
             android/tests/test-portfolio-tracked-shares-ui.sh \
+            android/tests/test-portfolio-only-promotion-wiring.sh \
             android/tests/test-alert-policy-wiring.sh \
             android/tests/test-alert-center-ui.sh \
             android/tests/test-alert-center-wiring.sh \
