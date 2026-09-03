@@ -12,21 +12,56 @@ export async function queryRadar(query = {}, overrides = {}) {
   const universe = await loadUniverse({ refresh: Boolean(query.refresh), ...(overrides.universeOptions ?? {}) });
   const active = universe.filter((item) => item.universeActive !== false && !item.portfolioOnly);
   const filtered = applyFilters(active, query);
-  const sorted = sortUniverse(filtered, query.sort);
+  const recommendation = upper(query.recommendation);
   const pageSize = clampInt(query.pageSize ?? DEFAULT_PAGE_SIZE, 1, MAX_PAGE_SIZE);
+
+  if (recommendation) {
+    const verified = filtered.filter((item) => item.tradeRepublicEligible === true);
+    const verifiedSummaries = await analyzeSummaries(verified, overrides);
+    const unverifiedReview = recommendation === "REVIEW"
+      ? filtered.filter((item) => item.tradeRepublicEligible !== true).map(unverifiedSummary)
+      : [];
+    const matching = sortSummaries([
+      ...verifiedSummaries.filter((item) => upper(item.recommendation) === recommendation),
+      ...unverifiedReview
+    ], query.sort);
+    const page = clampInt(query.page ?? 1, 1, Math.max(1, Math.ceil(matching.length / pageSize)));
+    const start = (page - 1) * pageSize;
+    return buildResponse({
+      active,
+      page,
+      pageSize,
+      total: matching.length,
+      items: matching.slice(start, start + pageSize),
+      hasMore: start + pageSize < matching.length
+    });
+  }
+
+  const sorted = sortUniverse(filtered, query.sort);
   const page = clampInt(query.page ?? 1, 1, Math.max(1, Math.ceil(sorted.length / pageSize)));
   const start = (page - 1) * pageSize;
   const pageItems = sorted.slice(start, start + pageSize);
   const analyzed = await analyzeSummaries(pageItems, overrides);
 
+  return buildResponse({
+    active,
+    page,
+    pageSize,
+    total: sorted.length,
+    items: sortSummaries(analyzed, query.sort),
+    hasMore: start + pageSize < sorted.length
+  });
+}
+
+function buildResponse({ active, page, pageSize, total, items, hasMore }) {
   return {
     generatedAt: new Date().toISOString(),
-    total: sorted.length,
+    total,
     universeTotal: active.length,
     page,
     pageSize,
-    hasMore: start + pageSize < sorted.length,
-    items: sortSummaries(analyzed, query.sort),
+    hasMore,
+    items,
     facets: buildFacets(active),
     tradeRepublicVerifiedCount: active.filter((item) => item.tradeRepublicEligible === true).length,
     tradeRepublicUnverifiedCount: active.filter((item) => item.tradeRepublicEligible == null).length
@@ -48,7 +83,6 @@ export function applyFilters(items, query = {}) {
   const region = upper(query.region);
   const country = upper(query.country);
   const sector = String(query.sector ?? "").trim().toLowerCase();
-  const recommendation = upper(query.recommendation);
   const qualityTier = upper(query.qualityTier);
   const riskMax = finiteNumber(query.riskMax);
   const verifiedOnly = query.tradeRepublicVerified === true || String(query.tradeRepublicVerified) === "true";
@@ -62,7 +96,6 @@ export function applyFilters(items, query = {}) {
     if (qualityTier && upper(item.dataQualityTier) !== qualityTier) return false;
     if (riskMax != null && Number(item.risk ?? 5) > riskMax) return false;
     if (verifiedOnly && item.tradeRepublicEligible !== true) return false;
-    if (recommendation && upper(item.recommendation ?? item.status) !== recommendation) return false;
     return true;
   });
 }
@@ -145,6 +178,15 @@ async function analyzeSummaries(items, overrides, options = {}) {
   } catch (error) {
     return items.map((item) => compactFallback(item, error?.message ?? "Marktdaten nicht verfügbar"));
   }
+}
+
+function unverifiedSummary(item) {
+  return {
+    ...compactFallback(item, null),
+    recommendation: "REVIEW",
+    recommendationReasons: ["Trade-Republic-Handelbarkeit ist noch nicht bestätigt"],
+    dataError: null
+  };
 }
 
 function compactFallback(item, error) {
