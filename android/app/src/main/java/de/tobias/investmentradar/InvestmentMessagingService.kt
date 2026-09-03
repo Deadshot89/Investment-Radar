@@ -28,11 +28,11 @@ class InvestmentMessagingService : FirebaseMessagingService() {
             AlertStore.add(this, alert)
         }
         if (AlertPolicy.shouldNotify(alert, preferences)) {
-            showNotification(title, body, level, id.hashCode(), itemId)
+            showNotification(title, body, level, id.hashCode(), itemId, id)
         }
     }
 
-    private fun showNotification(title: String, body: String, level: String, id: Int, itemId: String) {
+    private fun showNotification(title: String, body: String, level: String, id: Int, itemId: String, alertId: String) {
         val manager = getSystemService(NotificationManager::class.java)
         val channelId = "investment_alerts"
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -45,6 +45,7 @@ class InvestmentMessagingService : FirebaseMessagingService() {
         val intent = Intent(this, MainActivity::class.java).apply {
             putExtra("openAlerts", true)
             if (itemId.isNotBlank()) putExtra("openItemId", itemId)
+            putExtra("openAlertId", alertId)
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
         }
         val pendingIntent = PendingIntent.getActivity(

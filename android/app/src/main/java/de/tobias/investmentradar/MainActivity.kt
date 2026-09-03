@@ -61,6 +61,7 @@ private val RadarGlow = Color(0x332EE59D)
 
 class MainActivity : ComponentActivity() {
     private var pendingOpenItemId by mutableStateOf<String?>(null)
+    private var pendingOpenAlertId by mutableStateOf<String?>(null)
     private var pendingOpenAlerts by mutableStateOf(false)
     private var pushNavigationRequest by mutableLongStateOf(0L)
 
@@ -77,6 +78,7 @@ class MainActivity : ComponentActivity() {
             InvestmentRadarUi(
                 initialTab = if (pendingOpenAlerts || pendingOpenItemId != null) 3 else 0,
                 initialDetailId = pendingOpenItemId,
+                initialAlertId = pendingOpenAlertId,
                 pushNavigationRequest = pushNavigationRequest
             )
         }
@@ -90,6 +92,7 @@ class MainActivity : ComponentActivity() {
 
     private fun applyPushIntent(intent: Intent) {
         pendingOpenItemId = intent.getStringExtra("openItemId")?.takeIf { it.isNotBlank() }
+        pendingOpenAlertId = intent.getStringExtra("openAlertId")?.takeIf { it.isNotBlank() }
         pendingOpenAlerts = intent.getBooleanExtra("openAlerts", false)
         pushNavigationRequest++
     }
@@ -101,6 +104,7 @@ fun InvestmentRadarUi(
     vm: MainViewModel = viewModel(),
     initialTab: Int = 0,
     initialDetailId: String? = null,
+    initialAlertId: String? = null,
     pushNavigationRequest: Long = 0L
 ) {
     val state by vm.state.collectAsState()
@@ -132,6 +136,7 @@ fun InvestmentRadarUi(
             tab = if (initialTab == 3 || !initialDetailId.isNullOrBlank()) 3 else initialTab.coerceIn(0, 3)
             detailReturnTab = 3
             selectedDetailId = initialDetailId?.takeIf { it.isNotBlank() }
+            initialAlertId?.takeIf { it.isNotBlank() }?.let { vm.markAlertRead(it) }
         }
     }
 
