@@ -106,6 +106,19 @@ object CustomInvestmentStore {
         sourceId != targetId && sourceId in existingPositionIds && targetId !in existingPositionIds
     }
 
+    fun safeDuplicatePositionRemovals(
+        promotions: Map<String, String>,
+        existingPositions: Map<String, PortfolioPosition>
+    ): Set<String> = promotions.mapNotNullTo(mutableSetOf()) { (sourceId, targetId) ->
+        if (sourceId == targetId) return@mapNotNullTo null
+        val source = existingPositions[sourceId] ?: return@mapNotNullTo null
+        if (targetId !in existingPositions) return@mapNotNullTo null
+        val snapshotOnly = source.purchases.isEmpty() &&
+            source.sales.isEmpty() &&
+            source.trackedShares == null
+        sourceId.takeIf { snapshotOnly }
+    }
+
     fun save(context: Context, item: CustomInvestment) {
         val next = read(context).filterNot { it.id == item.id }.toMutableList().apply { add(item) }
         write(context, next)
