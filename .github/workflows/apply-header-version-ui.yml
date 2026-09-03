@@ -1,0 +1,133 @@
+name: Apply header version UI
+
+permissions:
+  contents: write
+
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-header-version-ui.yml'
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply approved UI patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt')
+          s = p.read_text()
+
+          old = '''    var availableUpdate by remember { mutableStateOf<AppUpdateInfo?>(null) }
+    var updateStatusMessage by remember { mutableStateOf<String?>(null) }
+'''
+          new = '''    var availableUpdate by remember { mutableStateOf<AppUpdateInfo?>(null) }
+    var updateDialogVisible by remember { mutableStateOf(false) }
+    var updateStatusMessage by remember { mutableStateOf<String?>(null) }
+'''
+          if old not in s:
+              raise SystemExit('state block not found')
+          s = s.replace(old, new, 1)
+
+          old = '''    LaunchedEffect(updateCheckRequested) {
+        if (updateCheckRequested == 0) {
+            availableUpdate = AppUpdateManager.check(context)
+        } else {
+            when (val result = AppUpdateManager.checkResult(context)) {
+                is UpdateCheckResult.Available -> availableUpdate = result.update
+                is UpdateCheckResult.Current -> updateStatusMessage = "Du nutzt bereits die aktuelle Version ${result.versionName}."
+                is UpdateCheckResult.Error -> updateStatusMessage = "Update konnte nicht geprüft werden: ${result.message}"
+            }
+        }
+    }
+'''
+          new = '''    LaunchedEffect(updateCheckRequested) {
+        if (updateCheckRequested == 0) {
+            val update = AppUpdateManager.check(context)
+            availableUpdate = update
+            updateDialogVisible = update != null
+        } else {
+            when (val result = AppUpdateManager.checkResult(context)) {
+                is UpdateCheckResult.Available -> {
+                    availableUpdate = result.update
+                    updateDialogVisible = true
+                }
+                is UpdateCheckResult.Current -> {
+                    availableUpdate = null
+                    updateStatusMessage = "Du nutzt bereits die aktuelle Version ${result.versionName}."
+                }
+                is UpdateCheckResult.Error -> updateStatusMessage = "Update konnte nicht geprüft werden: ${result.message}"
+            }
+        }
+    }
+'''
+          if old not in s:
+              raise SystemExit('update effect block not found')
+          s = s.replace(old, new, 1)
+
+          old = '''                        TextButton(onClick = { updateCheckRequested++ }) { Text("Update") }
+'''
+          new = '''                        TextButton(onClick = {
+                            if (availableUpdate != null) updateDialogVisible = true else updateCheckRequested++
+                        }) {
+                            Text(
+                                if (availableUpdate != null) "Update verfügbar · v${availableUpdate!!.versionName}" else "v${BuildConfig.VERSION_NAME}",
+                                color = if (availableUpdate != null) RadarGreen else RadarMuted,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = if (availableUpdate != null) FontWeight.Bold else FontWeight.Medium
+                            )
+                        }
+'''
+          if old not in s:
+              raise SystemExit('header update button not found')
+          s = s.replace(old, new, 1)
+
+          old = '''    availableUpdate?.let { update ->
+        AlertDialog(
+            onDismissRequest = { availableUpdate = null },
+'''
+          new = '''    if (updateDialogVisible) availableUpdate?.let { update ->
+        AlertDialog(
+            onDismissRequest = { updateDialogVisible = false },
+'''
+          if old not in s:
+              raise SystemExit('update dialog block not found')
+          s = s.replace(old, new, 1)
+
+          old = '''                    AppUpdateManager.openUpdate(context, update)
+                    availableUpdate = null
+                }) { Text("Jetzt aktualisieren") }
+            },
+            dismissButton = { TextButton(onClick = { availableUpdate = null }) { Text("Später") } }
+'''
+          new = '''                    AppUpdateManager.openUpdate(context, update)
+                    updateDialogVisible = false
+                }) { Text("Jetzt aktualisieren") }
+            },
+            dismissButton = { TextButton(onClick = { updateDialogVisible = false }) { Text("Später") } }
+'''
+          if old not in s:
+              raise SystemExit('update dialog actions not found')
+          s = s.replace(old, new, 1)
+
+          p.write_text(s)
+          PY
+
+          git config user.name "Deadshot89"
+          git config user.email "86518220+Deadshot89@users.noreply.github.com"
+          git add android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt
+          git commit -m "feat: show app version and update badge"
+          git push origin HEAD:main
+
+          rm .github/workflows/apply-header-version-ui.yml
+          git add .github/workflows/apply-header-version-ui.yml
+          git commit -m "chore: remove temporary header UI workflow"
+          git push origin HEAD:main
