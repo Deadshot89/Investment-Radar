@@ -9,8 +9,8 @@ grep -q 'Importierter Depotwert' "$UI"
 # Once tracked shares and a usable quote exist, the UI must say the value is live-derived.
 grep -q 'Live-Kurs × Stückzahl' "$UI"
 
-# The footer must distinguish snapshot fallback from active live tracking.
-grep -q 'Live-Tracking aktiv · Kaufdaten fehlen' "$UI"
-grep -q 'Depotwert importiert · Kaufdaten fehlen' "$UI"
+# The footer must distinguish snapshot fallback from active live tracking and imported cost basis.
+grep -q 'Live-Tracking aktiv · Einstand importiert' "$UI"
+grep -q 'Depotwert und Einstand importiert' "$UI"
 
-echo 'PASS portfolio value source is explicit for imported and live-tracked holdings'
+echo 'PASS portfolio value source is explicit for imported cost basis and live-tracked holdings'
