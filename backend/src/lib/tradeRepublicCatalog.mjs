@@ -1,4 +1,5 @@
 const TR_WS_URL = "wss://api.traderepublic.com";
+const TR_WS_CONNECT_VERSION = "34";
 const DEFAULT_PAGE_SIZE = 100;
 const MAX_PAGES_PER_TYPE = 12;
 
@@ -99,6 +100,18 @@ export function deduplicateTradeRepublicCatalog(items) {
   return [...byIsin.values()];
 }
 
+export function buildConnectFrame() {
+  return `connect ${TR_WS_CONNECT_VERSION} ${JSON.stringify({ locale: "en" })}`;
+}
+
+export function decodeSubscriptionFrame(text, subscriptionId) {
+  try {
+    return { value: parseSubscriptionResponse(text, subscriptionId), error: null };
+  } catch (error) {
+    return { value: undefined, error: error instanceof Error ? error : new Error(String(error)) };
+  }
+}
+
 export async function requestTradeRepublicPage({ assetType, page, pageSize, jurisdiction = "DE" }) {
   if (typeof WebSocket !== "function") throw new Error("WebSocket wird von dieser Node-Laufzeit nicht unterstützt");
   const message = {
@@ -131,8 +144,11 @@ function websocketRequest(payload) {
       if (error) reject(error); else resolve(value);
     }
 
-    socket.addEventListener("open", () => socket.send("connect 30"));
+    socket.addEventListener("open", () => socket.send(buildConnectFrame()));
     socket.addEventListener("error", () => finish(new Error("Trade-Republic-Katalog WebSocket nicht erreichbar")));
+    socket.addEventListener("close", () => {
+      if (!settled) finish(new Error("Trade-Republic-Katalog WebSocket wurde vor einer Antwort geschlossen"));
+    });
     socket.addEventListener("message", (event) => {
       const text = typeof event.data === "string" ? event.data : String(event.data ?? "");
       if (!subscribed && /connected/i.test(text)) {
@@ -140,8 +156,12 @@ function websocketRequest(payload) {
         socket.send(`sub 1 ${JSON.stringify(payload)}`);
         return;
       }
-      const parsed = parseSubscriptionResponse(text, 1);
-      if (parsed !== undefined) finish(null, parsed);
+      const decoded = decodeSubscriptionFrame(text, 1);
+      if (decoded.error) {
+        finish(decoded.error);
+        return;
+      }
+      if (decoded.value !== undefined) finish(null, decoded.value);
     });
   });
 }
