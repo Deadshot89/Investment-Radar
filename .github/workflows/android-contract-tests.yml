@@ -21,6 +21,7 @@ jobs:
             android/tests/test-analysis-v2-ui.sh \
             android/tests/test-portfolio-allocation-ui.sh \
             android/tests/test-portfolio-dashboard-ui.sh \
+            android/tests/test-portfolio-snapshot-ui.sh \
             android/tests/test-alert-policy-wiring.sh \
             android/tests/test-alert-center-ui.sh \
             android/tests/test-alert-center-wiring.sh \
