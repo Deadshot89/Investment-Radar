@@ -111,6 +111,35 @@ class PortfolioOnlyPromotionTest {
     }
 
     @Test
+    fun duplicateSnapshotOnlySourceIsRemovedWhenPromotedTargetAlreadyExists() {
+        val promotions = mapOf("custom-meta" to "meta")
+        val positions = mapOf(
+            "custom-meta" to PortfolioPosition(itemId = "custom-meta", snapshotValueEur = 50.0),
+            "meta" to PortfolioPosition(itemId = "meta", snapshotValueEur = 1714.83)
+        )
+
+        assertEquals(
+            setOf("custom-meta"),
+            CustomInvestmentStore.safeDuplicatePositionRemovals(promotions, positions)
+        )
+    }
+
+    @Test
+    fun duplicateWithRealTransactionsIsNeverAutoRemoved() {
+        val promotions = mapOf("custom-meta" to "meta")
+        val positions = mapOf(
+            "custom-meta" to PortfolioPosition(
+                itemId = "custom-meta",
+                snapshotValueEur = 50.0,
+                purchases = listOf(PortfolioPurchase("real-buy", "2026-09-01", 50.0, 0.08))
+            ),
+            "meta" to PortfolioPosition(itemId = "meta", snapshotValueEur = 1714.83)
+        )
+
+        assertTrue(CustomInvestmentStore.safeDuplicatePositionRemovals(promotions, positions).isEmpty())
+    }
+
+    @Test
     fun trackedPromotedHoldingUsesLiveBackendPriceAndKeepsUnknownCostBasis() {
         val position = PortfolioPosition(
             itemId = "custom-nel-asa",
