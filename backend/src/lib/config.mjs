@@ -7,8 +7,48 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const configPath = path.resolve(here, "../../data/investments.json");
 const ISIN = /^[A-Z]{2}[A-Z0-9]{9}[0-9]$/;
 
+const PORTFOLIO_LIVE_ASSETS = Object.freeze([
+  {
+    id: "custom-nel-asa",
+    type: "AKTIE",
+    name: "Nel ASA",
+    ticker: "NEL.OL",
+    marketSymbol: "NEL:OSLO",
+    isin: "NO0010081235",
+    tradeRepublicName: "Nel ASA",
+    status: "BEOBACHTEN",
+    allocation: 0,
+    risk: 5,
+    reviewDrop1dPct: 10,
+    yahooSymbol: "NEL.OL",
+    portfolioOnly: true,
+    alertStatus: "REVIEW",
+    alertReason: "Nur Portfolio-Tracking; keine automatische Kaufempfehlung"
+  },
+  {
+    id: "custom-samsung-gdr",
+    type: "AKTIE",
+    name: "Samsung Electronics GDR",
+    ticker: "SMSN",
+    marketSymbol: "SMSN:LSE",
+    isin: "US7960508882",
+    tradeRepublicName: "Samsung (GDR)",
+    status: "BEOBACHTEN",
+    allocation: 0,
+    risk: 3,
+    reviewDrop1dPct: 8,
+    yahooSymbol: "SMSN.IL",
+    portfolioOnly: true,
+    alertStatus: "REVIEW",
+    alertReason: "Nur Portfolio-Tracking; keine automatische Kaufempfehlung"
+  }
+]);
+
 export function loadLocalConfig() {
-  return JSON.parse(fs.readFileSync(configPath, "utf8"));
+  const parsed = JSON.parse(fs.readFileSync(configPath, "utf8"));
+  const existingIds = new Set((parsed.items ?? []).map((item) => String(item?.id ?? "")));
+  const additions = PORTFOLIO_LIVE_ASSETS.filter((item) => !existingIds.has(item.id));
+  return { ...parsed, items: [...(parsed.items ?? []), ...additions] };
 }
 
 export async function loadConfig() {
