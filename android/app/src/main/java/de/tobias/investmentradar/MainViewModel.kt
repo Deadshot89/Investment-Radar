@@ -20,6 +20,10 @@ sealed interface UiState {
 }
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
+    init {
+        UserPortfolioSeed.ensureSeeded(app)
+    }
+
     private val _state = MutableStateFlow<UiState>(UiState.Loading)
     val state: StateFlow<UiState> = _state.asStateFlow()
 
