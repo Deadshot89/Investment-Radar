@@ -20,6 +20,8 @@ jobs:
           for test_file in \
             android/tests/test-analysis-v2-ui.sh \
             android/tests/test-radar-2-ui.sh \
+            android/tests/test-forecast-engine.sh \
+            android/tests/test-forecast-ui.sh \
             android/tests/test-portfolio-allocation-ui.sh \
             android/tests/test-portfolio-dashboard-ui.sh \
             android/tests/test-portfolio-snapshot-ui.sh \
