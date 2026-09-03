@@ -6,6 +6,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLEncoder
 
 internal fun recommendationFallback(recommendation: String, status: String): String =
     recommendation.ifBlank {
@@ -26,18 +27,51 @@ object ApiClient {
         NetworkRetryPolicy.execute { loadCustomQuoteOnce(item) }
     }
 
+    suspend fun loadRadarPage(query: RadarQuery): RadarPage = withContext(Dispatchers.IO) {
+        NetworkRetryPolicy.execute { loadRadarPageOnce(query) }
+    }
+
+    suspend fun loadRadarDetail(id: String): RadarSummaryItem = withContext(Dispatchers.IO) {
+        NetworkRetryPolicy.execute { loadRadarDetailOnce(id) }
+    }
+
     private fun loadCustomQuoteOnce(item: CustomInvestment): InvestmentItem {
         val baseUrl = checkedBaseUrl()
         val query = listOf(
             "id" to item.id, "name" to item.name, "ticker" to item.ticker, "isin" to item.isin,
             "type" to item.type, "risk" to item.risk.toString()
-        ).joinToString("&") { (k, v) -> "$k=${java.net.URLEncoder.encode(v, "UTF-8")}" }
+        ).joinToString("&") { (k, v) -> "$k=${URLEncoder.encode(v, "UTF-8")}" }
         return getJson("$baseUrl/api/custom-quote?$query") { parseInvestmentItem(it) }
     }
 
     private fun loadDashboardOnce(): DashboardData {
         val baseUrl = checkedBaseUrl()
         return getJson("$baseUrl/api/dashboard", ::parseDashboard)
+    }
+
+    private fun loadRadarPageOnce(query: RadarQuery): RadarPage {
+        val baseUrl = checkedBaseUrl()
+        val params = buildList {
+            if (query.query.isNotBlank()) add("q" to query.query)
+            query.type?.takeIf { it.isNotBlank() }?.let { add("type" to it) }
+            query.region?.takeIf { it.isNotBlank() }?.let { add("region" to it) }
+            query.country?.takeIf { it.isNotBlank() }?.let { add("country" to it) }
+            query.sector?.takeIf { it.isNotBlank() }?.let { add("sector" to it) }
+            query.recommendation?.takeIf { it.isNotBlank() }?.let { add("recommendation" to it) }
+            query.qualityTier?.takeIf { it.isNotBlank() }?.let { add("qualityTier" to it) }
+            query.riskMax?.let { add("riskMax" to it.toString()) }
+            add("sort" to query.sort)
+            add("page" to query.page.toString())
+            add("pageSize" to query.pageSize.toString())
+            if (query.tradeRepublicVerified) add("tradeRepublicVerified" to "true")
+        }.joinToString("&") { (key, value) -> "$key=${URLEncoder.encode(value, "UTF-8")}" }
+        return getJson("$baseUrl/api/radar?$params", ::parseRadarPage)
+    }
+
+    private fun loadRadarDetailOnce(id: String): RadarSummaryItem {
+        val baseUrl = checkedBaseUrl()
+        val encoded = URLEncoder.encode(id, "UTF-8").replace("+", "%20")
+        return getJson("$baseUrl/api/instrument/$encoded", ::parseRadarSummary)
     }
 
     private fun checkedBaseUrl(): String {
@@ -76,6 +110,79 @@ object ApiClient {
             topPickId = obj.optString("topPickId", items.firstOrNull()?.id.orEmpty()),
             items = items,
             alerts = alerts
+        )
+    }
+
+    private fun parseRadarPage(obj: JSONObject): RadarPage = RadarPage(
+        generatedAt = obj.optString("generatedAt", ""),
+        total = obj.optInt("total", 0),
+        universeTotal = obj.optInt("universeTotal", obj.optInt("total", 0)),
+        page = obj.optInt("page", 1),
+        pageSize = obj.optInt("pageSize", 40),
+        hasMore = obj.optBoolean("hasMore", false),
+        items = obj.optJSONArray("items").toRadarItems(),
+        facets = parseRadarFacets(obj.optJSONObject("facets")),
+        tradeRepublicVerifiedCount = obj.optInt("tradeRepublicVerifiedCount", 0),
+        tradeRepublicUnverifiedCount = obj.optInt("tradeRepublicUnverifiedCount", 0)
+    )
+
+    private fun parseRadarFacets(obj: JSONObject?): RadarFacets = RadarFacets(
+        types = obj?.optJSONArray("types").toRadarFacets(),
+        regions = obj?.optJSONArray("regions").toRadarFacets(),
+        countries = obj?.optJSONArray("countries").toRadarFacets(),
+        sectors = obj?.optJSONArray("sectors").toRadarFacets(),
+        qualityTiers = obj?.optJSONArray("qualityTiers").toRadarFacets()
+    )
+
+    private fun JSONArray?.toRadarItems(): List<RadarSummaryItem> {
+        if (this == null) return emptyList()
+        return (0 until length()).mapNotNull { i -> optJSONObject(i)?.let(::parseRadarSummary) }
+    }
+
+    private fun JSONArray?.toRadarFacets(): List<RadarFacet> {
+        if (this == null) return emptyList()
+        return (0 until length()).mapNotNull { i ->
+            optJSONObject(i)?.let { RadarFacet(it.optString("value", ""), it.optInt("count", 0)) }
+        }.filter { it.value.isNotBlank() }
+    }
+
+    private fun parseRadarSummary(o: JSONObject): RadarSummaryItem {
+        val recommendation = recommendationFallback(o.optString("recommendation"), o.optString("status"))
+        return RadarSummaryItem(
+            id = o.optString("id"),
+            type = o.optString("type"),
+            name = o.optString("name"),
+            ticker = o.optString("ticker"),
+            isin = o.optString("isin"),
+            tradeRepublicName = o.optString("tradeRepublicName"),
+            region = o.optString("region"),
+            country = o.optString("country"),
+            sector = o.optString("sector"),
+            industry = o.optString("industry"),
+            marketCapBucket = o.optString("marketCapBucket"),
+            tradeRepublicEligible = o.nullableBoolean("tradeRepublicEligible"),
+            dataQualityTier = o.optString("dataQualityTier", "B"),
+            risk = o.optInt("risk", 3),
+            price = o.nullableDouble("price"),
+            priceEur = o.nullableDouble("priceEur"),
+            currency = o.optString("currency", ""),
+            percentChange = o.nullableDouble("percentChange"),
+            scoreTotal = o.nullableInt("scoreTotal"),
+            scoreQuality = o.nullableInt("scoreQuality"),
+            scoreValuation = o.nullableInt("scoreValuation"),
+            scoreGrowth = o.nullableInt("scoreGrowth"),
+            scoreMomentum = o.nullableInt("scoreMomentum"),
+            scoreRisk = o.nullableInt("scoreRisk"),
+            coverage = o.nullableInt("coverage"),
+            recommendation = recommendation,
+            recommendationReasons = o.optJSONArray("recommendationReasons").toStrings(),
+            purchaseEligible = o.optBoolean("purchaseEligible", false),
+            dataSource = o.optString("dataSource", ""),
+            dataDelayed = o.optBoolean("dataDelayed", false),
+            dataError = o.nullableString("dataError"),
+            analysisAsOf = o.nullableString("analysisAsOf"),
+            momentum = o.optJSONObject("momentum")?.let(::parseMomentum),
+            fundamentals = o.optJSONObject("fundamentals")?.let(::parseFundamentals)
         )
     }
 
