@@ -11,4 +11,13 @@ grep -Fq 'AppUpdateManager.checkResult' "$MAIN"
 grep -Fq 'Du nutzt bereits die aktuelle Version' "$MAIN"
 grep -Fq 'Update konnte nicht geprüft werden' "$MAIN"
 
-echo "PASS 1.2.0 manual update status UI"
+# Die installierte App-Version muss im Header sichtbar sein.
+grep -Fq 'v${BuildConfig.VERSION_NAME}' "$MAIN"
+
+# Wenn eine neuere Version vorhanden ist, muss der Header statt des neutralen Update-Buttons
+# einen klaren Versionshinweis anzeigen.
+grep -Fq 'Update verfügbar · v${availableUpdate!!.versionName}' "$MAIN"
+
+echo "PASS manual update status UI"
+echo "PASS installed app version visible in header"
+echo "PASS update availability badge includes target version"
