@@ -21,6 +21,9 @@ object PortfolioStore {
             val snapshotValue = prefs.getString(snapshotKey(itemId), null)
                 ?.toDoubleOrNull()
                 ?.takeIf { it.isFinite() && it >= 0.0 }
+            val trackedShares = prefs.getString(trackedSharesKey(itemId), null)
+                ?.toDoubleOrNull()
+                ?.takeIf { it.isFinite() && it > 0.0 }
             val storedPurchases = prefs.getString(purchasesKey(itemId), null)
                 ?.let(::decodePurchases)
                 .orEmpty()
@@ -28,7 +31,13 @@ object PortfolioStore {
                 ?.let(::decodeSales)
                 .orEmpty()
             if (storedPurchases.isNotEmpty() || storedSales.isNotEmpty()) {
-                PortfolioPosition(itemId = itemId, snapshotValueEur = snapshotValue, purchases = storedPurchases, sales = storedSales)
+                PortfolioPosition(
+                    itemId = itemId,
+                    snapshotValueEur = snapshotValue,
+                    trackedShares = trackedShares,
+                    purchases = storedPurchases,
+                    sales = storedSales
+                )
             } else {
                 val invested = prefs.getString(investedKey(itemId), null)?.toDoubleOrNull() ?: 0.0
                 val shares = prefs.getString(sharesKey(itemId), null)?.toDoubleOrNull() ?: 0.0
@@ -44,7 +53,12 @@ object PortfolioStore {
                 } else {
                     emptyList()
                 }
-                PortfolioPosition(itemId = itemId, snapshotValueEur = snapshotValue, purchases = migrated)
+                PortfolioPosition(
+                    itemId = itemId,
+                    snapshotValueEur = snapshotValue,
+                    trackedShares = trackedShares,
+                    purchases = migrated
+                )
             }
         }
     }
@@ -67,6 +81,9 @@ object PortfolioStore {
         position.snapshotValueEur?.takeIf { it.isFinite() && it >= 0.0 }?.let {
             editor.putString(snapshotKey(position.itemId), it.toString())
         } ?: editor.remove(snapshotKey(position.itemId))
+        position.trackedShares?.takeIf { it.isFinite() && it > 0.0 }?.let {
+            editor.putString(trackedSharesKey(position.itemId), it.toString())
+        } ?: editor.remove(trackedSharesKey(position.itemId))
         editor.apply()
     }
 
@@ -79,6 +96,7 @@ object PortfolioStore {
             .remove(investedKey(itemId))
             .remove(sharesKey(itemId))
             .remove(snapshotKey(itemId))
+            .remove(trackedSharesKey(itemId))
             .remove(purchasesKey(itemId))
             .remove(salesKey(itemId))
             .apply()
@@ -157,6 +175,7 @@ object PortfolioStore {
     private fun investedKey(itemId: String) = "position.$itemId.invested"
     private fun sharesKey(itemId: String) = "position.$itemId.shares"
     private fun snapshotKey(itemId: String) = "position.$itemId.snapshotValueEur"
+    private fun trackedSharesKey(itemId: String) = "position.$itemId.trackedShares"
     private fun purchasesKey(itemId: String) = "position.$itemId.purchases"
     private fun salesKey(itemId: String) = "position.$itemId.sales"
 }
