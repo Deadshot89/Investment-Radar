@@ -34,6 +34,7 @@ fun PortfolioDashboard(
     personalById: Map<String, PersonalRecommendation>,
     onOpenDetail: (String) -> Unit,
     onEdit: (InvestmentItem) -> Unit,
+    onSetTrackedShares: (String) -> Unit,
     onRemove: (String) -> Unit,
     onAddCustom: () -> Unit,
     onEditCustom: (CustomInvestment) -> Unit,
@@ -134,6 +135,12 @@ fun PortfolioDashboard(
                     }
                 )
                 PortfolioDashboardValue("Gewichtung", row.weightPct?.let(::portfolioPercent) ?: if (row.active) "Unvollständig" else "–")
+                if (!row.costBasisKnown && position?.snapshotValueEur != null) {
+                    PortfolioDashboardValue(
+                        "Stückzahl",
+                        position.trackedShares?.let { String.format(Locale.GERMANY, "%.6f", it).trimEnd('0').trimEnd(',') } ?: "Nicht erfasst"
+                    )
+                }
 
                 if (item != null) {
                     HorizontalDivider()
@@ -144,6 +151,21 @@ fun PortfolioDashboard(
                     PortfolioDashboardValue("Monatskauf", "${it.allocationEur} €")
                     PortfolioDashboardValue("Konzentration", it.concentrationLabel)
                     Text(it.explanation, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+
+                if (!row.costBasisKnown && position?.snapshotValueEur != null) {
+                    OutlinedButton(onClick = { onSetTrackedShares(row.itemId) }, modifier = Modifier.fillMaxWidth()) {
+                        Text(if (position.trackedShares == null) "Stückzahl ergänzen" else "Stückzahl ändern")
+                    }
+                    Text(
+                        if (position.trackedShares == null) {
+                            "Nach Eingabe der Stückzahl folgt der Depotwert dem aktuellen Kurs. Kaufdaten fehlen weiterhin."
+                        } else {
+                            "Live-Tracking aktiv · Kaufdaten fehlen"
+                        },
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall
+                    )
                 }
 
                 Button(onClick = { onOpenDetail(row.itemId) }, modifier = Modifier.fillMaxWidth()) { Text("Details") }
