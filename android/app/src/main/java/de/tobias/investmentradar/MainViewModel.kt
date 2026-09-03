@@ -92,9 +92,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (promotions.isEmpty()) return
 
         val positionsBefore = PortfolioStore.readPositions(application)
-        val safeMoves = CustomInvestmentStore.safePositionPromotions(promotions, positionsBefore.keys)
+        val duplicateRemovals = CustomInvestmentStore.safeDuplicatePositionRemovals(promotions, positionsBefore)
+        duplicateRemovals.forEach { sourceId ->
+            PortfolioStore.remove(application, sourceId)
+            if (FirebaseBootstrap.isConfigured()) {
+                FirebaseMessaging.getInstance().unsubscribeFromTopic(holdingTopic(sourceId))
+            }
+        }
+
+        val positionsAfterDuplicateCleanup = PortfolioStore.readPositions(application)
+        val safeMoves = CustomInvestmentStore.safePositionPromotions(promotions, positionsAfterDuplicateCleanup.keys)
         safeMoves.forEach { (sourceId, targetId) ->
-            val source = positionsBefore[sourceId] ?: return@forEach
+            val source = positionsAfterDuplicateCleanup[sourceId] ?: return@forEach
             PortfolioStore.save(application, source.copy(itemId = targetId))
             PortfolioStore.remove(application, sourceId)
             if (FirebaseBootstrap.isConfigured()) {
@@ -102,7 +111,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 FirebaseMessaging.getInstance().unsubscribeFromTopic(holdingTopic(sourceId))
             }
         }
-        if (safeMoves.isNotEmpty()) reloadPortfolio(application)
+        if (duplicateRemovals.isNotEmpty() || safeMoves.isNotEmpty()) reloadPortfolio(application)
 
         val positionsAfter = PortfolioStore.readPositions(application)
         val removableCustomIds = promotions.filter { (sourceId, targetId) ->
