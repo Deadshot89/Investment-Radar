@@ -71,13 +71,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
           if [[ ! "$API_URL" =~ ^https://[^/]+ ]]; then
             echo "## Android Build" >> "$GITHUB_STEP_SUMMARY"
             echo "❌ INVESTMENT_API_BASE_URL fehlt oder ist ungültig." >> "$GITHUB_STEP_SUMMARY"
             exit 2
           fi
-
           missing=0
           for name in KEYSTORE_B64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD FB_APP_ID FB_API_KEY FB_PROJECT_ID FB_SENDER_ID REPOSITORY_SLUG; do
             if [ -z "${!name:-}" ]; then
@@ -86,7 +84,6 @@ jobs:
             fi
           done
           if [ "$missing" -ne 0 ]; then
-            echo "" >> "$GITHUB_STEP_SUMMARY"
             echo "Es wird bewusst keine nicht updatefähige APK erzeugt." >> "$GITHUB_STEP_SUMMARY"
             exit 3
           fi
@@ -160,14 +157,11 @@ jobs:
             -PANDROID_KEY_ALIAS="$KEY_ALIAS" \
             -PANDROID_KEY_PASSWORD="$KEY_PASSWORD" 2>&1 | tee android-build.log
           code=${PIPESTATUS[0]}
-
           echo "## Android Build" >> "$GITHUB_STEP_SUMMARY"
           if [ "$code" -eq 0 ]; then
             echo "✅ Signierte Release-APK erfolgreich gebaut." >> "$GITHUB_STEP_SUMMARY"
           else
             echo "❌ APK-Build fehlgeschlagen (Exit $code)." >> "$GITHUB_STEP_SUMMARY"
-            echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "### Relevante Fehlermeldungen" >> "$GITHUB_STEP_SUMMARY"
             echo '```text' >> "$GITHUB_STEP_SUMMARY"
             grep -E "(^e: |^ERROR:|^FAILURE:|What went wrong|Could not resolve|Could not find|Unresolved reference|error: )" android-build.log | tail -n 80 >> "$GITHUB_STEP_SUMMARY" || true
             echo '```' >> "$GITHUB_STEP_SUMMARY"
@@ -188,19 +182,23 @@ jobs:
         if: success() && github.ref == 'refs/heads/main'
         env:
           BASE_URL: ${{ vars.INVESTMENT_API_BASE_URL }}
-          EXPECTED_BACKEND_VERSION: "1.2.0"
+          EXPECTED_BACKEND_VERSION: "2.0.0"
         shell: bash
         run: |
           set -euo pipefail
           test -n "$BASE_URL"
           HEALTH_URL="${BASE_URL%/}/api/health"
+          RADAR_URL="${BASE_URL%/}/api/radar?page=1&pageSize=1&tradeRepublicVerified=true"
           ok=false
           last_version=""
+          last_universe="0"
           for attempt in $(seq 1 24); do
-            status=$(curl --silent --show-error --max-time 20 --output /tmp/android-health.json --write-out "%{http_code}" "$HEALTH_URL" || true)
-            if [ "$status" = "200" ]; then
+            health_status=$(curl --silent --show-error --max-time 20 --output /tmp/android-health.json --write-out "%{http_code}" "$HEALTH_URL" || true)
+            radar_status=$(curl --silent --show-error --max-time 30 --output /tmp/android-radar.json --write-out "%{http_code}" "$RADAR_URL" || true)
+            if [ "$health_status" = "200" ] && [ "$radar_status" = "200" ]; then
               last_version=$(node -e 'const fs=require("fs"); try { const j=JSON.parse(fs.readFileSync("/tmp/android-health.json","utf8")); process.stdout.write(String(j.backendVersion ?? "")); } catch { process.stdout.write(""); }')
-              if [ "$last_version" = "$EXPECTED_BACKEND_VERSION" ]; then
+              last_universe=$(node -e 'const fs=require("fs"); try { const j=JSON.parse(fs.readFileSync("/tmp/android-radar.json","utf8")); process.stdout.write(String(j.universeTotal ?? 0)); } catch { process.stdout.write("0"); }')
+              if [ "$last_version" = "$EXPECTED_BACKEND_VERSION" ] && [ "${last_universe:-0}" -ge 900 ]; then
                 ok=true
                 break
               fi
@@ -208,10 +206,10 @@ jobs:
             sleep 15
           done
           if [ "$ok" != "true" ]; then
-            echo "❌ Android-Publish blockiert: Backend ${last_version:-<fehlt>} statt $EXPECTED_BACKEND_VERSION." >> "$GITHUB_STEP_SUMMARY"
+            echo "❌ Android-Publish blockiert: Backend ${last_version:-<fehlt>}, Radar ${last_universe:-0}/900." >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
-          echo "✅ Backend $EXPECTED_BACKEND_VERSION live; Android-Publish freigegeben." >> "$GITHUB_STEP_SUMMARY"
+          echo "✅ Backend $EXPECTED_BACKEND_VERSION live; Radar ${last_universe} Werte; Android-Publish freigegeben." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Publish APK for in-app updates
         if: success() && github.ref == 'refs/heads/main'
@@ -226,7 +224,6 @@ jobs:
           TAG="v$VERSION_NAME"
           RELEASE_APK="$RUNNER_TEMP/investment-radar.apk"
           cp "$APK" "$RELEASE_APK"
-
           if gh release view "$TAG" >/dev/null 2>&1; then
             git fetch --no-tags origin "refs/tags/$TAG:refs/tags/$TAG"
             CURRENT_APP_TREE=$(git rev-parse "HEAD:android/app")
@@ -239,7 +236,7 @@ jobs:
           else
             gh release create "$TAG" "$RELEASE_APK#investment-radar.apk" \
               --title "Investment Radar $VERSION_NAME" \
-              --notes "Automatisch veröffentlichte, dauerhaft signierte Investment-Radar-APK."
+              --notes "Investment Radar 2.0: großes Trade-Republic-Radar mit serverseitiger Suche, Filtern und Paging."
             echo "✅ Release $TAG für In-App-Updates veröffentlicht." >> "$GITHUB_STEP_SUMMARY"
           fi
 
