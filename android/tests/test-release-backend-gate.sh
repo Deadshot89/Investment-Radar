@@ -13,9 +13,9 @@ grep -q '/api/health' "$WF"
 grep -q 'backendVersion' "$WF"
 grep -q 'Publish APK for in-app updates' "$WF"
 
-# Die nächste App-Version muss für installierte 1.2.0-Geräte tatsächlich neuer sein.
-grep -q 'versionCode = 32' "$GRADLE"
-grep -q 'versionName = "1.2.1"' "$GRADLE"
+# Jede Änderung an der veröffentlichten App braucht eine neue monotone Version.
+grep -q 'versionCode = 33' "$GRADLE"
+grep -q 'versionName = "1.2.2"' "$GRADLE"
 
 # Ein vorhandenes Tag darf nie still mit anderem App-Code überschrieben werden.
 if grep -q -- '--clobber' "$WF"; then
@@ -45,5 +45,5 @@ test -n "$publish_line"
 test "$gate_line" -lt "$publish_line"
 
 echo "PASS Android publish is gated on live backend 1.2.0"
-echo "PASS Android app release is monotonic at 1.2.1 / code 32"
+echo "PASS Android app release is monotonic at 1.2.2 / code 33"
 echo "PASS existing releases are immutable by android/app tree"
