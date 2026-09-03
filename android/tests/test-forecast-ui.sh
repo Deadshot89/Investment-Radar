@@ -11,10 +11,18 @@ grep -q 'Basis' "$DETAIL"
 grep -q 'Bear' "$DETAIL"
 grep -q 'Warum diese Prognose' "$DETAIL"
 grep -q 'modellbasierte Einschätzung' "$DETAIL"
+
+# Jede normale Radar-Aktienkarte muss die 12M-Prognose kompakt sichtbar machen.
+grep -q 'ForecastEngine.forecast' "$RADAR"
+grep -q 'ForecastHorizon.TWELVE_MONTHS' "$RADAR"
 grep -q '12M Prognose' "$RADAR"
+grep -q 'Basisziel' "$RADAR"
+grep -q 'Prognose-Spanne' "$RADAR"
+grep -q 'Warum:' "$RADAR"
+
 # Die drei Dashboard-Kacheln sollen fest unterschiedliche Akzentfarben haben.
 grep -q 'DarkMetricCard("MARKT", data.marketLight.uppercase(), RadarYellow' "$MAIN"
-grep -q 'DarkMetricCard("BUDGET", "\$budget €", RadarBlue' "$MAIN"
+grep -q 'DarkMetricCard("BUDGET", "$budget €", RadarBlue' "$MAIN"
 grep -q 'DarkMetricCard("SIGNAL", if (top != null) "AKTIV" else "WARTEN", RadarGreen' "$MAIN"
 # WARTEN in der Metrik darf nicht mehr titleLarge verwenden.
 grep -q 'valueStyle:' "$MAIN"
