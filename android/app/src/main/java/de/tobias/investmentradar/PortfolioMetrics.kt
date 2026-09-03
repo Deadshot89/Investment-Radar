@@ -28,8 +28,6 @@ data class PortfolioMetricsSummary(
 )
 
 object PortfolioMetrics {
-    private const val ACTIVE_EPSILON = 0.0000001
-
     fun calculate(
         items: List<InvestmentItem>,
         positions: Map<String, PortfolioPosition>,
@@ -52,9 +50,14 @@ object PortfolioMetrics {
             val marketPrice = itemById[id]?.priceEur?.takeIf { it.isFinite() && it > 0.0 }
             val manualPrice = customById[id]?.manualPriceEur?.takeIf { it.isFinite() && it > 0.0 }
             val usablePrice = marketPrice ?: manualPrice
-            val active = position.shares > ACTIVE_EPSILON
-            val hasUsablePrice = !active || usablePrice != null
-            val currentValue = if (active) usablePrice?.let { position.shares * it } else 0.0
+            val active = position.isActiveHolding()
+            val currentValue = if (active) {
+                position.snapshotValueEur?.takeIf { it.isFinite() && it >= 0.0 }
+                    ?: usablePrice?.let { position.shares * it }
+            } else {
+                0.0
+            }
+            val hasUsablePrice = !active || position.snapshotValueEur != null || usablePrice != null
 
             Draft(
                 itemId = id,
@@ -75,11 +78,26 @@ object PortfolioMetrics {
         val metrics = drafts.map { draft ->
             val position = draft.position
             val realized = position.realizedProfitLoss()
-            val unrealized = if (draft.active) draft.usablePrice?.let { position.unrealizedProfitLoss(it) } else 0.0
-            val unrealizedPct = if (draft.active) draft.usablePrice?.let { position.unrealizedProfitLossPercent(it) } else null
-            val total = if (draft.active) draft.usablePrice?.let { position.totalProfitLoss(it) } else realized
-            val totalPct = if (draft.active) draft.usablePrice?.let { position.totalProfitLossPercent(it) }
-            else if (position.totalPurchasedAmount > 0.0) realized / position.totalPurchasedAmount * 100.0 else null
+            val snapshotOnly = position.shares <= 0.0000001 && position.snapshotValueEur != null
+            val unrealized = when {
+                !draft.active -> 0.0
+                snapshotOnly -> null
+                else -> draft.usablePrice?.let { position.unrealizedProfitLoss(it) }
+            }
+            val unrealizedPct = when {
+                !draft.active || snapshotOnly -> null
+                else -> draft.usablePrice?.let { position.unrealizedProfitLossPercent(it) }
+            }
+            val total = when {
+                !draft.active -> realized
+                snapshotOnly -> null
+                else -> draft.usablePrice?.let { position.totalProfitLoss(it) }
+            }
+            val totalPct = when {
+                !draft.active -> if (position.totalPurchasedAmount > 0.0) realized / position.totalPurchasedAmount * 100.0 else null
+                snapshotOnly -> null
+                else -> draft.usablePrice?.let { position.totalProfitLossPercent(it) }
+            }
             val weight = if (draft.active && draft.currentValue != null && weightDenominator != null) {
                 draft.currentValue / weightDenominator * 100.0
             } else {
@@ -103,7 +121,8 @@ object PortfolioMetrics {
 
         val investedCostBasis = activeDrafts.sumOf { it.position.investedAmount }
         val totalPurchasedAmount = drafts.sumOf { it.position.totalPurchasedAmount }
-        val completeTotalProfitLoss = if (currentValueComplete) {
+        val activeMetrics = metrics.filter { it.active }
+        val completeTotalProfitLoss = if (currentValueComplete && activeMetrics.all { it.totalProfitLoss != null }) {
             metrics.sumOf { it.totalProfitLoss ?: 0.0 }
         } else {
             null
