@@ -4,6 +4,7 @@ data class PortfolioPositionMetrics(
     val itemId: String,
     val active: Boolean,
     val investedCostBasis: Double,
+    val costBasisKnown: Boolean,
     val currentValue: Double?,
     val unrealizedProfitLoss: Double?,
     val unrealizedProfitLossPct: Double?,
@@ -54,19 +55,9 @@ object PortfolioMetrics {
             val currentValue = if (active) {
                 position.snapshotValueEur?.takeIf { it.isFinite() && it >= 0.0 }
                     ?: usablePrice?.let { position.shares * it }
-            } else {
-                0.0
-            }
+            } else 0.0
             val hasUsablePrice = !active || position.snapshotValueEur != null || usablePrice != null
-
-            Draft(
-                itemId = id,
-                position = position,
-                active = active,
-                usablePrice = usablePrice,
-                currentValue = currentValue,
-                hasUsablePrice = hasUsablePrice
-            )
+            Draft(id, position, active, usablePrice, currentValue, hasUsablePrice)
         }
 
         val activeDrafts = drafts.filter { it.active }
@@ -79,6 +70,7 @@ object PortfolioMetrics {
             val position = draft.position
             val realized = position.realizedProfitLoss()
             val snapshotOnly = position.shares <= 0.0000001 && position.snapshotValueEur != null
+            val costBasisKnown = !snapshotOnly
             val unrealized = when {
                 !draft.active -> 0.0
                 snapshotOnly -> null
@@ -98,16 +90,13 @@ object PortfolioMetrics {
                 snapshotOnly -> null
                 else -> draft.usablePrice?.let { position.totalProfitLossPercent(it) }
             }
-            val weight = if (draft.active && draft.currentValue != null && weightDenominator != null) {
-                draft.currentValue / weightDenominator * 100.0
-            } else {
-                null
-            }
+            val weight = if (draft.active && draft.currentValue != null && weightDenominator != null) draft.currentValue / weightDenominator * 100.0 else null
 
             PortfolioPositionMetrics(
                 itemId = draft.itemId,
                 active = draft.active,
                 investedCostBasis = if (draft.active) position.investedAmount else 0.0,
+                costBasisKnown = costBasisKnown,
                 currentValue = draft.currentValue,
                 unrealizedProfitLoss = unrealized,
                 unrealizedProfitLossPct = unrealizedPct,
@@ -119,23 +108,12 @@ object PortfolioMetrics {
             )
         }
 
-        val investedCostBasis = activeDrafts.sumOf { it.position.investedAmount }
+        val investedCostBasis = activeDrafts.filterNot { it.position.shares <= 0.0000001 && it.position.snapshotValueEur != null }.sumOf { it.position.investedAmount }
         val totalPurchasedAmount = drafts.sumOf { it.position.totalPurchasedAmount }
         val activeMetrics = metrics.filter { it.active }
-        val completeTotalProfitLoss = if (currentValueComplete && activeMetrics.all { it.totalProfitLoss != null }) {
-            metrics.sumOf { it.totalProfitLoss ?: 0.0 }
-        } else {
-            null
-        }
-        val completeTotalProfitLossPct = if (completeTotalProfitLoss != null && totalPurchasedAmount > 0.0) {
-            completeTotalProfitLoss / totalPurchasedAmount * 100.0
-        } else {
-            null
-        }
-        val largest = metrics
-            .asSequence()
-            .filter { it.active && it.weightPct != null }
-            .maxByOrNull { it.weightPct ?: Double.NEGATIVE_INFINITY }
+        val completeTotalProfitLoss = if (currentValueComplete && activeMetrics.all { it.totalProfitLoss != null }) metrics.sumOf { it.totalProfitLoss ?: 0.0 } else null
+        val completeTotalProfitLossPct = if (completeTotalProfitLoss != null && totalPurchasedAmount > 0.0) completeTotalProfitLoss / totalPurchasedAmount * 100.0 else null
+        val largest = metrics.asSequence().filter { it.active && it.weightPct != null }.maxByOrNull { it.weightPct ?: Double.NEGATIVE_INFINITY }
 
         return PortfolioMetricsSummary(
             investedCostBasis = investedCostBasis,
