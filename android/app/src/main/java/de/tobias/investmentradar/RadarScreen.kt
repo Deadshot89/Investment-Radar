@@ -354,6 +354,7 @@ private fun RadarResultCardV2(
                 Text("Risiko ${summary.risk}/5")
             }
             summary.percentChange?.let { Text("Tag ${formatRadarPercent(it)}", color = if (it >= 0.0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error) }
+            RadarForecastPreview(summary)
             Text(summary.tradeRepublicStatusLabel(), style = MaterialTheme.typography.bodySmall, color = if (summary.tradeRepublicEligible == true) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
             personal?.let { Text("Monatskauf ${it.allocationEur} € · Depot ${String.format(Locale.GERMANY, "%.1f", it.currentWeightPct)} % · ${it.concentrationLabel}", style = MaterialTheme.typography.bodySmall) }
             summary.recommendationReasons.take(2).forEach { Text("• $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
@@ -364,6 +365,42 @@ private fun RadarResultCardV2(
                 if (isHeld) OutlinedButton(onClick = onEditInvestment, modifier = Modifier.weight(1f)) { Text("Transaktionen") }
                 else OutlinedButton(onClick = onBought, modifier = Modifier.weight(1f)) { Text("Kauf erfassen") }
             }
+        }
+    }
+}
+
+@Composable
+private fun RadarForecastPreview(summary: RadarSummaryItem) {
+    if (summary.type.equals("ETF", ignoreCase = true)) return
+    val point = remember(summary) {
+        ForecastEngine.forecast(summary.asInvestmentItem()).points.firstOrNull {
+            it.horizon == ForecastHorizon.TWELVE_MONTHS
+        }
+    } ?: return
+
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            "12M Prognose · ${point.direction}",
+            color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.Black,
+            style = MaterialTheme.typography.bodySmall
+        )
+        Text(
+            "Basisziel ${formatRadarForecastTarget(point.targetPriceEur, point.expectedChangePct)}",
+            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.bodySmall
+        )
+        Text(
+            "Prognose-Spanne ${formatRadarForecastRange(point)}",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall
+        )
+        point.reasons.firstOrNull()?.let { reason ->
+            Text(
+                "Warum: $reason",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall
+            )
         }
     }
 }
@@ -431,3 +468,17 @@ private fun RadarRiskFilter.riskLabel(): String = when (this) {
 }
 
 private fun formatRadarPercent(value: Double): String = String.format(Locale.GERMANY, "%+.1f %%", value)
+
+private fun formatRadarForecastTarget(targetPriceEur: Double?, changePct: Double): String =
+    targetPriceEur?.let { String.format(Locale.GERMANY, "%.2f € (%+.1f %%)", it, changePct) }
+        ?: formatRadarPercent(changePct)
+
+private fun formatRadarForecastRange(point: ForecastPoint): String {
+    val low = point.bearTargetPriceEur
+    val high = point.bullTargetPriceEur
+    return if (low != null && high != null) {
+        String.format(Locale.GERMANY, "%.2f–%.2f €", low, high)
+    } else {
+        String.format(Locale.GERMANY, "%+.1f bis %+.1f %%", point.bearChangePct, point.bullChangePct)
+    }
+}
