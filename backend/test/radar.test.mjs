@@ -55,3 +55,24 @@ test("unverified Trade Republic item cannot become purchaseEligible even if scor
   assert.equal(result.items[0].purchaseEligible, false);
   assert.notEqual(result.items[0].recommendation, "BUY");
 });
+
+test("BUY filter is applied after analysis and never promotes unverified candidates", async () => {
+  const candidates = [
+    { ...base[0], risk: 1, tradeRepublicEligible: true },
+    { ...base[2], risk: 1, tradeRepublicEligible: null }
+  ];
+  const quote = (id) => [id, { price: 100, currency: "EUR", percentChange: 2, source: "TEST" }];
+  const momentum = (id) => [id, { d1: 2, m1: 8, m3: 15, m6: 20, m12: 30, score: 100, coveragePct: 100 }];
+  const fundamentals = (id) => [id, { metrics: { pe: 5, revenueGrowth: 30, epsGrowth: 30, operatingMargin: 30, netMargin: 20, roe: 30, roic: 25, debtToEquity: 0.1 }, coveragePct: 100 }];
+  const result = await queryRadar({ recommendation: "BUY", page: 1, pageSize: 40 }, {
+    loadUniverse: async () => candidates,
+    loadQuotes: async (items) => new Map(items.map((item) => quote(item.id))),
+    loadHistory: async (items) => new Map(items.map((item) => momentum(item.id))),
+    loadFundamentals: async (items) => new Map(items.map((item) => fundamentals(item.id))),
+    loadEurRateDetails: async () => new Map()
+  });
+  assert.equal(result.total, 1);
+  assert.deepEqual(result.items.map((item) => item.id), ["a"]);
+  assert.equal(result.items[0].recommendation, "BUY");
+  assert.equal(result.items[0].purchaseEligible, true);
+});
