@@ -7,6 +7,7 @@ object UserPortfolioSeed {
     private const val PREFS = "investment_radar_portfolio_seed"
     private const val KEY_INITIAL = "trade_republic_snapshot_2026_09_03_v1"
     private const val KEY_CURRENT = "trade_republic_snapshot_2026_09_03_v2_current"
+    private const val KEY_COST_BASIS = "trade_republic_snapshot_2026_09_03_v3_cost_basis"
 
     private val initialSnapshotValues = linkedMapOf(
         "meta" to 1675.88,
@@ -28,10 +29,25 @@ object UserPortfolioSeed {
         "googl" to 15.14
     )
 
+    /** Derived from the Trade-Republic "Seit Kauf" values supplied with the current snapshot. */
+    private val currentSnapshotCostBasis = linkedMapOf(
+        "meta" to 1716.25,
+        "custom-nel-asa" to 131.80,
+        "spyi" to 51.00,
+        "custom-samsung-gdr" to 43.61,
+        "msft" to 28.83,
+        "is3s" to 21.00,
+        "googl" to 16.00
+    )
+
     fun latestSnapshotValues(): Map<String, Double> = currentSnapshotValues.toMap()
+    fun latestSnapshotCostBasis(): Map<String, Double> = currentSnapshotCostBasis.toMap()
 
     fun canRefreshSnapshot(position: PortfolioPosition): Boolean =
         position.purchases.isEmpty() && position.sales.isEmpty() && position.trackedShares == null
+
+    fun canApplyImportedCostBasis(position: PortfolioPosition): Boolean =
+        position.purchases.isEmpty() && position.sales.isEmpty()
 
     fun ensureSeeded(context: Context) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -56,6 +72,17 @@ object UserPortfolioSeed {
                 }
             }
             prefs.edit().putBoolean(KEY_CURRENT, true).apply()
+        }
+
+        if (!prefs.getBoolean(KEY_COST_BASIS, false)) {
+            val existing = PortfolioStore.readPositions(context)
+            currentSnapshotCostBasis.forEach { (id, costBasis) ->
+                val current = existing[id] ?: return@forEach
+                if (canApplyImportedCostBasis(current)) {
+                    PortfolioStore.save(context, current.copy(snapshotCostBasisEur = costBasis))
+                }
+            }
+            prefs.edit().putBoolean(KEY_COST_BASIS, true).apply()
         }
 
         ensureCustomAsset(
