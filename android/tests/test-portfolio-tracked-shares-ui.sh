@@ -2,17 +2,16 @@
 set -euo pipefail
 
 DASHBOARD="android/app/src/main/java/de/tobias/investmentradar/PortfolioDashboard.kt"
-ACTIVITY="android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt"
 VIEWMODEL="android/app/src/main/java/de/tobias/investmentradar/MainViewModel.kt"
 POSITION="android/app/src/main/java/de/tobias/investmentradar/PortfolioPosition.kt"
 STORE="android/app/src/main/java/de/tobias/investmentradar/PortfolioStore.kt"
 
 # Imported snapshot positions must let the user add a real share count without inventing a cost basis.
 grep -q 'Stückzahl ergänzen' "$DASHBOARD"
+grep -q 'Stückzahl speichern' "$DASHBOARD"
 grep -q 'trackedShares' "$POSITION"
 grep -q 'setTrackedShares' "$VIEWMODEL"
 grep -q 'trackedShares' "$STORE"
-grep -q 'Stückzahl speichern' "$ACTIVITY"
 
 # The UI must keep the missing-cost-basis message for snapshot holdings.
 grep -q 'Kaufdaten fehlen' "$DASHBOARD"
