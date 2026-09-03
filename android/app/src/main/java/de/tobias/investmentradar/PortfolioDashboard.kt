@@ -83,7 +83,7 @@ fun PortfolioDashboard(
                     if (profit != null && profitPct != null) "${portfolioSignedMoney(profit)} · ${portfolioSignedPercent(profitPct)}" else "Nicht vollständig berechenbar"
                 )
                 if (!costBasisComplete) {
-                    Text("Für importierte Depotwerte fehlen Kaufdaten. Depotwert und Gewichtung bleiben korrekt, Performance wird nicht erfunden.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Für einzelne Depotwerte fehlen Einstandsdaten. Depotwert und Gewichtung bleiben korrekt; fehlende Performance wird nicht erfunden.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 if (!metrics.currentValueComplete) {
                     Text("${metrics.missingPriceCount} Position(en) ohne verwertbaren Kurs – Gesamtperformance unvollständig.", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
@@ -105,9 +105,9 @@ fun PortfolioDashboard(
             val custom = customById[row.itemId]
             val personal = personalById[row.itemId]
             val position = positions[row.itemId]
-            val liveTrackedValue = !row.costBasisKnown &&
-                position?.snapshotValueEur != null &&
-                position.trackedShares != null &&
+            val importedSnapshot = position?.snapshotValueEur != null && position.purchases.isEmpty() && position.sales.isEmpty()
+            val liveTrackedValue = importedSnapshot &&
+                position?.trackedShares != null &&
                 row.hasUsablePrice
 
             PortfolioDashboardCard {
@@ -121,7 +121,7 @@ fun PortfolioDashboard(
 
                 HorizontalDivider()
                 PortfolioDashboardValue("Aktueller Wert", row.currentValue?.let(::portfolioMoney) ?: "Kurs fehlt")
-                if (!row.costBasisKnown && position?.snapshotValueEur != null) {
+                if (importedSnapshot) {
                     PortfolioDashboardValue(
                         "Wertbasis",
                         if (liveTrackedValue) "Live-Kurs × Stückzahl" else "Importierter Depotwert"
@@ -139,10 +139,10 @@ fun PortfolioDashboard(
                     }
                 )
                 PortfolioDashboardValue("Gewichtung", row.weightPct?.let(::portfolioPercent) ?: if (row.active) "Unvollständig" else "–")
-                if (!row.costBasisKnown && position?.snapshotValueEur != null) {
+                if (importedSnapshot) {
                     PortfolioDashboardValue(
                         "Stückzahl",
-                        position.trackedShares?.let(::portfolioShares) ?: "Nicht erfasst"
+                        position?.trackedShares?.let(::portfolioShares) ?: "Nicht erfasst"
                     )
                 }
 
@@ -157,13 +157,13 @@ fun PortfolioDashboard(
                     Text(it.explanation, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
 
-                if (!row.costBasisKnown && position?.snapshotValueEur != null) {
+                if (importedSnapshot) {
                     OutlinedButton(onClick = { trackedSharesDialogItemId = row.itemId }, modifier = Modifier.fillMaxWidth()) {
-                        Text(if (position.trackedShares == null) "Stückzahl ergänzen" else "Stückzahl ändern")
+                        Text(if (position?.trackedShares == null) "Stückzahl ergänzen" else "Stückzahl ändern")
                     }
-                    if (position.trackedShares == null) {
+                    if (position?.trackedShares == null) {
                         Text(
-                            "Nach Eingabe der Stückzahl folgt der Depotwert dem aktuellen Kurs. Kaufdaten fehlen weiterhin.",
+                            "Nach Eingabe der Stückzahl folgt der Depotwert dem aktuellen Kurs. Der importierte Einstand bleibt für Gewinn/Verlust erhalten.",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             style = MaterialTheme.typography.bodySmall
                         )
@@ -188,8 +188,10 @@ fun PortfolioDashboard(
                 position?.let {
                     Text(
                         when {
-                            !row.costBasisKnown && it.snapshotValueEur != null && liveTrackedValue -> "Live-Tracking aktiv · Kaufdaten fehlen"
-                            !row.costBasisKnown && it.snapshotValueEur != null -> "Depotwert importiert · Kaufdaten fehlen"
+                            importedSnapshot && liveTrackedValue && row.costBasisKnown -> "Live-Tracking aktiv · Einstand importiert"
+                            importedSnapshot && liveTrackedValue -> "Live-Tracking aktiv · Einstand fehlt"
+                            importedSnapshot && row.costBasisKnown -> "Depotwert und Einstand importiert"
+                            importedSnapshot -> "Depotwert importiert · Einstand fehlt"
                             else -> "${it.purchases.size} Käufe · ${it.sales.size} Verkäufe"
                         },
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -213,7 +215,7 @@ fun PortfolioDashboard(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(name, fontWeight = FontWeight.Bold)
-                    Text("Trage die aktuelle Stückzahl aus deinem Depot ein. Damit wird der Depotwert künftig aus Stückzahl × aktuellem Kurs berechnet. Kaufpreis und Gewinn/Verlust bleiben unbekannt, bis echte Kaufdaten erfasst sind.")
+                    Text("Trage die aktuelle Stückzahl aus deinem Depot ein. Damit wird der Depotwert künftig aus Stückzahl × aktuellem Kurs berechnet. Ein importierter Einstand bleibt für die Performanceberechnung erhalten.")
                     OutlinedTextField(
                         value = input,
                         onValueChange = { input = it },
