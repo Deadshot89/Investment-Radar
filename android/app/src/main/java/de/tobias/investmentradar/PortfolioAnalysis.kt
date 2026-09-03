@@ -13,8 +13,8 @@ object PortfolioAnalysis {
             val custom = customById[itemId]
             val comparablePrice = item?.priceEur?.takeIf { it.isFinite() && it >= 0.0 }
                 ?: custom?.manualPriceEur?.takeIf { it.isFinite() && it >= 0.0 }
-            val value = position.snapshotValueEur?.takeIf { it.isFinite() && it >= 0.0 }
-                ?: position.currentValue(comparablePrice)
+            val value = position.currentValue(comparablePrice)
+                ?: position.snapshotValueEur?.takeIf { it.isFinite() && it >= 0.0 }
                 ?: position.investedAmount.takeIf { it.isFinite() && it >= 0.0 }
                 ?: return@mapNotNull null
             itemId to value
