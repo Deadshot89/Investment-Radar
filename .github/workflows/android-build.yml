@@ -192,21 +192,31 @@ jobs:
           ok=false
           last_version=""
           last_universe="0"
+          health_status="000"
+          radar_status="000"
           for attempt in $(seq 1 24); do
             health_status=$(curl --silent --show-error --max-time 20 --output /tmp/android-health.json --write-out "%{http_code}" "$HEALTH_URL" || true)
             radar_status=$(curl --silent --show-error --max-time 30 --output /tmp/android-radar.json --write-out "%{http_code}" "$RADAR_URL" || true)
-            if [ "$health_status" = "200" ] && [ "$radar_status" = "200" ]; then
+            if [ "$health_status" = "200" ]; then
               last_version=$(node -e 'const fs=require("fs"); try { const j=JSON.parse(fs.readFileSync("/tmp/android-health.json","utf8")); process.stdout.write(String(j.backendVersion ?? "")); } catch { process.stdout.write(""); }')
+            fi
+            if [ "$radar_status" = "200" ]; then
               last_universe=$(node -e 'const fs=require("fs"); try { const j=JSON.parse(fs.readFileSync("/tmp/android-radar.json","utf8")); process.stdout.write(String(j.universeTotal ?? 0)); } catch { process.stdout.write("0"); }')
-              if [ "$last_version" = "$EXPECTED_BACKEND_VERSION" ] && [ "${last_universe:-0}" -ge 900 ]; then
-                ok=true
-                break
-              fi
+            fi
+            echo "Radar gate attempt $attempt/24: health=$health_status backend=${last_version:-<fehlt>} radar=$radar_status universe=${last_universe:-0}"
+            if [ "$health_status" = "200" ] && [ "$radar_status" = "200" ] && [ "$last_version" = "$EXPECTED_BACKEND_VERSION" ] && [ "${last_universe:-0}" -ge 900 ]; then
+              ok=true
+              break
             fi
             sleep 15
           done
           if [ "$ok" != "true" ]; then
-            echo "❌ Android-Publish blockiert: Backend ${last_version:-<fehlt>}, Radar ${last_universe:-0}/900." >> "$GITHUB_STEP_SUMMARY"
+            echo "❌ Android-Publish blockiert: health=$health_status, Backend ${last_version:-<fehlt>}, radar=$radar_status, Radar ${last_universe:-0}/900." >> "$GITHUB_STEP_SUMMARY"
+            echo "Health-Antwort:" >> "$GITHUB_STEP_SUMMARY"
+            cat /tmp/android-health.json >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Radar-Antwort:" >> "$GITHUB_STEP_SUMMARY"
+            cat /tmp/android-radar.json >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
             exit 1
           fi
           echo "✅ Backend $EXPECTED_BACKEND_VERSION live; Radar ${last_universe} Werte; Android-Publish freigegeben." >> "$GITHUB_STEP_SUMMARY"
