@@ -29,6 +29,12 @@ grep -Fq 'override fun onNewIntent(intent: Intent)' "$MAIN"
 grep -Fq 'pushNavigationRequest' "$MAIN"
 grep -Fq 'LaunchedEffect(pushNavigationRequest)' "$MAIN"
 
+# Beim Antippen eines Pushs muss genau der betroffene Alarm als gelesen markiert werden.
+grep -Fq 'putExtra("openAlertId", alertId)' "$PUSH"
+grep -Fq 'intent.getStringExtra("openAlertId")' "$MAIN"
+grep -Fq 'initialAlertId' "$MAIN"
+grep -Fq 'vm.markAlertRead(initialAlertId)' "$MAIN"
+
 if grep -Fq 'private fun AlertsScreen(' "$MAIN"; then
   echo 'Legacy private AlertsScreen still present in MainActivity'
   exit 1
@@ -37,3 +43,4 @@ fi
 echo "PASS 1.2.0 alert center wiring"
 echo "PASS push detail deep link"
 echo "PASS push navigation while app is open"
+echo "PASS push alert is marked read on open"
