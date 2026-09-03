@@ -48,6 +48,7 @@ fun PortfolioDashboard(
     val largestName = metrics.largestPositionId?.let { id ->
         itemById[id]?.name ?: customById[id]?.name ?: id
     }
+    val costBasisComplete = metrics.positions.filter { it.active }.all { it.costBasisKnown }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
@@ -73,33 +74,24 @@ fun PortfolioDashboard(
                     fontWeight = FontWeight.Bold
                 )
                 Text(portfolioMoney(metrics.calculableCurrentValue), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black)
-                PortfolioDashboardValue("Einstand", portfolioMoney(metrics.investedCostBasis))
+                PortfolioDashboardValue("Einstand", if (costBasisComplete) portfolioMoney(metrics.investedCostBasis) else "Nicht vollständig erfasst")
                 PortfolioDashboardValue("Positionen", metrics.heldPositionCount.toString())
                 PortfolioDashboardValue(
                     "Größte Position",
-                    if (largestName != null && metrics.largestWeightPct != null) {
-                        "$largestName · ${portfolioPercent(metrics.largestWeightPct)}"
-                    } else {
-                        "Nicht verfügbar"
-                    }
+                    if (largestName != null && metrics.largestWeightPct != null) "$largestName · ${portfolioPercent(metrics.largestWeightPct)}" else "Nicht verfügbar"
                 )
                 HorizontalDivider()
                 val profit = metrics.totalProfitLoss
                 val profitPct = metrics.totalProfitLossPct
                 PortfolioDashboardValue(
                     "Gewinn / Verlust",
-                    if (profit != null && profitPct != null) {
-                        "${portfolioSignedMoney(profit)} · ${portfolioSignedPercent(profitPct)}"
-                    } else {
-                        "Nicht vollständig berechenbar"
-                    }
+                    if (profit != null && profitPct != null) "${portfolioSignedMoney(profit)} · ${portfolioSignedPercent(profitPct)}" else "Nicht vollständig berechenbar"
                 )
+                if (!costBasisComplete) {
+                    Text("Für importierte Depotwerte fehlen Kaufdaten. Depotwert und Gewichtung bleiben korrekt, Performance wird nicht erfunden.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
                 if (!metrics.currentValueComplete) {
-                    Text(
-                        "${metrics.missingPriceCount} Position(en) ohne verwertbaren Kurs – Gesamtperformance unvollständig.",
-                        color = MaterialTheme.colorScheme.error,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Text("${metrics.missingPriceCount} Position(en) ohne verwertbaren Kurs – Gesamtperformance unvollständig.", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -123,30 +115,22 @@ fun PortfolioDashboard(
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Column(Modifier.weight(1f)) {
                         Text(item?.name ?: row.itemId, fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
-                        Text(
-                            listOfNotNull(item?.ticker?.takeIf { it.isNotBlank() }, item?.type?.takeIf { it.isNotBlank() }).joinToString(" · "),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Text(listOfNotNull(item?.ticker?.takeIf { it.isNotBlank() }, item?.type?.takeIf { it.isNotBlank() }).joinToString(" · "), color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    Text(
-                        if (row.active) "AKTIV" else "GESCHLOSSEN",
-                        color = if (row.active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontWeight = FontWeight.Black
-                    )
+                    Text(if (row.active) "AKTIV" else "GESCHLOSSEN", color = if (row.active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Black)
                 }
 
                 HorizontalDivider()
                 PortfolioDashboardValue("Aktueller Wert", row.currentValue?.let(::portfolioMoney) ?: "Kurs fehlt")
-                PortfolioDashboardValue("Einstand", portfolioMoney(row.investedCostBasis))
-                PortfolioDashboardValue("Realisierter G/V", portfolioSignedMoney(row.realizedProfitLoss))
+                PortfolioDashboardValue("Einstand", if (row.costBasisKnown) portfolioMoney(row.investedCostBasis) else "Nicht erfasst")
+                PortfolioDashboardValue("Realisierter G/V", if (row.costBasisKnown) portfolioSignedMoney(row.realizedProfitLoss) else "Nicht erfasst")
                 PortfolioDashboardValue(
                     "Gesamt G/V",
-                    if (row.totalProfitLoss != null && row.totalProfitLossPct != null) {
-                        "${portfolioSignedMoney(row.totalProfitLoss)} · ${portfolioSignedPercent(row.totalProfitLossPct)}"
-                    } else if (!row.active) {
-                        portfolioSignedMoney(row.realizedProfitLoss)
-                    } else {
-                        "Nicht berechenbar"
+                    when {
+                        !row.costBasisKnown -> "Nicht erfasst"
+                        row.totalProfitLoss != null && row.totalProfitLossPct != null -> "${portfolioSignedMoney(row.totalProfitLoss)} · ${portfolioSignedPercent(row.totalProfitLossPct)}"
+                        !row.active -> portfolioSignedMoney(row.realizedProfitLoss)
+                        else -> "Nicht berechenbar"
                     }
                 )
                 PortfolioDashboardValue("Gewichtung", row.weightPct?.let(::portfolioPercent) ?: if (row.active) "Unvollständig" else "–")
@@ -162,28 +146,16 @@ fun PortfolioDashboard(
                     Text(it.explanation, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
 
-                Button(onClick = { onOpenDetail(row.itemId) }, modifier = Modifier.fillMaxWidth()) {
-                    Text("Details")
-                }
+                Button(onClick = { onOpenDetail(row.itemId) }, modifier = Modifier.fillMaxWidth()) { Text("Details") }
                 if (item != null) {
-                    OutlinedButton(onClick = { onEdit(item) }, modifier = Modifier.fillMaxWidth()) {
-                        Text("Transaktionen verwalten")
-                    }
-                    OutlinedButton(onClick = { TradeRepublicNavigator.open(context, item) }, modifier = Modifier.fillMaxWidth()) {
-                        Text("Trade Republic öffnen")
-                    }
+                    OutlinedButton(onClick = { onEdit(item) }, modifier = Modifier.fillMaxWidth()) { Text("Transaktionen verwalten") }
+                    OutlinedButton(onClick = { TradeRepublicNavigator.open(context, item) }, modifier = Modifier.fillMaxWidth()) { Text("Trade Republic öffnen") }
                 }
                 if (custom != null) {
-                    OutlinedButton(onClick = { onEditCustom(custom) }, modifier = Modifier.fillMaxWidth()) {
-                        Text("Stammdaten bearbeiten")
-                    }
-                    TextButton(onClick = { onRemoveCustom(row.itemId) }, modifier = Modifier.fillMaxWidth()) {
-                        Text("Eigenen Wert löschen", color = MaterialTheme.colorScheme.error)
-                    }
+                    OutlinedButton(onClick = { onEditCustom(custom) }, modifier = Modifier.fillMaxWidth()) { Text("Stammdaten bearbeiten") }
+                    TextButton(onClick = { onRemoveCustom(row.itemId) }, modifier = Modifier.fillMaxWidth()) { Text("Eigenen Wert löschen", color = MaterialTheme.colorScheme.error) }
                 } else {
-                    TextButton(onClick = { onRemove(row.itemId) }, modifier = Modifier.fillMaxWidth()) {
-                        Text("Aus Portfolio entfernen", color = MaterialTheme.colorScheme.error)
-                    }
+                    TextButton(onClick = { onRemove(row.itemId) }, modifier = Modifier.fillMaxWidth()) { Text("Aus Portfolio entfernen", color = MaterialTheme.colorScheme.error) }
                 }
 
                 if (row.active && !row.hasUsablePrice) {
@@ -191,7 +163,7 @@ fun PortfolioDashboard(
                 }
                 position?.let {
                     Text(
-                        "${it.purchases.size} Käufe · ${it.sales.size} Verkäufe",
+                        if (!row.costBasisKnown && it.snapshotValueEur != null) "Depotwert importiert · Kaufdaten fehlen" else "${it.purchases.size} Käufe · ${it.sales.size} Verkäufe",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodySmall
                     )
@@ -203,16 +175,8 @@ fun PortfolioDashboard(
 
 @Composable
 private fun PortfolioDashboardCard(content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            content = content
-        )
+    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+        Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp), content = content)
     }
 }
 
