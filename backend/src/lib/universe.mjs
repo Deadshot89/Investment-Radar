@@ -1,4 +1,5 @@
 import { loadConfig as defaultLoadConfig } from "./config.mjs";
+import { loadTradeRepublicCatalog as defaultLoadTradeRepublicCatalog } from "./tradeRepublicCatalog.mjs";
 
 const NASDAQ_LISTED_URL = "https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt";
 const OTHER_LISTED_URL = "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt";
@@ -36,7 +37,7 @@ export function normalizeUniverseInstrument(item, defaults = {}) {
   };
 }
 
-export function validateUniverse(items, { minActive = 1 } = {}) {
+export function validateUniverse(items, { minActive = 1, requireTradeRepublic = false } = {}) {
   if (!Array.isArray(items)) throw new Error("Universe must be an array");
   const ids = new Set();
   const isins = new Set();
@@ -49,6 +50,9 @@ export function validateUniverse(items, { minActive = 1 } = {}) {
       if (isins.has(item.isin)) throw new Error(`Duplicate universe ISIN: ${item.isin}`);
       isins.add(item.isin);
     }
+    if (requireTradeRepublic && !item.portfolioOnly && item.tradeRepublicEligible !== true) {
+      throw new Error(`Universe item ${item.id}: Trade Republic eligibility not verified`);
+    }
   }
   const active = items.filter((item) => item.universeActive !== false).length;
   if (active < minActive) throw new Error(`Active universe too small: ${active} < ${minActive}`);
@@ -60,7 +64,7 @@ export async function loadUniverse(overrides = {}) {
   if (!overrides.refresh && memoryCache && now - memoryCacheAt < CACHE_TTL_MS) return memoryCache;
 
   const loadConfig = overrides.loadConfig ?? defaultLoadConfig;
-  const fetchImpl = overrides.fetchImpl ?? globalThis.fetch;
+  const loadTradeRepublicCatalog = overrides.loadTradeRepublicCatalog ?? defaultLoadTradeRepublicCatalog;
   const config = await loadConfig();
   const curated = config.items.map((item) => normalizeUniverseInstrument({
     ...item,
@@ -70,22 +74,34 @@ export async function loadUniverse(overrides = {}) {
     universeSource: "CURATED"
   }));
 
-  let external = [];
-  if (typeof fetchImpl === "function" && overrides.includeExternal !== false) {
+  let tradeRepublic = [];
+  if (overrides.includeTradeRepublic !== false) {
     try {
-      external = await loadPublicListedUniverse(fetchImpl);
+      tradeRepublic = await loadTradeRepublicCatalog({ target: Number(overrides.catalogTarget ?? 1300) });
     } catch (error) {
-      console.error("Public universe refresh failed; curated universe used", error);
+      console.error("Trade Republic universe refresh failed; curated universe used", error);
+      if (overrides.requireTradeRepublicCatalog) throw error;
     }
   }
 
-  const merged = mergeUniverse(curated, external).slice(0, Math.max(curated.length, Number(overrides.limit ?? 1000)));
-  validateUniverse(merged, { minActive: Math.min(curated.length, 1) });
+  let external = tradeRepublic;
+  if (external.length === 0 && overrides.includeUnverifiedExternal === true) {
+    const fetchImpl = overrides.fetchImpl ?? globalThis.fetch;
+    if (typeof fetchImpl === "function") external = await loadPublicListedUniverse(fetchImpl);
+  }
+
+  const limit = Math.max(curated.length, Number(overrides.limit ?? 1000));
+  const merged = mergeUniverse(curated, external).slice(0, limit);
+  validateUniverse(merged, {
+    minActive: overrides.minActive ?? 1,
+    requireTradeRepublic: overrides.requireTradeRepublicEligibility === true
+  });
   memoryCache = merged;
   memoryCacheAt = now;
   return merged;
 }
 
+// Development-only external source. Production does not call this unless explicitly enabled.
 export async function loadPublicListedUniverse(fetchImpl = globalThis.fetch) {
   const [nasdaqResponse, otherResponse] = await Promise.all([
     fetchImpl(NASDAQ_LISTED_URL, { headers: { "user-agent": "Investment-Radar/2.0" } }),
@@ -101,7 +117,7 @@ export async function loadPublicListedUniverse(fetchImpl = globalThis.fetch) {
     .map((item) => normalizeUniverseInstrument(item, {
       region: "NORTH_AMERICA",
       country: "US",
-      dataQualityTier: "B",
+      dataQualityTier: "C",
       universeSource: "NASDAQ_TRADER"
     }));
 }
@@ -135,15 +151,19 @@ export function parseOtherListed(text) {
 export function mergeUniverse(curated, external) {
   const byId = new Map();
   const tickerKeys = new Set();
+  const isinKeys = new Set();
   for (const item of curated) {
     byId.set(item.id, item);
     tickerKeys.add(normalizeTicker(item.ticker));
+    if (item.isin) isinKeys.add(item.isin.toUpperCase());
   }
   for (const item of external) {
     const tickerKey = normalizeTicker(item.ticker);
-    if (!tickerKey || tickerKeys.has(tickerKey) || byId.has(item.id)) continue;
-    byId.set(item.id, item);
+    const isinKey = String(item.isin ?? "").toUpperCase();
+    if (!tickerKey || tickerKeys.has(tickerKey) || (isinKey && isinKeys.has(isinKey)) || byId.has(item.id)) continue;
+    byId.set(item.id, normalizeUniverseInstrument(item));
     tickerKeys.add(tickerKey);
+    if (isinKey) isinKeys.add(isinKey);
   }
   return [...byId.values()];
 }
