@@ -64,14 +64,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             runCatching {
                 val dashboard = ApiClient.loadDashboard()
                 val application = getApplication<Application>()
-                val promoted = CustomInvestmentStore.promotedIds(
-                    _customItems.value,
-                    dashboard.items.map { it.id }.toSet()
-                )
-                if (promoted.isNotEmpty()) {
-                    promoted.forEach { CustomInvestmentStore.remove(application, it) }
-                    _customItems.value = CustomInvestmentStore.read(application)
-                }
+                promoteCustomPortfolioAssets(application, dashboard.items)
                 val customQuotes = _customItems.value.map { custom ->
                     async {
                         runCatching { ApiClient.loadCustomQuote(custom) }
@@ -91,6 +84,33 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         _state.value = UiState.Error(e.message ?: "Verbindung zum Server fehlgeschlagen. Bitte erneut versuchen.")
                     }
                 }
+        }
+    }
+
+    private fun promoteCustomPortfolioAssets(application: Application, builtInItems: List<InvestmentItem>) {
+        val promotions = CustomInvestmentStore.promotedTargets(_customItems.value, builtInItems)
+        if (promotions.isEmpty()) return
+
+        val positionsBefore = PortfolioStore.readPositions(application)
+        val safeMoves = CustomInvestmentStore.safePositionPromotions(promotions, positionsBefore.keys)
+        safeMoves.forEach { (sourceId, targetId) ->
+            val source = positionsBefore[sourceId] ?: return@forEach
+            PortfolioStore.save(application, source.copy(itemId = targetId))
+            PortfolioStore.remove(application, sourceId)
+            if (FirebaseBootstrap.isConfigured()) {
+                FirebaseMessaging.getInstance().subscribeToTopic(holdingTopic(targetId))
+                FirebaseMessaging.getInstance().unsubscribeFromTopic(holdingTopic(sourceId))
+            }
+        }
+        if (safeMoves.isNotEmpty()) reloadPortfolio(application)
+
+        val positionsAfter = PortfolioStore.readPositions(application)
+        val removableCustomIds = promotions.filter { (sourceId, targetId) ->
+            sourceId == targetId || sourceId !in positionsAfter
+        }.keys
+        removableCustomIds.forEach { CustomInvestmentStore.remove(application, it) }
+        if (removableCustomIds.isNotEmpty()) {
+            _customItems.value = CustomInvestmentStore.read(application)
         }
     }
 
