@@ -28,16 +28,23 @@ object TradeRepublicNavigator {
             clipboard?.setPrimaryClip(ClipData.newPlainText("Trade Republic ISIN", searchValue))
         }
 
-        val directUrl = stockUrl(normalizedIsin) ?: BROWSE_URL
-        if (openUrl(context, directUrl, PACKAGE_NAME)) return
-        if (openUrl(context, directUrl, null)) return
-        if (directUrl != BROWSE_URL && openUrl(context, BROWSE_URL, null)) return
+        val directUrl = stockUrl(normalizedIsin)
 
-        val launcher = context.packageManager.getLaunchIntentForPackage(PACKAGE_NAME)
-        if (launcher != null) {
-            runCatching { context.startActivity(launcher.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
-                .onSuccess { return }
+        // Zuerst gezielt die installierte Trade-Republic-App ansprechen.
+        // Falls die App den Web-Deep-Link nicht direkt annimmt, öffnen wir ihren Launcher,
+        // statt sofort in den Browser zurückzufallen. Die ISIN liegt dann bereits in der Zwischenablage.
+        if (directUrl != null && openUrl(context, directUrl, PACKAGE_NAME)) return
+        if (launchTradeRepublic(context)) {
+            if (searchValue.isNotBlank()) {
+                Toast.makeText(context, "$searchValue für Trade Republic kopiert.", Toast.LENGTH_SHORT).show()
+            }
+            return
         }
+
+        // Nur wenn Trade Republic nicht installiert/erreichbar ist, Browser-Fallback verwenden.
+        val browserUrl = directUrl ?: BROWSE_URL
+        if (openUrl(context, browserUrl, null)) return
+        if (browserUrl != BROWSE_URL && openUrl(context, BROWSE_URL, null)) return
 
         Toast.makeText(
             context,
@@ -47,10 +54,18 @@ object TradeRepublicNavigator {
         ).show()
     }
 
+    private fun launchTradeRepublic(context: Context): Boolean {
+        val launcher = context.packageManager.getLaunchIntentForPackage(PACKAGE_NAME) ?: return false
+        return runCatching {
+            context.startActivity(launcher.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            true
+        }.getOrDefault(false)
+    }
+
     private fun openUrl(context: Context, url: String, packageName: String?): Boolean {
         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            if (packageName != null) setPackage("de.traderepublic.app")
+            if (packageName != null) setPackage(packageName)
         }
         return try {
             context.startActivity(intent)
