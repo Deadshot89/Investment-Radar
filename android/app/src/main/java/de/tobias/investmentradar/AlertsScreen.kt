@@ -67,6 +67,7 @@ fun AlertsScreen(alerts: List<StoredAlert>, preferences: AlertPreferences, onOpe
                     TextButton(onClick = onMarkAllRead, enabled = unread > 0, modifier = Modifier.weight(1f)) { Text("Alle gelesen") }
                     TextButton(onClick = { showSettings = true }, modifier = Modifier.weight(1f)) { Text("Alarmeinstellungen") }
                 }
+                PushDiagnosticsPanel()
                 if (alerts.isNotEmpty()) TextButton(onClick = { confirmClear = true }, modifier = Modifier.fillMaxWidth()) { Text("Alarmverlauf leeren") }
             }
         }
@@ -75,7 +76,7 @@ fun AlertsScreen(alerts: List<StoredAlert>, preferences: AlertPreferences, onOpe
     }
 
     if (confirmClear) AlertDialog(onDismissRequest = { confirmClear = false }, title = { Text("Alarmcenter leeren?") }, text = { Text("Die aktuell gespeicherten Alarme werden lokal gelöscht. Neue Signale können später wieder erscheinen.") }, confirmButton = { Button(onClick = { confirmClear = false; onClear() }) { Text("Alle löschen") } }, dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Abbrechen") } })
-    if (showSettings) AlertPreferencesDialog(initial = preferences, onDismiss = { showSettings = false }, onSave = { value -> onPreferencesChange(value); showSettings = false })
+    if (showSettings) AlertDialog(onDismissRequest = { showSettings = false }, title = { Text("Alarmeinstellungen") }, text = { AlertPreferencesEditor(initial = preferences, onSave = { value -> onPreferencesChange(value); showSettings = false }) }, confirmButton = {}, dismissButton = { TextButton(onClick = { showSettings = false }) { Text("Abbrechen") } })
 }
 
 @Composable
@@ -159,22 +160,21 @@ private fun formatAlertTimestamp(raw: String): String {
 }
 
 @Composable
-private fun AlertPreferencesDialog(initial: AlertPreferences, onDismiss: () -> Unit, onSave: (AlertPreferences) -> Unit) {
+private fun AlertPreferencesEditor(initial: AlertPreferences, onSave: (AlertPreferences) -> Unit) {
     var value by remember(initial) { mutableStateOf(initial) }
     var dropText by remember(initial.localDailyDropThresholdPct) { mutableStateOf(initial.localDailyDropThresholdPct?.toString().orEmpty()) }
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("Alarmeinstellungen") }, text = {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            AlertToggle("Kaufchancen", value.buyEnabled) { value = value.copy(buyEnabled = it) }
-            AlertToggle("Prüfsignale", value.reviewEnabled) { value = value.copy(reviewEnabled = it) }
-            AlertToggle("Verkauf / manuell prüfen", value.sellEnabled) { value = value.copy(sellEnabled = it) }
-            AlertToggle("Schwellenwerte", value.thresholdEnabled) { value = value.copy(thresholdEnabled = it) }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(selected = value.minimumSeverity.equals("NORMAL", true), onClick = { value = value.copy(minimumSeverity = "NORMAL") }, label = { Text("Normal") })
-                FilterChip(selected = value.minimumSeverity.equals("ALL", true), onClick = { value = value.copy(minimumSeverity = "ALL") }, label = { Text("Alle") })
-            }
-            OutlinedTextField(value = dropText, onValueChange = { dropText = it.filter { ch -> ch.isDigit() || ch == ',' || ch == '.' } }, label = { Text("Eigener Tagesverlust-Schwellwert %") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        AlertToggle("Kaufchancen", value.buyEnabled) { value = value.copy(buyEnabled = it) }
+        AlertToggle("Prüfsignale", value.reviewEnabled) { value = value.copy(reviewEnabled = it) }
+        AlertToggle("Verkauf / manuell prüfen", value.sellEnabled) { value = value.copy(sellEnabled = it) }
+        AlertToggle("Schwellenwerte", value.thresholdEnabled) { value = value.copy(thresholdEnabled = it) }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(selected = value.minimumSeverity.equals("NORMAL", true), onClick = { value = value.copy(minimumSeverity = "NORMAL") }, label = { Text("Normal") })
+            FilterChip(selected = value.minimumSeverity.equals("ALL", true), onClick = { value = value.copy(minimumSeverity = "ALL") }, label = { Text("Alle") })
         }
-    }, confirmButton = { Button(onClick = { val threshold = dropText.replace(',', '.').toDoubleOrNull()?.takeIf { it > 0.0 }; onSave(value.copy(localDailyDropThresholdPct = threshold)) }) { Text("Speichern") } }, dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } })
+        OutlinedTextField(value = dropText, onValueChange = { dropText = it.filter { ch -> ch.isDigit() || ch == ',' || ch == '.' } }, label = { Text("Eigener Tagesverlust-Schwellwert %") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        Button(onClick = { val threshold = dropText.replace(',', '.').toDoubleOrNull()?.takeIf { it > 0.0 }; onSave(value.copy(localDailyDropThresholdPct = threshold)) }, modifier = Modifier.fillMaxWidth()) { Text("Speichern") }
+    }
 }
 
 @Composable
