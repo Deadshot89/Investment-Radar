@@ -171,6 +171,15 @@ fun RadarScreenV2(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
+                    FilterGroup("SORTIERUNG") {
+                        listOf(RadarSortMode.SCORE, RadarSortMode.MOMENTUM_6M, RadarSortMode.NAME).forEach { option ->
+                            FilterChip(
+                                selected = filters.sort == option,
+                                onClick = { filters = filters.copy(sort = option); requestedPage = 1 },
+                                label = { Text(option.sortLabel()) }
+                            )
+                        }
+                    }
                     FilterGroup("EMPFEHLUNG") {
                         RadarRecommendationFilter.entries.forEach { option ->
                             FilterChip(selected = filters.recommendation == option, onClick = { filters = filters.copy(recommendation = option); requestedPage = 1 }, label = { Text(option.recommendationLabel()) })
@@ -377,6 +386,15 @@ private fun InvestmentItem.toRadarFallback(): RadarSummaryItem = RadarSummaryIte
     dataSource = dataSource, dataDelayed = dataDelayed, dataError = dataError, analysisAsOf = analysisAsOf,
     momentum = momentum, fundamentals = fundamentals
 )
+
+private fun RadarSortMode.sortLabel(): String = when (this) {
+    RadarSortMode.SCORE -> "Beste Chancen"
+    RadarSortMode.ALLOCATION -> "Budget"
+    RadarSortMode.MOMENTUM_6M -> "Momentum"
+    RadarSortMode.DAY_ASC -> "Tag aufsteigend"
+    RadarSortMode.DAY_DESC -> "Tag absteigend"
+    RadarSortMode.NAME -> "Name"
+}
 
 private fun RadarRecommendationFilter.recommendationLabel(): String = when (this) {
     RadarRecommendationFilter.ALL -> "Alle"
