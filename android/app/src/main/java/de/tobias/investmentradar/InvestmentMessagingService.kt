@@ -13,7 +13,14 @@ import java.util.Date
 import java.util.Locale
 
 class InvestmentMessagingService : FirebaseMessagingService() {
+    override fun onNewToken(token: String) {
+        super.onNewToken(token)
+        PushDiagnosticsStore.markTokenAvailable(this, token.isNotBlank())
+        PushDiagnosticsStore.refreshRegistration(this)
+    }
+
     override fun onMessageReceived(message: RemoteMessage) {
+        PushDiagnosticsStore.markPushReceived(this)
         val data = message.data
         val title = data["title"] ?: message.notification?.title ?: "Investment Radar"
         val body = data["message"] ?: message.notification?.body ?: "Neue Marktinformation"
