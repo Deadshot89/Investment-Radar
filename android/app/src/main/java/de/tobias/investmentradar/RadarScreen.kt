@@ -46,8 +46,8 @@ fun RadarScreenV2(
 ) {
     val context = LocalContext.current
     var filters by remember { mutableStateOf(RadarFilterState()) }
-    val visibleItems = remember(items, filters, holdingIds, watchlistIds, personalById) {
-        RadarFilterEngine.apply(
+    val filterResult = remember(items, filters, holdingIds, watchlistIds, personalById) {
+        RadarFilterEngine.evaluate(
             items = items,
             state = filters,
             holdingIds = holdingIds,
@@ -55,6 +55,7 @@ fun RadarScreenV2(
             allocationById = personalById.mapValues { it.value.allocationEur }
         )
     }
+    val visibleItems = filterResult.items
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
@@ -141,6 +142,23 @@ fun RadarScreenV2(
                         }
                     }
                     Text("${visibleItems.size} Treffer", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+
+        if (filterResult.buyFallbackActive) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+                ) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Aktuell kein starkes Kaufsignal", fontWeight = FontWeight.Black)
+                        Text(
+                            "Darunter siehst du die bis zu 3 stärksten Beobachtungskandidaten nach Score, Datenqualität und Risiko. Sie sind noch kein volles Kaufsignal.",
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    }
                 }
             }
         }
