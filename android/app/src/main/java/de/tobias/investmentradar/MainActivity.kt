@@ -255,10 +255,12 @@ fun InvestmentRadarUi(
                                 budget = budget,
                                 holdingIds = holdingIds,
                                 positions = positions,
+                                customItems = customItems,
                                 watchlistIds = watchlistIds,
                                 personalPlan = personalPlan,
                                 onEditBudget = { budgetDialog = true },
-                                onOpenRadar = { selectedDetailId = null; tab = 1 }
+                                onOpenRadar = { selectedDetailId = null; tab = 1 },
+                                onOpenPortfolio = { selectedDetailId = null; tab = 2 }
                             )
                             1 -> RadarScreenV2(
                                 items = s.data.items,
@@ -412,10 +414,12 @@ private fun DashboardScreen(
     budget: Int,
     holdingIds: Set<String>,
     positions: Map<String, PortfolioPosition>,
+    customItems: List<CustomInvestment>,
     watchlistIds: Set<String>,
     personalPlan: PersonalPlan,
     onEditBudget: () -> Unit,
-    onOpenRadar: () -> Unit
+    onOpenRadar: () -> Unit,
+    onOpenPortfolio: () -> Unit
 ) {
     val context = LocalContext.current
     val cashAmount = personalPlan.cashAmount
@@ -454,6 +458,15 @@ private fun DashboardScreen(
                 DarkMetricCard("BUDGET", "$budget €", RadarBlue, Modifier.weight(1f), onClick = onEditBudget)
                 DarkMetricCard("SIGNAL", if (top != null) "AKTIV" else "WARTEN", RadarGreen, Modifier.weight(1f), valueStyle = if (top == null) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleLarge)
             }
+        }
+
+        item {
+            LivePortfolioCard(
+                items = data.items,
+                positions = positions,
+                customItems = customItems,
+                onOpenPortfolio = onOpenPortfolio
+            )
         }
 
         item {
