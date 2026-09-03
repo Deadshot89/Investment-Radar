@@ -63,6 +63,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             if (!silent && !hadReadyData) _state.value = UiState.Loading
             runCatching {
                 val dashboard = ApiClient.loadDashboard()
+                val application = getApplication<Application>()
+                val promoted = CustomInvestmentStore.promotedIds(
+                    _customItems.value,
+                    dashboard.items.map { it.id }.toSet()
+                )
+                if (promoted.isNotEmpty()) {
+                    promoted.forEach { CustomInvestmentStore.remove(application, it) }
+                    _customItems.value = CustomInvestmentStore.read(application)
+                }
                 val customQuotes = _customItems.value.map { custom ->
                     async {
                         runCatching { ApiClient.loadCustomQuote(custom) }
