@@ -17,18 +17,26 @@ grep -q 'Publish APK for in-app updates' "$WF"
 grep -q 'versionCode = 32' "$GRADLE"
 grep -q 'versionName = "1.2.1"' "$GRADLE"
 
-# Ein vorhandenes Tag darf nie still mit einer anderen APK überschrieben werden.
+# Ein vorhandenes Tag darf nie still mit anderem App-Code überschrieben werden.
 if grep -q -- '--clobber' "$WF"; then
   echo 'Release workflow darf bestehende App-Versionen nicht überschreiben'
   exit 1
 fi
 
-# Wiederholungsläufe derselben Version sind nur erlaubt, wenn die veröffentlichte APK byte-identisch ist.
-grep -q 'gh release download "$TAG"' "$WF"
-grep -q 'sha256sum "$RELEASE_APK"' "$WF"
-grep -q 'sha256sum "$EXISTING_APK"' "$WF"
-grep -q 'Release $TAG existiert bereits und ist identisch' "$WF"
+# Wiederholungsläufe sind erlaubt, wenn android/app am Release-Tag unverändert ist.
+grep -Fq 'git fetch --no-tags origin "refs/tags/$TAG:refs/tags/$TAG"' "$WF"
+grep -Fq 'CURRENT_APP_TREE=$(git rev-parse "HEAD:android/app")' "$WF"
+grep -Fq 'RELEASE_APP_TREE=$(git rev-parse "$TAG:android/app")' "$WF"
+grep -q 'Release $TAG existiert bereits mit anderem App-Code' "$WF"
+grep -q 'App-Code ist identisch' "$WF"
 grep -q 'Version erhöhen' "$WF"
+
+# Der alte Bytevergleich ist absichtlich verboten: Build-Metadaten können die APK verändern,
+# obwohl der App-Code identisch ist.
+if grep -q 'sha256sum "$RELEASE_APK"' "$WF"; then
+  echo 'Release workflow darf APK-Bytes nicht als App-Code-Identität verwenden'
+  exit 1
+fi
 
 gate_line=$(grep -n 'Verify live backend before Android publish' "$WF" | head -1 | cut -d: -f1)
 publish_line=$(grep -n 'Publish APK for in-app updates' "$WF" | head -1 | cut -d: -f1)
@@ -38,4 +46,4 @@ test "$gate_line" -lt "$publish_line"
 
 echo "PASS Android publish is gated on live backend 1.2.0"
 echo "PASS Android app release is monotonic at 1.2.1 / code 32"
-echo "PASS existing releases are immutable but identical reruns are accepted"
+echo "PASS existing releases are immutable by android/app tree"
