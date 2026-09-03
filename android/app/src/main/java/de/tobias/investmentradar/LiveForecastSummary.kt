@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import java.util.Locale
 
 @Composable
@@ -21,7 +22,7 @@ fun LiveForecastSummary(
     val point = forecast.points.firstOrNull { it.horizon == ForecastHorizon.TWELVE_MONTHS } ?: return
     val coverage = forecast.coveragePct
 
-    Column(verticalArrangement = Arrangement.spacedBy(if (compact) androidx.compose.ui.unit.dp(2f) else androidx.compose.ui.unit.dp(5f))) {
+    Column(verticalArrangement = Arrangement.spacedBy(if (compact) 2.dp else 5.dp)) {
         Text(
             "12M Prognose · ${point.direction} · ${liveForecastPercent(point.expectedChangePct)}",
             color = MaterialTheme.colorScheme.primary,
