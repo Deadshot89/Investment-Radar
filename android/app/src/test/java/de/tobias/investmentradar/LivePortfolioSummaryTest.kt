@@ -21,6 +21,8 @@ class LivePortfolioSummaryTest {
         assertEquals(2008.49, summary.costBasis, 0.001)
         assertEquals(-22.25, summary.profitLoss, 0.001)
         assertEquals(-1.1078, summary.profitLossPct, 0.001)
-        assertTrue(summary.positions.any { it.itemId == "meta" })
+        assertTrue(summary.performanceComplete)
+        assertEquals(7, summary.positions.size)
+        assertEquals("meta", summary.positions.first().itemId)
     }
 }
