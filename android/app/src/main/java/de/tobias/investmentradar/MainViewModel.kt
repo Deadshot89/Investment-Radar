@@ -99,6 +99,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun setTrackedShares(itemId: String, shares: Double): Boolean {
+        val current = _positions.value[itemId] ?: return false
+        val next = current.withTrackedShares(shares) ?: return false
+        savePosition(next)
+        return true
+    }
+
     fun upsertPurchase(itemId: String, purchase: PortfolioPurchase): Boolean {
         val current = _positions.value[itemId] ?: PortfolioPosition(itemId)
         val next = current.upsertPurchaseIfValid(purchase) ?: return false
