@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  buildConnectFrame,
+  decodeSubscriptionFrame,
   deduplicateTradeRepublicCatalog,
   extractSearchResults,
   loadTradeRepublicCatalog,
@@ -22,11 +24,21 @@ test("rejects rows without a valid ISIN instead of inventing securities", () => 
   assert.equal(normalizeTradeRepublicResult({ name: "Unknown", ticker: "X" }, "stock"), null);
 });
 
+test("uses the current Trade Republic websocket connect frame", () => {
+  assert.equal(buildConnectFrame(), 'connect 34 {"locale":"en"}');
+});
+
 test("extracts known neonSearch response shapes and parses websocket answers", () => {
   const payload = { results: [{ isin: "DE000BASF111" }] };
   assert.deepEqual(extractSearchResults(payload), payload.results);
   assert.deepEqual(parseSubscriptionResponse('1 A {"results":[{"isin":"DE000BASF111"}]}', 1), payload);
   assert.equal(parseSubscriptionResponse('2 A {"results":[]}', 1), undefined);
+});
+
+test("turns Trade Republic error frames into rejected transport results instead of uncaught callback throws", () => {
+  const decoded = decodeSubscriptionFrame('1 E SEARCH_UNAVAILABLE', 1);
+  assert.equal(decoded.value, undefined);
+  assert.match(decoded.error?.message ?? "", /SEARCH_UNAVAILABLE/);
 });
 
 test("deduplicates by ISIN", () => {
