@@ -75,7 +75,8 @@ data class InvestmentItem(
     val recommendationReasons: List<String> = emptyList(),
     val momentum: MomentumSnapshot? = null,
     val fundamentals: FundamentalSnapshot? = null,
-    val analysisAsOf: String? = null
+    val analysisAsOf: String? = null,
+    val portfolioOnly: Boolean = false
 )
 
 data class SignalAlert(
