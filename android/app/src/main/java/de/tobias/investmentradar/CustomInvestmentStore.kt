@@ -71,6 +71,41 @@ object CustomInvestmentStore {
     fun promotedIds(customItems: List<CustomInvestment>, builtInIds: Set<String>): Set<String> =
         customItems.asSequence().map { it.id }.filter { it in builtInIds }.toSet()
 
+    fun promotedTargets(
+        customItems: List<CustomInvestment>,
+        builtInItems: List<InvestmentItem>
+    ): Map<String, String> {
+        val builtInById = builtInItems.associateBy { it.id }
+        val byIsin = builtInItems
+            .filter { normalizeIdentity(it.isin).isNotBlank() }
+            .groupBy { normalizeIdentity(it.isin) }
+        val byTicker = builtInItems
+            .filter { normalizeIdentity(it.ticker).isNotBlank() }
+            .groupBy { normalizeIdentity(it.ticker) }
+
+        return buildMap {
+            customItems.forEach { custom ->
+                val exact = builtInById[custom.id]
+                val isinMatches = byIsin[normalizeIdentity(custom.isin)].orEmpty()
+                val tickerMatches = byTicker[normalizeIdentity(custom.ticker)].orEmpty()
+                val target = when {
+                    exact != null -> exact
+                    normalizeIdentity(custom.isin).isNotBlank() && isinMatches.size == 1 -> isinMatches.single()
+                    normalizeIdentity(custom.ticker).isNotBlank() && tickerMatches.size == 1 -> tickerMatches.single()
+                    else -> null
+                }
+                target?.let { put(custom.id, it.id) }
+            }
+        }
+    }
+
+    fun safePositionPromotions(
+        promotions: Map<String, String>,
+        existingPositionIds: Set<String>
+    ): Map<String, String> = promotions.filter { (sourceId, targetId) ->
+        sourceId != targetId && sourceId in existingPositionIds && targetId !in existingPositionIds
+    }
+
     fun save(context: Context, item: CustomInvestment) {
         val next = read(context).filterNot { it.id == item.id }.toMutableList().apply { add(item) }
         write(context, next)
@@ -84,6 +119,8 @@ object CustomInvestmentStore {
         val key = isin.ifBlank { ticker }.trim().lowercase().replace(Regex("[^a-z0-9._-]+"), "-").trim('-').take(80)
         return "custom-$key"
     }
+
+    private fun normalizeIdentity(value: String): String = value.trim().uppercase()
 
     private fun write(context: Context, items: List<CustomInvestment>) {
         val array = JSONArray()
