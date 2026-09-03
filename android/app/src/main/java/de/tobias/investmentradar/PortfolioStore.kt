@@ -21,6 +21,9 @@ object PortfolioStore {
             val snapshotValue = prefs.getString(snapshotKey(itemId), null)
                 ?.toDoubleOrNull()
                 ?.takeIf { it.isFinite() && it >= 0.0 }
+            val snapshotCostBasis = prefs.getString(snapshotCostBasisKey(itemId), null)
+                ?.toDoubleOrNull()
+                ?.takeIf { it.isFinite() && it >= 0.0 }
             val trackedShares = prefs.getString(trackedSharesKey(itemId), null)
                 ?.toDoubleOrNull()
                 ?.takeIf { it.isFinite() && it > 0.0 }
@@ -34,6 +37,7 @@ object PortfolioStore {
                 PortfolioPosition(
                     itemId = itemId,
                     snapshotValueEur = snapshotValue,
+                    snapshotCostBasisEur = snapshotCostBasis,
                     trackedShares = trackedShares,
                     purchases = storedPurchases,
                     sales = storedSales
@@ -56,6 +60,7 @@ object PortfolioStore {
                 PortfolioPosition(
                     itemId = itemId,
                     snapshotValueEur = snapshotValue,
+                    snapshotCostBasisEur = snapshotCostBasis,
                     trackedShares = trackedShares,
                     purchases = migrated
                 )
@@ -81,6 +86,9 @@ object PortfolioStore {
         position.snapshotValueEur?.takeIf { it.isFinite() && it >= 0.0 }?.let {
             editor.putString(snapshotKey(position.itemId), it.toString())
         } ?: editor.remove(snapshotKey(position.itemId))
+        position.snapshotCostBasisEur?.takeIf { it.isFinite() && it >= 0.0 }?.let {
+            editor.putString(snapshotCostBasisKey(position.itemId), it.toString())
+        } ?: editor.remove(snapshotCostBasisKey(position.itemId))
         position.trackedShares?.takeIf { it.isFinite() && it > 0.0 }?.let {
             editor.putString(trackedSharesKey(position.itemId), it.toString())
         } ?: editor.remove(trackedSharesKey(position.itemId))
@@ -96,6 +104,7 @@ object PortfolioStore {
             .remove(investedKey(itemId))
             .remove(sharesKey(itemId))
             .remove(snapshotKey(itemId))
+            .remove(snapshotCostBasisKey(itemId))
             .remove(trackedSharesKey(itemId))
             .remove(purchasesKey(itemId))
             .remove(salesKey(itemId))
@@ -175,6 +184,7 @@ object PortfolioStore {
     private fun investedKey(itemId: String) = "position.$itemId.invested"
     private fun sharesKey(itemId: String) = "position.$itemId.shares"
     private fun snapshotKey(itemId: String) = "position.$itemId.snapshotValueEur"
+    private fun snapshotCostBasisKey(itemId: String) = "position.$itemId.snapshotCostBasisEur"
     private fun trackedSharesKey(itemId: String) = "position.$itemId.trackedShares"
     private fun purchasesKey(itemId: String) = "position.$itemId.purchases"
     private fun salesKey(itemId: String) = "position.$itemId.sales"
