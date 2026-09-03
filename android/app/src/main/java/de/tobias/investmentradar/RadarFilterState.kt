@@ -67,6 +67,7 @@ object RadarFilterEngine {
         holdingIds: Set<String>,
         watchlistIds: Set<String>
     ): List<InvestmentItem> = items.asSequence()
+        .filter { !it.portfolioOnly }
         .filter { matchesQuery(it, state.query) }
         .filter { matchesType(it, state.type) }
         .filter { matchesHolding(it.id, state.holding, holdingIds) }
