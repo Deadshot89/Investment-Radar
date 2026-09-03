@@ -68,6 +68,9 @@ object CustomInvestmentStore {
         }.getOrDefault(emptyList())
     }
 
+    fun promotedIds(customItems: List<CustomInvestment>, builtInIds: Set<String>): Set<String> =
+        customItems.asSequence().map { it.id }.filter { it in builtInIds }.toSet()
+
     fun save(context: Context, item: CustomInvestment) {
         val next = read(context).filterNot { it.id == item.id }.toMutableList().apply { add(item) }
         write(context, next)
