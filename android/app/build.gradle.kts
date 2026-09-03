@@ -17,8 +17,8 @@ android {
         applicationId = "de.tobias.investmentradar"
         minSdk = 23
         targetSdk = 36
-        versionCode = 38
-        versionName = "1.2.7"
+        versionCode = 39
+        versionName = "1.2.8"
 
         buildConfigField("String", "API_BASE_URL", "\"${prop("INVESTMENT_API_BASE_URL", "https://YOUR-FUNCTION-APP.azurewebsites.net").trimEnd('/')}\"")
         buildConfigField("String", "FIREBASE_APP_ID", "\"${prop("FIREBASE_APP_ID")}\"")
@@ -87,4 +87,4 @@ dependencies {
     implementation("com.google.firebase:firebase-messaging")
 }
 
-// Build trigger: Investment Radar 1.2.7
+// Build trigger: Investment Radar 1.2.8
