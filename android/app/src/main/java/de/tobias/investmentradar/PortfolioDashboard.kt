@@ -105,6 +105,10 @@ fun PortfolioDashboard(
             val custom = customById[row.itemId]
             val personal = personalById[row.itemId]
             val position = positions[row.itemId]
+            val liveTrackedValue = !row.costBasisKnown &&
+                position?.snapshotValueEur != null &&
+                position.trackedShares != null &&
+                row.hasUsablePrice
 
             PortfolioDashboardCard {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -117,6 +121,12 @@ fun PortfolioDashboard(
 
                 HorizontalDivider()
                 PortfolioDashboardValue("Aktueller Wert", row.currentValue?.let(::portfolioMoney) ?: "Kurs fehlt")
+                if (!row.costBasisKnown && position?.snapshotValueEur != null) {
+                    PortfolioDashboardValue(
+                        "Wertbasis",
+                        if (liveTrackedValue) "Live-Kurs × Stückzahl" else "Importierter Depotwert"
+                    )
+                }
                 PortfolioDashboardValue("Einstand", if (row.costBasisKnown) portfolioMoney(row.investedCostBasis) else "Nicht erfasst")
                 PortfolioDashboardValue("Realisierter G/V", if (row.costBasisKnown) portfolioSignedMoney(row.realizedProfitLoss) else "Nicht erfasst")
                 PortfolioDashboardValue(
@@ -151,15 +161,13 @@ fun PortfolioDashboard(
                     OutlinedButton(onClick = { trackedSharesDialogItemId = row.itemId }, modifier = Modifier.fillMaxWidth()) {
                         Text(if (position.trackedShares == null) "Stückzahl ergänzen" else "Stückzahl ändern")
                     }
-                    Text(
-                        if (position.trackedShares == null) {
-                            "Nach Eingabe der Stückzahl folgt der Depotwert dem aktuellen Kurs. Kaufdaten fehlen weiterhin."
-                        } else {
-                            "Live-Tracking aktiv · Kaufdaten fehlen"
-                        },
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.bodySmall
-                    )
+                    if (position.trackedShares == null) {
+                        Text(
+                            "Nach Eingabe der Stückzahl folgt der Depotwert dem aktuellen Kurs. Kaufdaten fehlen weiterhin.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
                 }
 
                 Button(onClick = { onOpenDetail(row.itemId) }, modifier = Modifier.fillMaxWidth()) { Text("Details") }
@@ -179,7 +187,11 @@ fun PortfolioDashboard(
                 }
                 position?.let {
                     Text(
-                        if (!row.costBasisKnown && it.snapshotValueEur != null) "Depotwert importiert · Kaufdaten fehlen" else "${it.purchases.size} Käufe · ${it.sales.size} Verkäufe",
+                        when {
+                            !row.costBasisKnown && it.snapshotValueEur != null && liveTrackedValue -> "Live-Tracking aktiv · Kaufdaten fehlen"
+                            !row.costBasisKnown && it.snapshotValueEur != null -> "Depotwert importiert · Kaufdaten fehlen"
+                            else -> "${it.purchases.size} Käufe · ${it.sales.size} Verkäufe"
+                        },
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodySmall
                     )
