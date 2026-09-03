@@ -493,6 +493,7 @@ private fun DashboardScreen(
             val label = RecommendationPresentation.label(top)
             val personal = personalById[top.id]
             val amount = personal?.allocationEur ?: 0
+            val topDepotValue = positions[top.id]?.takeIf { it.isActiveHolding() }?.currentValue(top.price)
             Text("HEUTIGE EMPFEHLUNG", style = MaterialTheme.typography.labelLarge, color = RadarMuted, fontWeight = FontWeight.Bold)
             NeonPanel(accent = recommendationColor(label)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -506,6 +507,7 @@ private fun DashboardScreen(
                 PortfolioBadgeRow(
                     listOf(
                         "Monatskauf" to if (amount > 0) "$amount €" else "0 €",
+                        "Depotwert" to topDepotValue?.let(::formatMoney).orEmpty().ifBlank { "–" },
                         "Score" to RecommendationPresentation.scoreText(top.scoreTotal),
                         "Signal" to RecommendationPresentation.confidence(top),
                         "Depotanteil" to personal?.currentWeightPct?.let { String.format(Locale.GERMANY, "%.1f %%", it) }.orEmpty().ifBlank { "–" }
@@ -561,7 +563,7 @@ private fun DashboardScreen(
         }
 
         items(data.items.sortedByDescending { allocations[it.id] ?: 0 }) { item ->
-            RecommendationRow(item, personalById[item.id]) { TradeRepublicNavigator.open(context, item) }
+            RecommendationRow(item, personalById[item.id], positions[item.id]) { TradeRepublicNavigator.open(context, item) }
         }
 
         item {
@@ -910,9 +912,10 @@ private fun PurchaseHistoryDialog(
 }
 
 @Composable
-private fun RecommendationRow(item: InvestmentItem, personal: PersonalRecommendation?, onOpen: () -> Unit) {
+private fun RecommendationRow(item: InvestmentItem, personal: PersonalRecommendation?, position: PortfolioPosition?, onOpen: () -> Unit) {
     val label = RecommendationPresentation.label(item)
     val amount = personal?.allocationEur ?: 0
+    val depotValue = position?.takeIf { it.isActiveHolding() }?.currentValue(item.price)
     NeonPanel(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen),
         accent = recommendationColor(label)
@@ -921,6 +924,14 @@ private fun RecommendationRow(item: InvestmentItem, personal: PersonalRecommenda
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(item.name, fontWeight = FontWeight.Black)
                 Text("${item.ticker} · Score ${RecommendationPresentation.scoreText(item.scoreTotal)} · Risiko ${item.risk}/5", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
+                if (position?.isActiveHolding() == true) {
+                    Text(
+                        if (depotValue != null) "IM DEPOT · ${formatMoney(depotValue)}" else "IM DEPOT · Wert nicht verfügbar",
+                        color = RadarPurple,
+                        fontWeight = FontWeight.Black,
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                }
                 Text(
                     if (amount > 0) "Diesen Monat $amount €" else personal?.explanation ?: RecommendationPresentation.label(item),
                     color = recommendationColor(label),
