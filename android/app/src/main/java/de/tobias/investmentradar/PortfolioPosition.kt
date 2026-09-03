@@ -34,6 +34,7 @@ data class PortfolioLedgerSummary(
 data class PortfolioPosition(
     val itemId: String,
     val snapshotValueEur: Double? = null,
+    val snapshotCostBasisEur: Double? = null,
     val trackedShares: Double? = null,
     val purchases: List<PortfolioPurchase> = emptyList(),
     val sales: List<PortfolioSale> = emptyList()
@@ -41,6 +42,7 @@ data class PortfolioPosition(
     constructor(itemId: String, investedAmount: Double, shares: Double) : this(
         itemId = itemId,
         snapshotValueEur = null,
+        snapshotCostBasisEur = null,
         trackedShares = null,
         purchases = if (investedAmount > 0.0 || shares > 0.0) {
             listOf(
@@ -109,10 +111,16 @@ data class PortfolioPosition(
         return PortfolioLedgerSummary(heldShares, costBasis, realized, totalPurchases, totalSales, valid)
     }
 
+    private fun importedCostBasis(): Double? = snapshotCostBasisEur?.takeIf {
+        purchases.isEmpty() && sales.isEmpty() && it.isFinite() && it >= 0.0
+    }
+
     val investedAmount: Double get() = ledgerSummary().remainingCostBasis
     val shares: Double get() = ledgerSummary().remainingShares
     val totalPurchasedAmount: Double get() = ledgerSummary().totalPurchaseAmount
     val totalSaleProceeds: Double get() = ledgerSummary().totalSaleProceeds
+    val activeCostBasis: Double get() = importedCostBasis() ?: investedAmount
+    val performanceCostBasisKnown: Boolean get() = purchases.isNotEmpty() || importedCostBasis() != null
 
     fun averageBuyPrice(): Double? = if (shares > EPSILON && investedAmount >= 0.0) investedAmount / shares else null
     fun realizedProfitLoss(): Double = ledgerSummary().realizedProfitLoss
@@ -131,10 +139,31 @@ data class PortfolioPosition(
         }
     }
 
-    fun unrealizedProfitLoss(currentPrice: Double?): Double? = if (snapshotValueEur != null && purchases.isEmpty()) null else currentValue(currentPrice)?.minus(investedAmount)
-    fun unrealizedProfitLossPercent(currentPrice: Double?): Double? = if (snapshotValueEur != null && purchases.isEmpty()) null else if (investedAmount > EPSILON) unrealizedProfitLoss(currentPrice)?.div(investedAmount)?.times(100.0) else null
-    fun totalProfitLoss(currentPrice: Double?): Double? = if (snapshotValueEur != null && purchases.isEmpty()) null else unrealizedProfitLoss(currentPrice)?.plus(realizedProfitLoss())
-    fun totalProfitLossPercent(currentPrice: Double?): Double? = if (totalPurchasedAmount > EPSILON) totalProfitLoss(currentPrice)?.div(totalPurchasedAmount)?.times(100.0) else null
+    fun unrealizedProfitLoss(currentPrice: Double?): Double? {
+        val imported = importedCostBasis()
+        return when {
+            snapshotValueEur != null && purchases.isEmpty() && imported == null -> null
+            imported != null -> currentValue(currentPrice)?.minus(imported)
+            else -> currentValue(currentPrice)?.minus(investedAmount)
+        }
+    }
+
+    fun unrealizedProfitLossPercent(currentPrice: Double?): Double? {
+        val basis = importedCostBasis() ?: investedAmount
+        if (snapshotValueEur != null && purchases.isEmpty() && importedCostBasis() == null) return null
+        return if (basis > EPSILON) unrealizedProfitLoss(currentPrice)?.div(basis)?.times(100.0) else null
+    }
+
+    fun totalProfitLoss(currentPrice: Double?): Double? {
+        if (snapshotValueEur != null && purchases.isEmpty() && importedCostBasis() == null) return null
+        return unrealizedProfitLoss(currentPrice)?.plus(realizedProfitLoss())
+    }
+
+    fun totalProfitLossPercent(currentPrice: Double?): Double? {
+        val denominator = importedCostBasis() ?: totalPurchasedAmount
+        return if (denominator > EPSILON) totalProfitLoss(currentPrice)?.div(denominator)?.times(100.0) else null
+    }
+
     fun profitLoss(currentPrice: Double?): Double? = unrealizedProfitLoss(currentPrice)
     fun profitLossPercent(currentPrice: Double?): Double? = unrealizedProfitLossPercent(currentPrice)
     fun isLedgerValid(): Boolean = ledgerSummary().valid
@@ -149,7 +178,7 @@ data class PortfolioPosition(
         val normalized = purchase.copy(investedAmount = purchase.investedAmount.coerceAtLeast(0.0), shares = purchase.shares.coerceAtLeast(0.0))
         val index = purchases.indexOfFirst { it.id == normalized.id }
         val next = if (index >= 0) purchases.toMutableList().apply { set(index, normalized) } else purchases + normalized
-        return copy(snapshotValueEur = null, trackedShares = null, purchases = next)
+        return copy(snapshotValueEur = null, snapshotCostBasisEur = null, trackedShares = null, purchases = next)
     }
     fun upsertPurchaseIfValid(purchase: PortfolioPurchase): PortfolioPosition? = upsertPurchase(purchase).takeIf { it.isLedgerValid() }
     fun removePurchase(purchaseId: String): PortfolioPosition = copy(purchases = purchases.filterNot { it.id == purchaseId })
