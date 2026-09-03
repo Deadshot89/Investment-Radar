@@ -18,6 +18,9 @@ object PortfolioStore {
             addAll(prefs.getStringSet(POSITION_IDS_KEY, emptySet()).orEmpty())
         }
         return ids.associateWith { itemId ->
+            val snapshotValue = prefs.getString(snapshotKey(itemId), null)
+                ?.toDoubleOrNull()
+                ?.takeIf { it.isFinite() && it >= 0.0 }
             val storedPurchases = prefs.getString(purchasesKey(itemId), null)
                 ?.let(::decodePurchases)
                 .orEmpty()
@@ -25,7 +28,7 @@ object PortfolioStore {
                 ?.let(::decodeSales)
                 .orEmpty()
             if (storedPurchases.isNotEmpty() || storedSales.isNotEmpty()) {
-                PortfolioPosition(itemId = itemId, purchases = storedPurchases, sales = storedSales)
+                PortfolioPosition(itemId = itemId, snapshotValueEur = snapshotValue, purchases = storedPurchases, sales = storedSales)
             } else {
                 val invested = prefs.getString(investedKey(itemId), null)?.toDoubleOrNull() ?: 0.0
                 val shares = prefs.getString(sharesKey(itemId), null)?.toDoubleOrNull() ?: 0.0
@@ -41,7 +44,7 @@ object PortfolioStore {
                 } else {
                     emptyList()
                 }
-                PortfolioPosition(itemId = itemId, purchases = migrated)
+                PortfolioPosition(itemId = itemId, snapshotValueEur = snapshotValue, purchases = migrated)
             }
         }
     }
@@ -54,14 +57,17 @@ object PortfolioStore {
     fun save(context: Context, position: PortfolioPosition) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val ids = readPositions(context).keys.toMutableSet().apply { add(position.itemId) }
-        prefs.edit()
+        val editor = prefs.edit()
             .putStringSet(LEGACY_KEY, ids)
             .putStringSet(POSITION_IDS_KEY, ids)
             .putString(investedKey(position.itemId), position.investedAmount.toString())
             .putString(sharesKey(position.itemId), position.shares.toString())
             .putString(purchasesKey(position.itemId), encodePurchases(position.purchases))
             .putString(salesKey(position.itemId), encodeSales(position.sales))
-            .apply()
+        position.snapshotValueEur?.takeIf { it.isFinite() && it >= 0.0 }?.let {
+            editor.putString(snapshotKey(position.itemId), it.toString())
+        } ?: editor.remove(snapshotKey(position.itemId))
+        editor.apply()
     }
 
     fun remove(context: Context, itemId: String) {
@@ -72,6 +78,7 @@ object PortfolioStore {
             .putStringSet(POSITION_IDS_KEY, ids)
             .remove(investedKey(itemId))
             .remove(sharesKey(itemId))
+            .remove(snapshotKey(itemId))
             .remove(purchasesKey(itemId))
             .remove(salesKey(itemId))
             .apply()
@@ -112,7 +119,6 @@ object PortfolioStore {
         }
     }.getOrDefault(emptyList())
 
-
     private fun encodeSales(sales: List<PortfolioSale>): String {
         val array = JSONArray()
         sales.forEach { sale ->
@@ -150,6 +156,7 @@ object PortfolioStore {
 
     private fun investedKey(itemId: String) = "position.$itemId.invested"
     private fun sharesKey(itemId: String) = "position.$itemId.shares"
+    private fun snapshotKey(itemId: String) = "position.$itemId.snapshotValueEur"
     private fun purchasesKey(itemId: String) = "position.$itemId.purchases"
     private fun salesKey(itemId: String) = "position.$itemId.sales"
 }
