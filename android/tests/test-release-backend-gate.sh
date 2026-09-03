@@ -13,8 +13,8 @@ grep -q '/api/health' "$WF"
 grep -q 'backendVersion' "$WF"
 grep -q 'Publish APK for in-app updates' "$WF"
 
-grep -q 'versionCode = 43' "$GRADLE"
-grep -q 'versionName = "1.3.2"' "$GRADLE"
+grep -q 'versionCode = 44' "$GRADLE"
+grep -q 'versionName = "1.3.3"' "$GRADLE"
 
 if grep -q -- '--clobber' "$WF"; then
   echo 'Release workflow darf bestehende App-Versionen nicht überschreiben'
@@ -40,5 +40,5 @@ test -n "$publish_line"
 test "$gate_line" -lt "$publish_line"
 
 echo "PASS Android publish is gated on live backend 1.2.0"
-echo "PASS Android app release is monotonic at 1.3.2 / code 43"
+echo "PASS Android app release is monotonic at 1.3.3 / code 44"
 echo "PASS existing releases are immutable by android/app tree"
