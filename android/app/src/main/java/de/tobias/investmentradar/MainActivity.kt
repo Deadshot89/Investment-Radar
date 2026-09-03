@@ -127,6 +127,7 @@ fun InvestmentRadarUi(
     var editingCustomAsset by remember { mutableStateOf<CustomInvestment?>(null) }
     var notificationPermissionAsked by remember { mutableStateOf(false) }
     var availableUpdate by remember { mutableStateOf<AppUpdateInfo?>(null) }
+    var updateDialogVisible by remember { mutableStateOf(false) }
     var updateStatusMessage by remember { mutableStateOf<String?>(null) }
     var updateCheckRequested by remember { mutableIntStateOf(0) }
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
@@ -142,11 +143,19 @@ fun InvestmentRadarUi(
 
     LaunchedEffect(updateCheckRequested) {
         if (updateCheckRequested == 0) {
-            availableUpdate = AppUpdateManager.check(context)
+            val update = AppUpdateManager.check(context)
+            availableUpdate = update
+            updateDialogVisible = update != null
         } else {
             when (val result = AppUpdateManager.checkResult(context)) {
-                is UpdateCheckResult.Available -> availableUpdate = result.update
-                is UpdateCheckResult.Current -> updateStatusMessage = "Du nutzt bereits die aktuelle Version ${result.versionName}."
+                is UpdateCheckResult.Available -> {
+                    availableUpdate = result.update
+                    updateDialogVisible = true
+                }
+                is UpdateCheckResult.Current -> {
+                    availableUpdate = null
+                    updateStatusMessage = "Du nutzt bereits die aktuelle Version ${result.versionName}."
+                }
                 is UpdateCheckResult.Error -> updateStatusMessage = "Update konnte nicht geprüft werden: ${result.message}"
             }
         }
@@ -186,7 +195,16 @@ fun InvestmentRadarUi(
                     },
                     actions = {
                         IconButton(onClick = { budgetDialog = true }) { Icon(Icons.Default.Edit, contentDescription = "Budget ändern") }
-                        TextButton(onClick = { updateCheckRequested++ }) { Text("Update") }
+                        TextButton(onClick = {
+                            if (availableUpdate != null) updateDialogVisible = true else updateCheckRequested++
+                        }) {
+                            Text(
+                                if (availableUpdate != null) "Update verfügbar · v${availableUpdate!!.versionName}" else "v${BuildConfig.VERSION_NAME}",
+                                color = if (availableUpdate != null) RadarGreen else RadarMuted,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = if (availableUpdate != null) FontWeight.Bold else FontWeight.Medium
+                            )
+                        }
                         IconButton(onClick = { vm.refresh() }) { Icon(Icons.Default.Refresh, contentDescription = "Aktualisieren") }
                     }
                 )
@@ -357,9 +375,9 @@ fun InvestmentRadarUi(
         )
     }
 
-    availableUpdate?.let { update ->
+    if (updateDialogVisible) availableUpdate?.let { update ->
         AlertDialog(
-            onDismissRequest = { availableUpdate = null },
+            onDismissRequest = { updateDialogVisible = false },
             title = { Text("Update verfügbar") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -371,10 +389,10 @@ fun InvestmentRadarUi(
             confirmButton = {
                 Button(onClick = {
                     AppUpdateManager.openUpdate(context, update)
-                    availableUpdate = null
+                    updateDialogVisible = false
                 }) { Text("Jetzt aktualisieren") }
             },
-            dismissButton = { TextButton(onClick = { availableUpdate = null }) { Text("Später") } }
+            dismissButton = { TextButton(onClick = { updateDialogVisible = false }) { Text("Später") } }
         )
     }
 
