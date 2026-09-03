@@ -228,18 +228,14 @@ jobs:
           cp "$APK" "$RELEASE_APK"
 
           if gh release view "$TAG" >/dev/null 2>&1; then
-            EXISTING_DIR="$RUNNER_TEMP/existing-release"
-            mkdir -p "$EXISTING_DIR"
-            gh release download "$TAG" --pattern "investment-radar.apk" --dir "$EXISTING_DIR"
-            EXISTING_APK="$EXISTING_DIR/investment-radar.apk"
-            test -s "$EXISTING_APK"
-            CURRENT_SHA=$(sha256sum "$RELEASE_APK" | awk '{print $1}')
-            EXISTING_SHA=$(sha256sum "$EXISTING_APK" | awk '{print $1}')
-            if [ "$CURRENT_SHA" != "$EXISTING_SHA" ]; then
-              echo "❌ Release $TAG existiert bereits mit einer anderen APK. Version erhöhen, statt dieselbe Version zu überschreiben." >> "$GITHUB_STEP_SUMMARY"
+            git fetch --no-tags origin "refs/tags/$TAG:refs/tags/$TAG"
+            CURRENT_APP_TREE=$(git rev-parse "HEAD:android/app")
+            RELEASE_APP_TREE=$(git rev-parse "$TAG:android/app")
+            if [ "$CURRENT_APP_TREE" != "$RELEASE_APP_TREE" ]; then
+              echo "❌ Release $TAG existiert bereits mit anderem App-Code. Version erhöhen, statt dieselbe Version zu überschreiben." >> "$GITHUB_STEP_SUMMARY"
               exit 4
             fi
-            echo "✅ Release $TAG existiert bereits und ist identisch; unverändert beibehalten." >> "$GITHUB_STEP_SUMMARY"
+            echo "✅ Release $TAG existiert bereits; App-Code ist identisch und bleibt unverändert veröffentlicht." >> "$GITHUB_STEP_SUMMARY"
           else
             gh release create "$TAG" "$RELEASE_APK#investment-radar.apk" \
               --title "Investment Radar $VERSION_NAME" \
