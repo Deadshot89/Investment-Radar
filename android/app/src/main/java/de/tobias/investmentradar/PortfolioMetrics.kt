@@ -52,11 +52,8 @@ object PortfolioMetrics {
             val manualPrice = customById[id]?.manualPriceEur?.takeIf { it.isFinite() && it > 0.0 }
             val usablePrice = marketPrice ?: manualPrice
             val active = position.isActiveHolding()
-            val currentValue = if (active) {
-                position.snapshotValueEur?.takeIf { it.isFinite() && it >= 0.0 }
-                    ?: usablePrice?.let { position.shares * it }
-            } else 0.0
-            val hasUsablePrice = !active || position.snapshotValueEur != null || usablePrice != null
+            val currentValue = if (active) position.currentValue(usablePrice) else 0.0
+            val hasUsablePrice = !active || currentValue != null
             Draft(id, position, active, usablePrice, currentValue, hasUsablePrice)
         }
 
