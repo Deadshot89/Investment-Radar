@@ -21,3 +21,4 @@ grep -Fq 'Update verfügbar · v${availableUpdate!!.versionName}' "$MAIN"
 echo "PASS manual update status UI"
 echo "PASS installed app version visible in header"
 echo "PASS update availability badge includes target version"
+# Final verification trigger for 1.2.3 header-version UI.
