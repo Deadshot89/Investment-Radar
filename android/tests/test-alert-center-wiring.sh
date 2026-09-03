@@ -33,7 +33,7 @@ grep -Fq 'LaunchedEffect(pushNavigationRequest)' "$MAIN"
 grep -Fq 'putExtra("openAlertId", alertId)' "$PUSH"
 grep -Fq 'intent.getStringExtra("openAlertId")' "$MAIN"
 grep -Fq 'initialAlertId' "$MAIN"
-grep -Fq 'vm.markAlertRead(initialAlertId)' "$MAIN"
+grep -Fq 'initialAlertId?.takeIf { it.isNotBlank() }?.let { vm.markAlertRead(it) }' "$MAIN"
 
 if grep -Fq 'private fun AlertsScreen(' "$MAIN"; then
   echo 'Legacy private AlertsScreen still present in MainActivity'
