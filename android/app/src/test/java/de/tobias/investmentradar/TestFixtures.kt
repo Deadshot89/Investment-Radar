@@ -8,7 +8,8 @@ internal fun testInvestmentItem(
     scoreTotal: Int? = 70,
     coverage: Int? = 100,
     risk: Int = 2,
-    priceEur: Double? = null
+    priceEur: Double? = null,
+    portfolioOnly: Boolean = false
 ): InvestmentItem = InvestmentItem(
     id = id,
     type = type,
@@ -42,5 +43,6 @@ internal fun testInvestmentItem(
     recommendationReasons = emptyList(),
     momentum = null,
     fundamentals = null,
-    analysisAsOf = null
+    analysisAsOf = null,
+    portfolioOnly = portfolioOnly
 )
