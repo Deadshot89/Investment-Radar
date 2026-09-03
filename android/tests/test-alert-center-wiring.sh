@@ -40,7 +40,7 @@ if grep -Fq 'private fun AlertsScreen(' "$MAIN"; then
   exit 1
 fi
 
-echo "PASS 1.2.0 alert center wiring"
+echo "PASS 1.2.2 alert center wiring"
 echo "PASS push detail deep link"
 echo "PASS push navigation while app is open"
 echo "PASS push alert is marked read on open"
