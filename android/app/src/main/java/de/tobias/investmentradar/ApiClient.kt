@@ -102,7 +102,8 @@ object ApiClient {
             recommendationReasons = o.optJSONArray("recommendationReasons").toStrings(),
             momentum = o.optJSONObject("momentum")?.let(::parseMomentum),
             fundamentals = o.optJSONObject("fundamentals")?.let(::parseFundamentals),
-            analysisAsOf = o.nullableString("analysisAsOf")
+            analysisAsOf = o.nullableString("analysisAsOf"),
+            portfolioOnly = o.optBoolean("portfolioOnly", false)
         )
     }
 
