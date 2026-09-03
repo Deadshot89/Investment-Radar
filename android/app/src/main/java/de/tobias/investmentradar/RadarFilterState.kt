@@ -18,6 +18,11 @@ data class RadarFilterState(
     val sort: RadarSortMode = RadarSortMode.SCORE
 )
 
+data class RadarFilterResult(
+    val items: List<InvestmentItem>,
+    val buyFallbackActive: Boolean = false
+)
+
 object RadarFilterEngine {
     fun apply(
         items: List<InvestmentItem>,
@@ -25,50 +30,87 @@ object RadarFilterEngine {
         holdingIds: Set<String>,
         watchlistIds: Set<String>,
         allocationById: Map<String, Int>
-    ): List<InvestmentItem> {
-        val filtered = items.asSequence()
-            .filter { matchesQuery(it, state.query) }
-            .filter { matchesRecommendation(it, state.recommendation) }
-            .filter { matchesType(it, state.type) }
-            .filter { matchesHolding(it.id, state.holding, holdingIds) }
-            .filter { !state.watchlistOnly || it.id in watchlistIds }
-            .filter { matchesCoverage(it.coverage, state.dataQuality) }
-            .filter { matchesRisk(it.risk, state.risk) }
-            .toList()
+    ): List<InvestmentItem> = evaluate(items, state, holdingIds, watchlistIds, allocationById).items
 
-        return when (state.sort) {
-            RadarSortMode.SCORE -> filtered.sortedWith(
-                compareByDescending<InvestmentItem> { it.scoreTotal ?: Int.MIN_VALUE }
-                    .thenBy { it.name.lowercase() }
-                    .thenBy { it.id }
-            )
-            RadarSortMode.ALLOCATION -> filtered.sortedWith(
-                compareByDescending<InvestmentItem> { allocationById[it.id] ?: 0 }
-                    .thenByDescending { it.scoreTotal ?: Int.MIN_VALUE }
-                    .thenBy { it.name.lowercase() }
-                    .thenBy { it.id }
-            )
-            RadarSortMode.MOMENTUM_6M -> filtered.sortedWith(
-                nullableNumberComparator({ it.momentum?.m6 }, ascending = false)
-                    .thenBy { it.name.lowercase() }
-                    .thenBy { it.id }
-            )
-            RadarSortMode.DAY_ASC -> filtered.sortedWith(
-                nullableNumberComparator({ it.percentChange }, ascending = true)
-                    .thenBy { it.name.lowercase() }
-                    .thenBy { it.id }
-            )
-            RadarSortMode.DAY_DESC -> filtered.sortedWith(
-                nullableNumberComparator({ it.percentChange }, ascending = false)
-                    .thenBy { it.name.lowercase() }
-                    .thenBy { it.id }
-            )
-            RadarSortMode.NAME -> filtered.sortedWith(
-                compareBy<InvestmentItem> { it.name.lowercase() }
-                    .thenBy { it.ticker.lowercase() }
-                    .thenBy { it.id }
-            )
+    fun evaluate(
+        items: List<InvestmentItem>,
+        state: RadarFilterState,
+        holdingIds: Set<String>,
+        watchlistIds: Set<String>,
+        allocationById: Map<String, Int>
+    ): RadarFilterResult {
+        val exact = filterBase(items, state, holdingIds, watchlistIds)
+            .filter { matchesRecommendation(it, state.recommendation) }
+            .let { sort(it, state.sort, allocationById) }
+
+        if (state.recommendation != RadarRecommendationFilter.BUY || exact.isNotEmpty()) {
+            return RadarFilterResult(items = exact)
         }
+
+        val fallback = filterBase(items, state, holdingIds, watchlistIds)
+            .filter { RecommendationPresentation.effectiveRecommendation(it) == "WATCH" }
+            .sortedWith(
+                compareByDescending<InvestmentItem> { it.scoreTotal ?: Int.MIN_VALUE }
+                    .thenByDescending { it.coverage ?: Int.MIN_VALUE }
+                    .thenBy { it.risk }
+                    .thenBy { it.name.lowercase() }
+                    .thenBy { it.id }
+            )
+            .take(3)
+
+        return RadarFilterResult(items = fallback, buyFallbackActive = fallback.isNotEmpty())
+    }
+
+    private fun filterBase(
+        items: List<InvestmentItem>,
+        state: RadarFilterState,
+        holdingIds: Set<String>,
+        watchlistIds: Set<String>
+    ): List<InvestmentItem> = items.asSequence()
+        .filter { matchesQuery(it, state.query) }
+        .filter { matchesType(it, state.type) }
+        .filter { matchesHolding(it.id, state.holding, holdingIds) }
+        .filter { !state.watchlistOnly || it.id in watchlistIds }
+        .filter { matchesCoverage(it.coverage, state.dataQuality) }
+        .filter { matchesRisk(it.risk, state.risk) }
+        .toList()
+
+    private fun sort(
+        filtered: List<InvestmentItem>,
+        mode: RadarSortMode,
+        allocationById: Map<String, Int>
+    ): List<InvestmentItem> = when (mode) {
+        RadarSortMode.SCORE -> filtered.sortedWith(
+            compareByDescending<InvestmentItem> { it.scoreTotal ?: Int.MIN_VALUE }
+                .thenBy { it.name.lowercase() }
+                .thenBy { it.id }
+        )
+        RadarSortMode.ALLOCATION -> filtered.sortedWith(
+            compareByDescending<InvestmentItem> { allocationById[it.id] ?: 0 }
+                .thenByDescending { it.scoreTotal ?: Int.MIN_VALUE }
+                .thenBy { it.name.lowercase() }
+                .thenBy { it.id }
+        )
+        RadarSortMode.MOMENTUM_6M -> filtered.sortedWith(
+            nullableNumberComparator({ it.momentum?.m6 }, ascending = false)
+                .thenBy { it.name.lowercase() }
+                .thenBy { it.id }
+        )
+        RadarSortMode.DAY_ASC -> filtered.sortedWith(
+            nullableNumberComparator({ it.percentChange }, ascending = true)
+                .thenBy { it.name.lowercase() }
+                .thenBy { it.id }
+        )
+        RadarSortMode.DAY_DESC -> filtered.sortedWith(
+            nullableNumberComparator({ it.percentChange }, ascending = false)
+                .thenBy { it.name.lowercase() }
+                .thenBy { it.id }
+        )
+        RadarSortMode.NAME -> filtered.sortedWith(
+            compareBy<InvestmentItem> { it.name.lowercase() }
+                .thenBy { it.ticker.lowercase() }
+                .thenBy { it.id }
+        )
     }
 
     private fun matchesQuery(item: InvestmentItem, rawQuery: String): Boolean {
