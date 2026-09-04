@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Investment Radar 2.0 release verification: backend version, 1000-item radar and monotonic Android update.
+# Investment Radar 2.1 release verification: backend version, 2000-item radar and monotonic Android update.
 set -euo pipefail
 
 WF=".github/workflows/android-build.yml"
@@ -8,22 +8,22 @@ HEALTH="backend/src/functions/health.mjs"
 BACKEND="backend/package.json"
 
 grep -q 'Verify live backend before Android publish' "$WF"
-grep -q 'EXPECTED_BACKEND_VERSION: "2.0.0"' "$WF"
+grep -q 'EXPECTED_BACKEND_VERSION: "2.1.0"' "$WF"
 grep -Fq 'BASE_URL: ${{ vars.INVESTMENT_API_BASE_URL }}' "$WF"
 grep -q "github.ref == 'refs/heads/main'" "$WF"
 grep -q '/api/health' "$WF"
 grep -q '/api/radar' "$WF"
 grep -q 'backendVersion' "$WF"
 grep -q 'universeTotal' "$WF"
-grep -q '900' "$WF"
+grep -q '2000' "$WF"
 grep -q 'Publish APK for in-app updates' "$WF"
 
-grep -q 'versionCode = 52' "$GRADLE"
-grep -q 'versionName = "2.0.6"' "$GRADLE"
-grep -q 'Investment Radar 2.0.6' "$GRADLE"
-grep -q '"version": "2.0.0"' "$BACKEND"
-grep -q 'backendVersion: "2.0.0"' "$HEALTH"
-grep -q 'universeTarget: 1000' "$HEALTH"
+grep -q 'versionCode = 53' "$GRADLE"
+grep -q 'versionName = "2.1.0"' "$GRADLE"
+grep -q 'Investment Radar 2.1.0' "$GRADLE"
+grep -q '"version": "2.1.0"' "$BACKEND"
+grep -q 'backendVersion: "2.1.0"' "$HEALTH"
+grep -q 'universeTarget: 2000' "$HEALTH"
 
 if grep -q -- '--clobber' "$WF"; then
   echo 'Release workflow darf bestehende App-Versionen nicht überschreiben'
@@ -48,6 +48,6 @@ test -n "$gate_line"
 test -n "$publish_line"
 test "$gate_line" -lt "$publish_line"
 
-echo "PASS Android publish is gated on live backend 2.0.0 and >=900 radar instruments"
-echo "PASS Android app release is monotonic at 2.0.6 / code 52"
+echo "PASS Android publish is gated on live backend 2.1.0 and >=2000 radar instruments"
+echo "PASS Android app release is monotonic at 2.1.0 / code 53"
 echo "PASS existing releases are immutable by android/app tree"
