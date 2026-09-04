@@ -120,9 +120,9 @@ fun InvestmentDetailScreen(
                 forecast.points.forEachIndexed { index, point ->
                     if (index > 0) HorizontalDivider()
                     Text("${point.horizon.label} · ${point.direction}", fontWeight = FontWeight.Black)
-                    DetailValueRow("Basis", detailForecastScenario(point.targetPriceEur, point.expectedChangePct))
-                    DetailValueRow("Bear", detailForecastScenario(point.bearTargetPriceEur, point.bearChangePct))
-                    DetailValueRow("Bull", detailForecastScenario(point.bullTargetPriceEur, point.bullChangePct))
+                    DetailValueRow("Erwartet", detailForecastScenario(point.targetPriceEur, point.expectedChangePct))
+                    DetailValueRow("Schwach", detailForecastScenario(point.bearTargetPriceEur, point.bearChangePct))
+                    DetailValueRow("Stark", detailForecastScenario(point.bullTargetPriceEur, point.bullChangePct))
                     Text("Warum diese Prognose?", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                     point.reasons.take(2).forEach { reason ->
                         Text("• $reason", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)

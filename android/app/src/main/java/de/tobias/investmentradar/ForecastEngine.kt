@@ -148,7 +148,7 @@ object ForecastEngine {
             else if (it < 0.0) result += "Sinkende Gewinne sprechen gegen eine aggressive Kursprognose."
         }
         item.fundamentals?.debtToEquity?.let {
-            if (it > 2.0) result += "Die erhöhte Verschuldung verbreitert das Bear-Szenario."
+            if (it > 2.0) result += "Die erhöhte Verschuldung verbreitert das schwache Szenario."
         }
         if (item.risk >= 4) result += "Das hohe Risikoprofil sorgt für eine breite Prognosespanne."
         if ((item.coverage ?: 0) < 70) result += "Die reduzierte Datenabdeckung erhöht die Prognoseunsicherheit."

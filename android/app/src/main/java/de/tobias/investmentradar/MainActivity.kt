@@ -453,10 +453,12 @@ private fun DashboardScreen(
             }
         }
         item {
+            val signalAccent = if (top != null) RadarGreen else RadarPurple
+            val signalStyle = if (top == null) MaterialTheme.typography.labelLarge else MaterialTheme.typography.titleLarge
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 DarkMetricCard("MARKT", data.marketLight.uppercase(), RadarYellow, Modifier.weight(1f))
                 DarkMetricCard("BUDGET", "$budget €", RadarBlue, Modifier.weight(1f), onClick = onEditBudget)
-                DarkMetricCard("SIGNAL", if (top != null) "AKTIV" else "WARTEN", RadarGreen, Modifier.weight(1f), valueStyle = if (top == null) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleLarge)
+                DarkMetricCard("SIGNAL", if (top != null) "AKTIV" else "WARTEN", signalAccent, Modifier.weight(1f), valueStyle = signalStyle)
             }
         }
 
