@@ -241,21 +241,6 @@ function regionForCountry(country) {
   return "GLOBAL";
 }
 
-function firstString(...values) {
-  for (const value of values) {
-    if (typeof value === "string" && value.trim()) return value.trim();
-  }
-  return "";
-}
-
-function regionForCountry(country) {
-  if (["US", "CA", "MX"].includes(country)) return "NORTH_AMERICA";
-  if (["DE", "AT", "CH", "FR", "NL", "BE", "LU", "IT", "ES", "PT", "IE", "DK", "SE", "NO", "FI", "PL", "CZ", "GB"].includes(country)) return "EUROPE";
-  if (["JP", "CN", "HK", "TW", "KR", "SG", "IN"].includes(country)) return "ASIA";
-  if (["AU", "NZ"].includes(country)) return "OCEANIA";
-  return "GLOBAL";
-}
-
 function finitePositiveInt(value) {
   const number = Math.round(Number(value));
   return Number.isFinite(number) && number > 0 ? number : null;
