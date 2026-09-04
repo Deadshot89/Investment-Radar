@@ -189,13 +189,16 @@ export function mergeUniverse(curated, external) {
   const isinKeys = new Set();
   for (const item of curated) {
     byId.set(item.id, item);
-    tickerKeys.add(normalizeTicker(item.ticker));
-    if (item.isin) isinKeys.add(item.isin.toUpperCase());
+    const tickerKey = normalizeTicker(item.ticker);
+    if (tickerKey) tickerKeys.add(tickerKey);
+    const isinKey = String(item.isin ?? "").trim().toUpperCase();
+    if (isinKey) isinKeys.add(isinKey);
   }
   for (const item of external) {
     const tickerKey = normalizeTicker(item.ticker);
-    const isinKey = String(item.isin ?? "").toUpperCase();
-    if (!tickerKey || tickerKeys.has(tickerKey) || (isinKey && isinKeys.has(isinKey)) || byId.has(item.id)) continue;
+    const isinKey = String(item.isin ?? "").trim().toUpperCase();
+    if (!tickerKey || byId.has(item.id)) continue;
+    if (isinKey ? isinKeys.has(isinKey) : tickerKeys.has(tickerKey)) continue;
     byId.set(item.id, normalizeUniverseInstrument(item));
     tickerKeys.add(tickerKey);
     if (isinKey) isinKeys.add(isinKey);
