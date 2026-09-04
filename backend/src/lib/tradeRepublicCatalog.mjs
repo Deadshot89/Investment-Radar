@@ -16,11 +16,26 @@ export async function loadTradeRepublicCatalog(options = {}) {
     : requestedTotal;
   const pageSize = Math.min(100, Math.max(20, Number(options.pageSize ?? DEFAULT_PAGE_SIZE)));
 
-  const stocks = await collectType({ requestPage, assetType: "stock", target: stockTarget, pageSize });
-  const funds = await collectType({ requestPage, assetType: "fund", target: fundTarget, pageSize });
-  const unique = deduplicateTradeRepublicCatalog([...stocks, ...funds]);
-  if (unique.length === 0) throw new Error("Trade-Republic-Katalog lieferte keine Aktien oder ETFs");
-  return unique.slice(0, totalTarget);
+  // Each type may have fewer instruments than its preferred quota. Collect enough
+  // candidates from both types so the other type can backfill a real shortfall
+  // without weakening Trade-Republic verification.
+  const stocks = await collectType({ requestPage, assetType: "stock", target: totalTarget, pageSize });
+  const funds = await collectType({ requestPage, assetType: "fund", target: totalTarget, pageSize });
+
+  const preferredStocks = stocks.slice(0, stockTarget);
+  const preferredFunds = funds.slice(0, fundTarget);
+  let selected = deduplicateTradeRepublicCatalog([...preferredStocks, ...preferredFunds]);
+
+  if (selected.length < totalTarget) {
+    const overflow = deduplicateTradeRepublicCatalog([
+      ...stocks.slice(preferredStocks.length),
+      ...funds.slice(preferredFunds.length)
+    ]);
+    selected = deduplicateTradeRepublicCatalog([...selected, ...overflow]);
+  }
+
+  if (selected.length === 0) throw new Error("Trade-Republic-Katalog lieferte keine Aktien oder ETFs");
+  return selected.slice(0, totalTarget);
 }
 
 async function collectType({ requestPage, assetType, target, pageSize }) {
@@ -209,6 +224,21 @@ function inferEtfRisk(name) {
   if (/\b(2X|3X|LEVERAGED|SHORT|INVERSE|DAILY SWAP)\b/.test(value)) return 5;
   if (/SECTOR|TECHNOLOGY|SEMICONDUCTOR|BIOTECH|COMMODIT|GOLD|OIL|CRYPTO|BITCOIN/.test(value)) return 3;
   return 2;
+}
+
+function firstString(...values) {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+}
+
+function regionForCountry(country) {
+  if (["US", "CA", "MX"].includes(country)) return "NORTH_AMERICA";
+  if (["DE", "AT", "CH", "FR", "NL", "BE", "LU", "IT", "ES", "PT", "IE", "DK", "SE", "NO", "FI", "PL", "CZ", "GB"].includes(country)) return "EUROPE";
+  if (["JP", "CN", "HK", "TW", "KR", "SG", "IN"].includes(country)) return "ASIA";
+  if (["AU", "NZ"].includes(country)) return "OCEANIA";
+  return "GLOBAL";
 }
 
 function firstString(...values) {
