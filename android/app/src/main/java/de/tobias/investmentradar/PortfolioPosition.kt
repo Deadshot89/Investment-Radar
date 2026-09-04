@@ -115,6 +115,25 @@ data class PortfolioPosition(
         purchases.isEmpty() && sales.isEmpty() && it.isFinite() && it >= 0.0
     }
 
+    private fun materializeImportedOpeningPosition(): PortfolioPosition {
+        if (purchases.isNotEmpty() || sales.isNotEmpty()) return this
+        val importedShares = trackedShares?.takeIf { it.isFinite() && it > EPSILON } ?: return this
+        val importedCostBasis = snapshotCostBasisEur?.takeIf { it.isFinite() && it >= 0.0 } ?: return this
+        return copy(
+            snapshotValueEur = null,
+            snapshotCostBasisEur = null,
+            trackedShares = null,
+            purchases = listOf(
+                PortfolioPurchase(
+                    id = "imported-opening-$itemId",
+                    date = "",
+                    investedAmount = importedCostBasis,
+                    shares = importedShares
+                )
+            )
+        )
+    }
+
     val investedAmount: Double get() = ledgerSummary().remainingCostBasis
     val shares: Double get() = ledgerSummary().remainingShares
     val totalPurchasedAmount: Double get() = ledgerSummary().totalPurchaseAmount
@@ -184,10 +203,11 @@ data class PortfolioPosition(
     fun removePurchase(purchaseId: String): PortfolioPosition = copy(purchases = purchases.filterNot { it.id == purchaseId })
     fun removePurchaseIfValid(purchaseId: String): PortfolioPosition? = removePurchase(purchaseId).takeIf { it.isLedgerValid() }
     fun upsertSale(sale: PortfolioSale): PortfolioPosition? {
+        val base = materializeImportedOpeningPosition()
         val normalized = sale.copy(proceeds = sale.proceeds.coerceAtLeast(0.0), shares = sale.shares.coerceAtLeast(0.0))
-        val index = sales.indexOfFirst { it.id == normalized.id }
-        val next = if (index >= 0) sales.toMutableList().apply { set(index, normalized) } else sales + normalized
-        return copy(sales = next).takeIf { it.isLedgerValid() }
+        val index = base.sales.indexOfFirst { it.id == normalized.id }
+        val next = if (index >= 0) base.sales.toMutableList().apply { set(index, normalized) } else base.sales + normalized
+        return base.copy(sales = next).takeIf { it.isLedgerValid() }
     }
     fun removeSale(saleId: String): PortfolioPosition = copy(sales = sales.filterNot { it.id == saleId })
 
