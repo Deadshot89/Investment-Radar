@@ -75,7 +75,8 @@ test("loadUniverse keeps a meaningful ETF share when a 2000-item production limi
       isin: `DE${String(i).padStart(10, "0")}`,
       tradeRepublicEligible: true,
       universeActive: true,
-      portfolioOnly: false
+      portfolioOnly: false,
+      universeSource: "TRADE_REPUBLIC_PUBLIC"
     })),
     ...Array.from({ length: 800 }, (_, i) => ({
       id: `etf-${i}`,
@@ -85,7 +86,8 @@ test("loadUniverse keeps a meaningful ETF share when a 2000-item production limi
       isin: `IE${String(i).padStart(10, "0")}`,
       tradeRepublicEligible: true,
       universeActive: true,
-      portfolioOnly: false
+      portfolioOnly: false,
+      universeSource: "TRADE_REPUBLIC_PUBLIC"
     }))
   ];
 
