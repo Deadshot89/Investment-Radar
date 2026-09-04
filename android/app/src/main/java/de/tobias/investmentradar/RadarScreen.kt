@@ -114,8 +114,13 @@ fun RadarScreenV2(
             }
             .onFailure { failure ->
                 error = failure.message ?: "Radar konnte nicht geladen werden"
-                if (loaded.isEmpty()) {
-                    loaded = items.filter { !it.portfolioOnly }.map { it.toRadarFallback() }
+                if (filters.recommendation == RadarRecommendationFilter.ALL) {
+                    if (loaded.isEmpty()) {
+                        loaded = items.filter { !it.portfolioOnly }.map { it.toRadarFallback() }
+                    }
+                } else {
+                    loaded = emptyList()
+                    radarPage = null
                 }
             }
         loading = false
@@ -137,6 +142,16 @@ fun RadarScreenV2(
         }
     }.filter { !filters.watchlistOnly || it.id in watchlistIds }
 
+    val radarCounts = radarPage?.counts ?: RadarCounts(
+        total = loaded.size,
+        stocks = loaded.count { !it.type.equals("ETF", ignoreCase = true) },
+        etfs = loaded.count { it.type.equals("ETF", ignoreCase = true) },
+        buy = loaded.count { it.purchaseEligible && it.recommendation == "BUY" },
+        watch = loaded.count { it.recommendation == "WATCH" },
+        noBuy = loaded.count { it.recommendation == "NO_BUY" },
+        review = loaded.count { it.recommendation == "REVIEW" }
+    )
+
     val topOpportunities = loaded.filter { it.purchaseEligible }.sortedByDescending { it.scoreTotal ?: -1 }.take(5)
     val momentum = loaded.sortedByDescending { it.scoreMomentum ?: -1 }.take(5)
     val valuation = loaded.sortedByDescending { it.scoreValuation ?: -1 }.take(5)
@@ -157,8 +172,9 @@ fun RadarScreenV2(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
             ) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("RADAR 2.0", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                    Text("RADAR 2.1", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                     Text("${radarPage?.universeTotal ?: loaded.size} Werte im Analyseuniversum", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+                    RadarCountStrip(radarCounts)
                     Text(
                         "Serverseitige Analyse · Ergebnisse werden seitenweise geladen",
                         style = MaterialTheme.typography.bodySmall,
@@ -238,13 +254,32 @@ fun RadarScreenV2(
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text("Radar-Verbindung gestört", fontWeight = FontWeight.Black)
                         Text(error.orEmpty(), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("Die bereits geladenen Werte bleiben sichtbar.", style = MaterialTheme.typography.bodySmall)
+                        Text(
+                            if (filters.recommendation == RadarRecommendationFilter.ALL) "Die bereits geladenen Werte bleiben sichtbar."
+                            else "Für aktive Empfehlungsfilter werden keine ungeprüften Ersatzwerte angezeigt.",
+                            style = MaterialTheme.typography.bodySmall
+                        )
                     }
                 }
             }
         }
 
         if (loading && loaded.isEmpty()) item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) { CircularProgressIndicator() } }
+
+        if (!loading && filters.recommendation == RadarRecommendationFilter.BUY && clientVisible.isEmpty()) {
+            item {
+                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Aktuell keine echten Kaufkandidaten", fontWeight = FontWeight.Black)
+                        Text(
+                            "Der Filter zeigt ausschließlich Trade-Republic-geprüfte Werte, die alle Kaufregeln erfüllen.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
 
         items(clientVisible, key = { it.id }) { summary ->
             val investment = summary.asInvestmentItem()
@@ -294,6 +329,30 @@ fun RadarScreenV2(
             },
             confirmButton = { TextButton(onClick = { remoteDetailId = null; remoteDetail = null }) { Text("Schließen") } }
         )
+    }
+}
+
+@Composable
+private fun RadarCountStrip(counts: RadarCounts) {
+    val metrics = listOf(
+        "Gesamt" to counts.total,
+        "Aktien" to counts.stocks,
+        "ETFs" to counts.etfs,
+        "Kaufen" to counts.buy,
+        "Beobachten" to counts.watch
+    )
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+        items(metrics) { metric ->
+            Card(
+                modifier = Modifier.width(92.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+            ) {
+                Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(metric.first, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(metric.second.toString(), fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
+                }
+            }
+        }
     }
 }
 
