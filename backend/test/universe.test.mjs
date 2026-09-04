@@ -104,3 +104,31 @@ test("loadUniverse keeps a meaningful ETF share when a 2000-item production limi
   assert.ok(items.filter((item) => item.type === "ETF").length >= 400);
   assert.ok(items.filter((item) => item.type === "AKTIE").length >= 1200);
 });
+
+test("production catalog request keeps 2000 usable instruments after realistic provider attrition", async () => {
+  let requestedTarget = 0;
+  const items = await loadUniverse({
+    refresh: true,
+    minActive: 2000,
+    requireTradeRepublicEligibility: true,
+    loadConfig: async () => ({ items: [] }),
+    loadTradeRepublicCatalog: async ({ target }) => {
+      requestedTarget = target;
+      const delivered = Math.floor(target * 0.85);
+      return Array.from({ length: delivered }, (_, i) => ({
+        id: `buffer-${i}`,
+        type: i % 4 === 0 ? "ETF" : "AKTIE",
+        name: `Buffer Instrument ${i}`,
+        ticker: `B${i}`,
+        isin: `DE${String(i).padStart(10, "0")}`,
+        tradeRepublicEligible: true,
+        universeActive: true,
+        portfolioOnly: false,
+        universeSource: "TRADE_REPUBLIC_PUBLIC"
+      }));
+    }
+  });
+
+  assert.ok(requestedTarget > 2200);
+  assert.ok(items.filter((item) => item.universeActive !== false && !item.portfolioOnly).length >= 2000);
+});
