@@ -19,7 +19,7 @@ grep -q 'Momentum' "$CARD"
 test -f "$RADAR"
 test -f "$RADAR_MODELS"
 grep -q 'Name, Ticker oder ISIN suchen' "$RADAR"
-grep -q 'RADAR 2.0' "$RADAR"
+grep -q 'RADAR 2.1' "$RADAR"
 grep -q 'RadarRecommendationFilter' "$RADAR"
 grep -q 'RadarHoldingFilter' "$RADAR"
 grep -q 'RadarDataQualityFilter' "$RADAR"
@@ -49,4 +49,4 @@ bash android/tests/test-score-null-display.sh
 bash android/tests/test-investment-detail-ui.sh
 bash android/tests/test-investment-detail-wiring.sh
 
-echo "PASS Analysis V2 remains wired through Radar 2.0"
+echo "PASS Analysis V2 remains wired through Radar 2.1"
