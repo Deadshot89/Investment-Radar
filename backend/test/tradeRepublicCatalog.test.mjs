@@ -18,6 +18,8 @@ test("normalizes Trade Republic stock and fund results as verified German-jurisd
   assert.equal(stock.tradeRepublicJurisdiction, "DE");
   assert.equal(fund.type, "ETF");
   assert.equal(fund.isin, "IE00B3YLTY66");
+  assert.ok(Number.isFinite(fund.etfStructureScore));
+  assert.ok(fund.etfStructureScore >= 70);
 });
 
 test("rejects rows without a valid ISIN instead of inventing securities", () => {
@@ -58,4 +60,24 @@ test("loads stock and ETF pages through injectable public catalog transport", as
   assert.deepEqual(items.map((item) => item.isin), ["DE000BASF111", "IE00B3YLTY66"]);
   assert.deepEqual(calls.map((call) => call.assetType), ["stock", "fund"]);
   assert.ok(calls.every((call) => call.jurisdiction === "DE"));
+});
+
+test("a total target is split across stocks and ETFs instead of being exhausted by stocks", async () => {
+  const requestPage = async ({ assetType, page }) => {
+    if (page > 1) return { results: [] };
+    const prefix = assetType === "stock" ? "DE" : "IE";
+    return {
+      results: Array.from({ length: 8 }, (_, index) => ({
+        isin: `${prefix}${String(index).padStart(10, "0")}`,
+        name: assetType === "stock" ? `Aktie ${index}` : `World UCITS ETF ${index}`,
+        ticker: `${assetType === "stock" ? "S" : "E"}${index}`,
+        country: assetType === "stock" ? "DE" : "IE"
+      }))
+    };
+  };
+
+  const items = await loadTradeRepublicCatalog({ requestPage, target: 10, pageSize: 20 });
+  assert.equal(items.length, 10);
+  assert.ok(items.filter((item) => item.type === "AKTIE").length >= 5);
+  assert.ok(items.filter((item) => item.type === "ETF").length >= 3);
 });
