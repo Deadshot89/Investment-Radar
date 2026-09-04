@@ -63,6 +63,7 @@ object ApiClient {
             add("sort" to query.sort)
             add("page" to query.page.toString())
             add("pageSize" to query.pageSize.toString())
+            add("includeCounts" to query.includeCounts.toString())
             if (query.tradeRepublicVerified) add("tradeRepublicVerified" to "true")
         }.joinToString("&") { (key, value) -> "$key=${URLEncoder.encode(value, "UTF-8")}" }
         return getJson("$baseUrl/api/radar?$params", ::parseRadarPage)
@@ -113,18 +114,32 @@ object ApiClient {
         )
     }
 
-    private fun parseRadarPage(obj: JSONObject): RadarPage = RadarPage(
-        generatedAt = obj.optString("generatedAt", ""),
-        total = obj.optInt("total", 0),
-        universeTotal = obj.optInt("universeTotal", obj.optInt("total", 0)),
-        page = obj.optInt("page", 1),
-        pageSize = obj.optInt("pageSize", 40),
-        hasMore = obj.optBoolean("hasMore", false),
-        items = obj.optJSONArray("items").toRadarItems(),
-        facets = parseRadarFacets(obj.optJSONObject("facets")),
-        tradeRepublicVerifiedCount = obj.optInt("tradeRepublicVerifiedCount", 0),
-        tradeRepublicUnverifiedCount = obj.optInt("tradeRepublicUnverifiedCount", 0)
-    )
+    private fun parseRadarPage(obj: JSONObject): RadarPage {
+        val countsObj = obj.optJSONObject("counts")
+        val total = obj.optInt("total", 0)
+        val universeTotal = obj.optInt("universeTotal", total)
+        return RadarPage(
+            generatedAt = obj.optString("generatedAt", ""),
+            total = total,
+            universeTotal = universeTotal,
+            page = obj.optInt("page", 1),
+            pageSize = obj.optInt("pageSize", 40),
+            hasMore = obj.optBoolean("hasMore", false),
+            items = obj.optJSONArray("items").toRadarItems(),
+            facets = parseRadarFacets(obj.optJSONObject("facets")),
+            tradeRepublicVerifiedCount = obj.optInt("tradeRepublicVerifiedCount", 0),
+            tradeRepublicUnverifiedCount = obj.optInt("tradeRepublicUnverifiedCount", 0),
+            counts = RadarCounts(
+                total = countsObj?.optInt("total", total) ?: total,
+                stocks = countsObj?.optInt("stocks", 0) ?: 0,
+                etfs = countsObj?.optInt("etfs", 0) ?: 0,
+                buy = countsObj?.optInt("buy", 0) ?: 0,
+                watch = countsObj?.optInt("watch", 0) ?: 0,
+                noBuy = countsObj?.optInt("noBuy", 0) ?: 0,
+                review = countsObj?.optInt("review", 0) ?: 0
+            )
+        )
+    }
 
     private fun parseRadarFacets(obj: JSONObject?): RadarFacets = RadarFacets(
         types = obj?.optJSONArray("types").toRadarFacets(),
