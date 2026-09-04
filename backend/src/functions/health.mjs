@@ -12,12 +12,12 @@ app.http("health", {
       jsonBody: {
         ok: true,
         service: "investment-radar-live",
-        backendVersion: "2.0.0",
+        backendVersion: "2.1.0",
         marketDataConfigured: Boolean(process.env.TWELVE_DATA_API_KEY),
         fundamentalDataConfigured: Boolean(process.env.TWELVE_DATA_API_KEY),
         pushConfigured: Boolean(process.env.FIREBASE_SERVICE_ACCOUNT_JSON?.trim()),
         analysisModel: "v2",
-        universeTarget: 1000,
+        universeTarget: 2000,
         universeSource: "TRADE_REPUBLIC_PUBLIC",
         ...firebaseDiagnostics,
         time: new Date().toISOString()
