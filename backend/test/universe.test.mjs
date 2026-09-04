@@ -15,7 +15,7 @@ test("parseNasdaqListed remains available only as an explicit development fallba
   assert.equal(rows[2].testIssue, true);
 });
 
-test("mergeUniverse preserves curated identity and removes ISIN/ticker duplicates", () => {
+test("mergeUniverse preserves curated identity and removes exact ISIN duplicates", () => {
   const curated = [{ id: "aapl", ticker: "AAPL", isin: "US0378331005", universeActive: true, tradeRepublicEligible: true }];
   const external = [
     { id: "tr-US0378331005", ticker: "AAPL", isin: "US0378331005", universeActive: true, tradeRepublicEligible: true },
@@ -23,6 +23,17 @@ test("mergeUniverse preserves curated identity and removes ISIN/ticker duplicate
   ];
   const merged = mergeUniverse(curated, external);
   assert.deepEqual(merged.map((x) => x.id), ["aapl", "tr-US5949181045"]);
+});
+
+test("mergeUniverse keeps distinct verified securities that share the same ticker", () => {
+  const external = [
+    { id: "tr-DE0000000001", ticker: "ABC", isin: "DE0000000001", name: "ABC Stammaktie", universeActive: true, tradeRepublicEligible: true },
+    { id: "tr-DE0000000002", ticker: "ABC", isin: "DE0000000002", name: "ABC Vorzugsaktie", universeActive: true, tradeRepublicEligible: true }
+  ];
+
+  const merged = mergeUniverse([], external);
+
+  assert.deepEqual(merged.map((item) => item.isin), ["DE0000000001", "DE0000000002"]);
 });
 
 test("validateUniverse rejects duplicate ISINs and unverified production candidates", () => {
