@@ -14,7 +14,7 @@ grep -q 'val buy: Int' "$MODELS"
 grep -q 'val watch: Int' "$MODELS"
 grep -q 'val counts: RadarCounts' "$MODELS"
 
-grep -q 'append("includeCounts", query.includeCounts.toString())' "$API"
+grep -q 'add("includeCounts" to query.includeCounts.toString())' "$API"
 grep -q 'optJSONObject("counts")' "$API"
 grep -q 'RadarCounts(' "$API"
 
