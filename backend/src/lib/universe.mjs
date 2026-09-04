@@ -4,7 +4,9 @@ import { loadTradeRepublicCatalog as defaultLoadTradeRepublicCatalog } from "./t
 const NASDAQ_LISTED_URL = "https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt";
 const OTHER_LISTED_URL = "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt";
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
-const TARGET_EXTERNAL = 1200;
+const TARGET_EXTERNAL = 2200;
+const DEFAULT_UNIVERSE_LIMIT = 2200;
+const DEFAULT_MIN_ETF_SHARE = 0.25;
 
 let memoryCache = null;
 let memoryCacheAt = 0;
@@ -77,7 +79,7 @@ export async function loadUniverse(overrides = {}) {
   let tradeRepublic = [];
   if (overrides.includeTradeRepublic !== false) {
     try {
-      tradeRepublic = await loadTradeRepublicCatalog({ target: Number(overrides.catalogTarget ?? 1300) });
+      tradeRepublic = await loadTradeRepublicCatalog({ target: Number(overrides.catalogTarget ?? TARGET_EXTERNAL) });
     } catch (error) {
       console.error("Trade Republic universe refresh failed; curated universe used", error);
       if (overrides.requireTradeRepublicCatalog) throw error;
@@ -90,22 +92,55 @@ export async function loadUniverse(overrides = {}) {
     if (typeof fetchImpl === "function") external = await loadPublicListedUniverse(fetchImpl);
   }
 
-  const limit = Math.max(curated.length, Number(overrides.limit ?? 1000));
-  const merged = mergeUniverse(curated, external).slice(0, limit);
-  validateUniverse(merged, {
+  const limit = Math.max(curated.length, Number(overrides.limit ?? DEFAULT_UNIVERSE_LIMIT));
+  const merged = mergeUniverse(curated, external);
+  const limited = limitUniverseByType(merged, limit, {
+    minEtfShare: Number(overrides.minEtfShare ?? DEFAULT_MIN_ETF_SHARE)
+  });
+  validateUniverse(limited, {
     minActive: overrides.minActive ?? 1,
     requireTradeRepublic: overrides.requireTradeRepublicEligibility === true
   });
-  memoryCache = merged;
+  memoryCache = limited;
   memoryCacheAt = now;
-  return merged;
+  return limited;
+}
+
+export function limitUniverseByType(items, limit, { minEtfShare = DEFAULT_MIN_ETF_SHARE } = {}) {
+  const max = Math.max(1, Math.round(Number(limit) || 1));
+  if (items.length <= max) return [...items];
+
+  const pinned = items.filter((item) => item.portfolioOnly || String(item.universeSource ?? "").toUpperCase() === "CURATED");
+  const pinnedIds = new Set(pinned.map((item) => item.id));
+  if (pinned.length >= max) return pinned.slice(0, max);
+
+  const remainder = items.filter((item) => !pinnedIds.has(item.id));
+  const etfs = remainder.filter((item) => String(item.type).toUpperCase() === "ETF");
+  const stocks = remainder.filter((item) => String(item.type).toUpperCase() !== "ETF");
+  const slots = max - pinned.length;
+  const pinnedEtfs = pinned.filter((item) => String(item.type).toUpperCase() === "ETF").length;
+  const desiredTotalEtfs = Math.ceil(max * clampRatio(minEtfShare));
+  const desiredExternalEtfs = Math.max(0, desiredTotalEtfs - pinnedEtfs);
+  const etfTake = Math.min(etfs.length, desiredExternalEtfs, slots);
+  let stockTake = Math.min(stocks.length, slots - etfTake);
+  let used = stockTake + etfTake;
+
+  if (used < slots) {
+    const extraEtfs = Math.min(etfs.length - etfTake, slots - used);
+    used += extraEtfs;
+    const finalEtfTake = etfTake + extraEtfs;
+    if (used < slots) stockTake += Math.min(stocks.length - stockTake, slots - used);
+    return [...pinned, ...stocks.slice(0, stockTake), ...etfs.slice(0, finalEtfTake)].slice(0, max);
+  }
+
+  return [...pinned, ...stocks.slice(0, stockTake), ...etfs.slice(0, etfTake)].slice(0, max);
 }
 
 // Development-only external source. Production does not call this unless explicitly enabled.
 export async function loadPublicListedUniverse(fetchImpl = globalThis.fetch) {
   const [nasdaqResponse, otherResponse] = await Promise.all([
-    fetchImpl(NASDAQ_LISTED_URL, { headers: { "user-agent": "Investment-Radar/2.0" } }),
-    fetchImpl(OTHER_LISTED_URL, { headers: { "user-agent": "Investment-Radar/2.0" } })
+    fetchImpl(NASDAQ_LISTED_URL, { headers: { "user-agent": "Investment-Radar/2.1" } }),
+    fetchImpl(OTHER_LISTED_URL, { headers: { "user-agent": "Investment-Radar/2.1" } })
   ]);
   if (!nasdaqResponse?.ok || !otherResponse?.ok) throw new Error("Listed-universe provider unavailable");
   const [nasdaqText, otherText] = await Promise.all([nasdaqResponse.text(), otherResponse.text()]);
@@ -202,4 +237,10 @@ function normalizeTicker(value) {
 function clampInt(value, min, max) {
   const number = Math.round(Number(value));
   return Number.isFinite(number) ? Math.min(max, Math.max(min, number)) : min;
+}
+
+function clampRatio(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return DEFAULT_MIN_ETF_SHARE;
+  return Math.max(0, Math.min(0.75, number));
 }
