@@ -1,30 +1,42 @@
 const TR_WS_URL = "wss://api.traderepublic.com";
 const TR_WS_CONNECT_VERSION = "34";
 const DEFAULT_PAGE_SIZE = 100;
-const MAX_PAGES_PER_TYPE = 12;
+const MAX_PAGES_PER_TYPE = 20;
 
 export async function loadTradeRepublicCatalog(options = {}) {
   const requestPage = options.requestPage ?? requestTradeRepublicPage;
-  const target = Math.max(1, Number(options.target ?? 1200));
+  const requestedTotal = Math.max(1, Number(options.target ?? 2200));
+  const explicitStockTarget = finitePositiveInt(options.stockTarget);
+  const explicitFundTarget = finitePositiveInt(options.fundTarget);
+  const defaultFundTarget = Math.max(1, Math.round(requestedTotal * 0.30));
+  const stockTarget = explicitStockTarget ?? Math.max(1, requestedTotal - defaultFundTarget);
+  const fundTarget = explicitFundTarget ?? Math.max(1, requestedTotal - stockTarget);
+  const totalTarget = explicitStockTarget != null || explicitFundTarget != null
+    ? stockTarget + fundTarget
+    : requestedTotal;
   const pageSize = Math.min(100, Math.max(20, Number(options.pageSize ?? DEFAULT_PAGE_SIZE)));
-  const collected = [];
 
-  for (const assetType of ["stock", "fund"]) {
-    for (let page = 1; page <= MAX_PAGES_PER_TYPE && collected.length < target; page += 1) {
-      const payload = await requestPage({ assetType, page, pageSize, jurisdiction: "DE" });
-      const rows = extractSearchResults(payload);
-      if (rows.length === 0) break;
-      for (const row of rows) {
-        const normalized = normalizeTradeRepublicResult(row, assetType);
-        if (normalized) collected.push(normalized);
-      }
-      if (rows.length < pageSize) break;
-    }
-  }
-
-  const unique = deduplicateTradeRepublicCatalog(collected);
+  const stocks = await collectType({ requestPage, assetType: "stock", target: stockTarget, pageSize });
+  const funds = await collectType({ requestPage, assetType: "fund", target: fundTarget, pageSize });
+  const unique = deduplicateTradeRepublicCatalog([...stocks, ...funds]);
   if (unique.length === 0) throw new Error("Trade-Republic-Katalog lieferte keine Aktien oder ETFs");
-  return unique.slice(0, target);
+  return unique.slice(0, totalTarget);
+}
+
+async function collectType({ requestPage, assetType, target, pageSize }) {
+  const collected = [];
+  for (let page = 1; page <= MAX_PAGES_PER_TYPE && collected.length < target; page += 1) {
+    const payload = await requestPage({ assetType, page, pageSize, jurisdiction: "DE" });
+    const rows = extractSearchResults(payload);
+    if (rows.length === 0) break;
+    for (const row of rows) {
+      const normalized = normalizeTradeRepublicResult(row, assetType);
+      if (normalized) collected.push(normalized);
+      if (collected.length >= target) break;
+    }
+    if (rows.length < pageSize) break;
+  }
+  return collected.slice(0, target);
 }
 
 export function normalizeTradeRepublicResult(raw, requestedType = "stock") {
@@ -56,6 +68,8 @@ export function normalizeTradeRepublicResult(raw, requestedType = "stock") {
   const region = firstString(raw.region, raw.instrument?.region, regionForCountry(country)).toUpperCase();
   const sector = firstString(raw.sector, raw.sectorName, raw.instrument?.sector);
   const industry = firstString(raw.industry, raw.industryName, raw.instrument?.industry);
+  const risk = type === "ETF" ? inferEtfRisk(name) : 3;
+  const etfStructureScore = type === "ETF" ? inferEtfStructureScore(name) : undefined;
 
   return {
     id: `tr-${isin.toLowerCase()}`,
@@ -66,7 +80,7 @@ export function normalizeTradeRepublicResult(raw, requestedType = "stock") {
     tradeRepublicName: name,
     marketSymbol: ticker,
     yahooSymbol: "",
-    risk: type === "ETF" ? 2 : 3,
+    risk,
     region,
     country,
     sector,
@@ -77,7 +91,8 @@ export function normalizeTradeRepublicResult(raw, requestedType = "stock") {
     portfolioOnly: false,
     dataQualityTier: "B",
     universeSource: "TRADE_REPUBLIC_PUBLIC",
-    tradeRepublicJurisdiction: "DE"
+    tradeRepublicJurisdiction: "DE",
+    ...(type === "ETF" ? { etfStructureScore } : {})
   };
 }
 
@@ -179,6 +194,23 @@ export function parseSubscriptionResponse(text, subscriptionId) {
   try { return JSON.parse(json); } catch { throw new Error("Trade-Republic-Katalog Antwort ist kein JSON"); }
 }
 
+function inferEtfStructureScore(name) {
+  const value = String(name ?? "").toUpperCase();
+  if (/\b(2X|3X|LEVERAGED|SHORT|INVERSE|DAILY SWAP)\b/.test(value)) return 45;
+  let score = 72;
+  if (/\bUCITS\b/.test(value)) score += 8;
+  if (/MSCI WORLD|MSCI ACWI|ALL[- ]WORLD|FTSE ALL[- ]WORLD|S&P 500|STOXX 600|GLOBAL/.test(value)) score += 8;
+  if (/ACC|ACCUMULATING|DISTRIBUTING|DIST\b/.test(value)) score += 2;
+  return Math.max(40, Math.min(92, score));
+}
+
+function inferEtfRisk(name) {
+  const value = String(name ?? "").toUpperCase();
+  if (/\b(2X|3X|LEVERAGED|SHORT|INVERSE|DAILY SWAP)\b/.test(value)) return 5;
+  if (/SECTOR|TECHNOLOGY|SEMICONDUCTOR|BIOTECH|COMMODIT|GOLD|OIL|CRYPTO|BITCOIN/.test(value)) return 3;
+  return 2;
+}
+
 function firstString(...values) {
   for (const value of values) {
     if (typeof value === "string" && value.trim()) return value.trim();
@@ -192,4 +224,9 @@ function regionForCountry(country) {
   if (["JP", "CN", "HK", "TW", "KR", "SG", "IN"].includes(country)) return "ASIA";
   if (["AU", "NZ"].includes(country)) return "OCEANIA";
   return "GLOBAL";
+}
+
+function finitePositiveInt(value) {
+  const number = Math.round(Number(value));
+  return Number.isFinite(number) && number > 0 ? number : null;
 }
