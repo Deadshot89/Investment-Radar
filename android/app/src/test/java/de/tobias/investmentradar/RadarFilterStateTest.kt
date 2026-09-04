@@ -1,7 +1,7 @@
 package de.tobias.investmentradar
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
+import org.junit.Assert.assertFalse
 import org.junit.Test
 
 class RadarFilterStateTest {
@@ -32,7 +32,7 @@ class RadarFilterStateTest {
     }
 
     @Test
-    fun buyFilterFallsBackToBestWatchCandidatesWhenNoBuySignalExists() {
+    fun buyFilterNeverShowsWatchCandidatesWhenNoBuySignalExists() {
         val best = radarItem("best", recommendation = "WATCH", scoreTotal = 84, coverage = 90, risk = 2)
         val second = radarItem("second", recommendation = "WATCH", scoreTotal = 79, coverage = 80, risk = 3)
         val weak = radarItem("weak", recommendation = "WATCH", scoreTotal = 61, coverage = 70, risk = 2)
@@ -46,8 +46,8 @@ class RadarFilterStateTest {
             allocationById = emptyMap()
         )
 
-        assertTrue(result.buyFallbackActive)
-        assertEquals(listOf("best", "second", "weak"), result.items.map { it.id })
+        assertFalse(result.buyFallbackActive)
+        assertEquals(emptyList<String>(), result.items.map { it.id })
     }
 
     @Test
