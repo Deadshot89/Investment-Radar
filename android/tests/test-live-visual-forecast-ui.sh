@@ -2,6 +2,7 @@
 set -euo pipefail
 MAIN="android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt"
 LIVE_FORECAST="android/app/src/main/java/de/tobias/investmentradar/LiveForecastSummary.kt"
+DETAIL="android/app/src/main/java/de/tobias/investmentradar/InvestmentDetailScreen.kt"
 FORECAST_ENGINE="android/app/src/main/java/de/tobias/investmentradar/ForecastEngine.kt"
 
 # SIGNAL must visually distinguish an active buy signal from an inactive WAIT state.
@@ -19,6 +20,11 @@ grep -q 'Text("Stark ' "$LIVE_FORECAST"
 grep -q 'color = LiveForecastBear' "$LIVE_FORECAST"
 grep -q 'color = LiveForecastBase' "$LIVE_FORECAST"
 grep -q 'color = LiveForecastBull' "$LIVE_FORECAST"
+grep -q 'DetailValueRow("Schwach"' "$DETAIL"
+grep -q 'DetailValueRow("Erwartet"' "$DETAIL"
+grep -q 'DetailValueRow("Stark"' "$DETAIL"
+! grep -q 'DetailValueRow("Bear"' "$DETAIL"
+! grep -q 'DetailValueRow("Bull"' "$DETAIL"
 ! grep -q '"Bear ' "$LIVE_FORECAST"
 ! grep -q '"Bull ' "$LIVE_FORECAST"
 ! grep -q 'Bear-Szenario' "$FORECAST_ENGINE"
