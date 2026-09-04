@@ -12,7 +12,8 @@ data class RadarQuery(
     val sort: String = "SCORE_DESC",
     val page: Int = 1,
     val pageSize: Int = 40,
-    val tradeRepublicVerified: Boolean = false
+    val tradeRepublicVerified: Boolean = false,
+    val includeCounts: Boolean = true
 )
 
 data class RadarFacet(val value: String, val count: Int)
@@ -23,6 +24,16 @@ data class RadarFacets(
     val countries: List<RadarFacet> = emptyList(),
     val sectors: List<RadarFacet> = emptyList(),
     val qualityTiers: List<RadarFacet> = emptyList()
+)
+
+data class RadarCounts(
+    val total: Int = 0,
+    val stocks: Int = 0,
+    val etfs: Int = 0,
+    val buy: Int = 0,
+    val watch: Int = 0,
+    val noBuy: Int = 0,
+    val review: Int = 0
 )
 
 data class RadarSummaryItem(
@@ -114,5 +125,6 @@ data class RadarPage(
     val items: List<RadarSummaryItem>,
     val facets: RadarFacets,
     val tradeRepublicVerifiedCount: Int,
-    val tradeRepublicUnverifiedCount: Int
+    val tradeRepublicUnverifiedCount: Int,
+    val counts: RadarCounts = RadarCounts()
 )
