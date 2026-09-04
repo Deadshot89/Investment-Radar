@@ -18,5 +18,5 @@ grep -q 'items = (radarBuyItems + dashboard.items + customQuotes).distinctBy { i
 grep -q 'runCatching { ApiClient.loadRadarPage' "$VM"
 grep -q 'getOrNull()' "$VM"
 
-# Keep this contract as the explicit post-patch verification trigger.
+# Final 2.0.6 release verification trigger for this regression contract.
 echo "PASS Live uses verified Radar BUY candidates"
