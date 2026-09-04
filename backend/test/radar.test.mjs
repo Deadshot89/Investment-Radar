@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { applyFilters, buildFacets, queryRadar } from "../src/lib/radar.mjs";
+import { resetRadarAnalysisCache } from "../src/lib/radarAnalysisCache.mjs";
 
 const base = [
   { id: "a", type: "AKTIE", name: "Alpha Tech", ticker: "AAA", isin: "US0000000001", region: "NORTH_AMERICA", country: "US", sector: "Technology", risk: 2, dataQualityTier: "A", universeActive: true, portfolioOnly: false, tradeRepublicEligible: true },
@@ -66,6 +67,7 @@ test("unverified Trade Republic item cannot become purchaseEligible even if scor
 });
 
 test("BUY filter is applied after analysis and never promotes unverified candidates", async () => {
+  resetRadarAnalysisCache();
   const candidates = [
     { ...base[0], risk: 1, tradeRepublicEligible: true },
     { ...base[2], risk: 1, tradeRepublicEligible: null }
@@ -81,4 +83,69 @@ test("BUY filter is applied after analysis and never promotes unverified candida
   assert.deepEqual(result.items.map((item) => item.id), ["a"]);
   assert.equal(result.items[0].recommendation, "BUY");
   assert.equal(result.items[0].purchaseEligible, true);
+});
+
+test("strong verified external ETF can become purchaseEligible without stock fundamentals", async () => {
+  resetRadarAnalysisCache();
+  const etf = { ...base[1], etfStructureScore: 88, risk: 1 };
+  const result = await queryRadar({ recommendation: "BUY" }, {
+    loadUniverse: async () => [etf],
+    loadQuotes: async () => new Map([["b", { price: 100, currency: "EUR", percentChange: 0.5, source: "TEST" }]]),
+    loadHistory: async () => new Map([["b", { ...strongMomentum, score: 90 }]]),
+    loadFundamentals: async () => new Map([["b", { metrics: {}, coveragePct: 0 }]]),
+    loadEurRateDetails: async () => new Map()
+  });
+  assert.equal(result.total, 1);
+  assert.equal(result.items[0].type, "ETF");
+  assert.equal(result.items[0].purchaseEligible, true);
+  assert.equal(result.items[0].recommendation, "BUY");
+  assert.ok(result.items[0].coverage >= 60);
+});
+
+test("recommendation queries reuse one analyzed universe snapshot inside TTL", async () => {
+  resetRadarAnalysisCache();
+  let quoteLoads = 0;
+  const overrides = {
+    loadUniverse: async () => [{ ...base[0], risk: 1 }],
+    loadQuotes: async (items) => {
+      quoteLoads += 1;
+      return new Map(items.map((item) => [item.id, { price: 100, currency: "EUR", percentChange: 0.5, source: "TEST" }]));
+    },
+    loadHistory: async (items) => new Map(items.map((item) => [item.id, strongMomentum])),
+    loadFundamentals: async (items) => new Map(items.map((item) => [item.id, strongFundamentals])),
+    loadEurRateDetails: async () => new Map(),
+    now: 1_000,
+    analysisTtlMs: 10_000
+  };
+
+  await queryRadar({ recommendation: "BUY" }, overrides);
+  await queryRadar({ recommendation: "WATCH" }, { ...overrides, now: 2_000 });
+
+  assert.equal(quoteLoads, 1);
+});
+
+test("includeCounts returns total stock ETF buy watch and review counts for the filtered universe", async () => {
+  resetRadarAnalysisCache();
+  const candidates = [
+    { ...base[0], risk: 1 },
+    { ...base[1], etfStructureScore: 70, risk: 2 },
+    base[2]
+  ];
+  const result = await queryRadar({ includeCounts: true, pageSize: 2 }, {
+    loadUniverse: async () => candidates,
+    loadQuotes: async (items) => new Map(items.map((item) => [item.id, { price: 100, currency: "EUR", percentChange: 0.5, source: "TEST" }])),
+    loadHistory: async (items) => new Map(items.map((item) => [item.id, item.id === "a" ? strongMomentum : { ...strongMomentum, score: 50 }])),
+    loadFundamentals: async (items) => new Map(items.map((item) => [item.id, item.id === "a" ? strongFundamentals : { metrics: {}, coveragePct: 0 }])),
+    loadEurRateDetails: async () => new Map()
+  });
+
+  assert.deepEqual(result.counts, {
+    total: 3,
+    stocks: 2,
+    etfs: 1,
+    buy: 1,
+    watch: 1,
+    noBuy: 0,
+    review: 1
+  });
 });
