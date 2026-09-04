@@ -43,22 +43,7 @@ object RadarFilterEngine {
             .filter { matchesRecommendation(it, state.recommendation) }
             .let { sort(it, state.sort, allocationById) }
 
-        if (state.recommendation != RadarRecommendationFilter.BUY || exact.isNotEmpty()) {
-            return RadarFilterResult(items = exact)
-        }
-
-        val fallback = filterBase(items, state, holdingIds, watchlistIds)
-            .filter { RecommendationPresentation.effectiveRecommendation(it) == "WATCH" }
-            .sortedWith(
-                compareByDescending<InvestmentItem> { it.scoreTotal ?: Int.MIN_VALUE }
-                    .thenByDescending { it.coverage ?: Int.MIN_VALUE }
-                    .thenBy { it.risk }
-                    .thenBy { it.name.lowercase() }
-                    .thenBy { it.id }
-            )
-            .take(3)
-
-        return RadarFilterResult(items = fallback, buyFallbackActive = fallback.isNotEmpty())
+        return RadarFilterResult(items = exact)
     }
 
     private fun filterBase(
