@@ -52,7 +52,7 @@ GitHub baut ab 1.1.9 eine signierte Release-APK. Der private Keystore liegt **ni
 - `ANDROID_KEYSTORE_BASE64`
 - `ANDROID_KEYSTORE_PASSWORD`
 - `ANDROID_KEY_ALIAS`
-- `ANDROID_KEY_PASSWORD`
+- `ANDROID_KEYSTORE_PASSWORD`
 
 Den erzeugten `investment-radar-release.jks` zusätzlich offline sichern. Ohne denselben Keystore können spätere APKs nicht als Update installiert werden.
 
