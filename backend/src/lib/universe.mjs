@@ -4,7 +4,7 @@ import { loadTradeRepublicCatalog as defaultLoadTradeRepublicCatalog } from "./t
 const NASDAQ_LISTED_URL = "https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt";
 const OTHER_LISTED_URL = "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt";
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
-const TARGET_EXTERNAL = 2200;
+const TARGET_EXTERNAL = 2600;
 const DEFAULT_UNIVERSE_LIMIT = 2200;
 const DEFAULT_MIN_ETF_SHARE = 0.25;
 
