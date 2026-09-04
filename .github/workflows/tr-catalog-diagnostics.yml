@@ -1,0 +1,49 @@
+name: Trade Republic Catalog Diagnostics
+
+on:
+  push:
+    branches:
+      - diag/tr-catalog-live
+  workflow_dispatch:
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Inspect live Trade Republic neonSearch pagination
+        working-directory: backend
+        run: |
+          node --input-type=module <<'NODE'
+          import { requestTradeRepublicPage, extractSearchResults, normalizeTradeRepublicResult } from './src/lib/tradeRepublicCatalog.mjs';
+
+          for (const assetType of ['stock', 'fund']) {
+            const isins = new Set();
+            const tickers = new Set();
+            console.log(`=== ${assetType} ===`);
+            for (let page = 1; page <= 25; page += 1) {
+              try {
+                const payload = await requestTradeRepublicPage({ assetType, page, pageSize: 100, jurisdiction: 'DE' });
+                const rows = extractSearchResults(payload);
+                let valid = 0;
+                for (const row of rows) {
+                  const item = normalizeTradeRepublicResult(row, assetType);
+                  if (!item) continue;
+                  valid += 1;
+                  isins.add(item.isin);
+                  tickers.add(item.ticker);
+                }
+                console.log(JSON.stringify({ assetType, page, rows: rows.length, valid, uniqueIsins: isins.size, uniqueTickers: tickers.size, payloadKeys: Object.keys(payload ?? {}) }));
+                if (rows.length === 0) break;
+              } catch (error) {
+                console.log(JSON.stringify({ assetType, page, error: String(error?.message ?? error) }));
+                break;
+              }
+            }
+            console.log(JSON.stringify({ assetType, finalUniqueIsins: isins.size, finalUniqueTickers: tickers.size }));
+          }
+          NODE
