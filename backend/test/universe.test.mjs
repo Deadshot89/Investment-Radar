@@ -64,3 +64,41 @@ test("loadUniverse can expose 1000 Trade-Republic-verified stocks and ETFs", asy
   assert.equal(items.filter((x) => !x.portfolioOnly && x.tradeRepublicEligible !== true).length, 0);
   assert.ok(items.some((x) => x.type === "ETF"));
 });
+
+test("loadUniverse keeps a meaningful ETF share when a 2000-item production limit is applied", async () => {
+  const catalog = [
+    ...Array.from({ length: 1800 }, (_, i) => ({
+      id: `stock-${i}`,
+      type: "AKTIE",
+      name: `Aktie ${i}`,
+      ticker: `S${i}`,
+      isin: `DE${String(i).padStart(10, "0")}`,
+      tradeRepublicEligible: true,
+      universeActive: true,
+      portfolioOnly: false
+    })),
+    ...Array.from({ length: 800 }, (_, i) => ({
+      id: `etf-${i}`,
+      type: "ETF",
+      name: `ETF ${i}`,
+      ticker: `E${i}`,
+      isin: `IE${String(i).padStart(10, "0")}`,
+      tradeRepublicEligible: true,
+      universeActive: true,
+      portfolioOnly: false
+    }))
+  ];
+
+  const items = await loadUniverse({
+    refresh: true,
+    limit: 2000,
+    minActive: 2000,
+    requireTradeRepublicEligibility: true,
+    loadConfig: async () => ({ items: [] }),
+    loadTradeRepublicCatalog: async () => catalog
+  });
+
+  assert.equal(items.length, 2000);
+  assert.ok(items.filter((item) => item.type === "ETF").length >= 400);
+  assert.ok(items.filter((item) => item.type === "AKTIE").length >= 1200);
+});
