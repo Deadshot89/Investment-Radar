@@ -87,4 +87,4 @@ dependencies {
     implementation("com.google.firebase:firebase-messaging")
 }
 
-// Build trigger: Investment Radar 2.1.0
+// Release candidate: Investment Radar 2.1.0
