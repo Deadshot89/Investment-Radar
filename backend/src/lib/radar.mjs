@@ -3,6 +3,7 @@ import { loadQuotes as defaultLoadQuotes, loadEurRateDetails as defaultLoadEurRa
 import { loadHistory as defaultLoadHistory } from "./history.mjs";
 import { loadFundamentals as defaultLoadFundamentals } from "./fundamentals.mjs";
 import { scoreInvestment } from "./scoring.mjs";
+import { getRadarAnalysisSnapshot, radarAnalysisKey } from "./radarAnalysisCache.mjs";
 
 const DEFAULT_PAGE_SIZE = 40;
 const MAX_PAGE_SIZE = 100;
@@ -13,18 +14,40 @@ export async function queryRadar(query = {}, overrides = {}) {
   const active = universe.filter((item) => item.universeActive !== false && !item.portfolioOnly);
   const filtered = applyFilters(active, query);
   const recommendation = upper(query.recommendation);
+  const includeCounts = query.includeCounts === true || String(query.includeCounts) === "true";
   const pageSize = clampInt(query.pageSize ?? DEFAULT_PAGE_SIZE, 1, MAX_PAGE_SIZE);
+  const needsSnapshot = Boolean(recommendation) || includeCounts;
+
+  let analyzedFiltered = null;
+  let unverifiedFiltered = null;
+  let counts = null;
+
+  if (needsSnapshot) {
+    const verifiedActive = active.filter((item) => item.tradeRepublicEligible === true);
+    const now = Number.isFinite(Number(overrides.now)) ? Number(overrides.now) : Date.now();
+    const baseKey = radarAnalysisKey(verifiedActive);
+    const cacheKey = query.refresh ? `${baseKey}|refresh:${now}` : baseKey;
+    const snapshot = await getRadarAnalysisSnapshot({
+      key: cacheKey,
+      now,
+      ttlMs: overrides.analysisTtlMs,
+      load: () => analyzeSummaries(verifiedActive, overrides)
+    });
+    const filteredIds = new Set(filtered.map((item) => item.id));
+    analyzedFiltered = snapshot.items.filter((item) => filteredIds.has(item.id));
+    unverifiedFiltered = filtered
+      .filter((item) => item.tradeRepublicEligible !== true)
+      .map(unverifiedSummary);
+    counts = buildRadarCounts(filtered, analyzedFiltered, unverifiedFiltered);
+  }
 
   if (recommendation) {
-    const verified = filtered.filter((item) => item.tradeRepublicEligible === true);
-    const verifiedSummaries = await analyzeSummaries(verified, overrides);
-    const unverifiedReview = recommendation === "REVIEW"
-      ? filtered.filter((item) => item.tradeRepublicEligible !== true).map(unverifiedSummary)
-      : [];
-    const matching = sortSummaries([
-      ...verifiedSummaries.filter((item) => upper(item.recommendation) === recommendation),
-      ...unverifiedReview
-    ], query.sort);
+    const analyzed = analyzedFiltered ?? [];
+    const matchingVerified = recommendation === "BUY"
+      ? analyzed.filter((item) => item.purchaseEligible === true && upper(item.recommendation) === "BUY")
+      : analyzed.filter((item) => upper(item.recommendation) === recommendation);
+    const matchingUnverified = recommendation === "REVIEW" ? (unverifiedFiltered ?? []) : [];
+    const matching = sortSummaries([...matchingVerified, ...matchingUnverified], query.sort);
     const page = clampInt(query.page ?? 1, 1, Math.max(1, Math.ceil(matching.length / pageSize)));
     const start = (page - 1) * pageSize;
     return buildResponse({
@@ -33,7 +56,8 @@ export async function queryRadar(query = {}, overrides = {}) {
       pageSize,
       total: matching.length,
       items: matching.slice(start, start + pageSize),
-      hasMore: start + pageSize < matching.length
+      hasMore: start + pageSize < matching.length,
+      counts
     });
   }
 
@@ -49,11 +73,12 @@ export async function queryRadar(query = {}, overrides = {}) {
     pageSize,
     total: sorted.length,
     items: sortSummaries(analyzed, query.sort),
-    hasMore: start + pageSize < sorted.length
+    hasMore: start + pageSize < sorted.length,
+    counts
   });
 }
 
-function buildResponse({ active, page, pageSize, total, items, hasMore }) {
+function buildResponse({ active, page, pageSize, total, items, hasMore, counts = null }) {
   return {
     generatedAt: new Date().toISOString(),
     total,
@@ -64,7 +89,8 @@ function buildResponse({ active, page, pageSize, total, items, hasMore }) {
     items,
     facets: buildFacets(active),
     tradeRepublicVerifiedCount: active.filter((item) => item.tradeRepublicEligible === true).length,
-    tradeRepublicUnverifiedCount: active.filter((item) => item.tradeRepublicEligible == null).length
+    tradeRepublicUnverifiedCount: active.filter((item) => item.tradeRepublicEligible == null).length,
+    ...(counts ? { counts } : {})
   };
 }
 
@@ -107,6 +133,19 @@ export function buildFacets(items) {
     countries: countBy(items, (item) => item.country || "UNKNOWN"),
     sectors: countBy(items, (item) => item.sector || "UNKNOWN"),
     qualityTiers: countBy(items, (item) => item.dataQualityTier || "UNKNOWN")
+  };
+}
+
+export function buildRadarCounts(filtered, analyzedVerified = [], unverified = []) {
+  const summaries = [...analyzedVerified, ...unverified];
+  return {
+    total: filtered.length,
+    stocks: filtered.filter((item) => upper(item.type) !== "ETF").length,
+    etfs: filtered.filter((item) => upper(item.type) === "ETF").length,
+    buy: summaries.filter((item) => item.purchaseEligible === true && upper(item.recommendation) === "BUY").length,
+    watch: summaries.filter((item) => upper(item.recommendation) === "WATCH").length,
+    noBuy: summaries.filter((item) => upper(item.recommendation) === "NO_BUY").length,
+    review: summaries.filter((item) => upper(item.recommendation) === "REVIEW").length
   };
 }
 
