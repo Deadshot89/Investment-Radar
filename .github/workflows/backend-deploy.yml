@@ -91,7 +91,7 @@ jobs:
         shell: bash
         env:
           BASE_URL: ${{ vars.INVESTMENT_API_BASE_URL }}
-          EXPECTED_BACKEND_VERSION: "2.0.0"
+          EXPECTED_BACKEND_VERSION: "2.1.0"
         run: |
           set -euo pipefail
           HEALTH_URL="${BASE_URL%/}/api/health"
