@@ -9,9 +9,14 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import java.util.Locale
+
+private val LiveForecastBear = Color(0xFFFF6577)
+private val LiveForecastBase = Color(0xFF4DE6FF)
+private val LiveForecastBull = Color(0xFF2EE59D)
 
 @Composable
 fun LiveForecastSummary(
@@ -21,18 +26,21 @@ fun LiveForecastSummary(
     val forecast = remember(item) { ForecastEngine.forecast(item) }
     val point = forecast.points.firstOrNull { it.horizon == ForecastHorizon.TWELVE_MONTHS } ?: return
     val coverage = forecast.coveragePct
+    val targetSuffix = point.targetPriceEur
+        ?.let { " · Ziel ${String.format(Locale.GERMANY, "%.2f €", it)}" }
+        .orEmpty()
 
     Column(verticalArrangement = Arrangement.spacedBy(if (compact) 2.dp else 5.dp)) {
         Text(
-            "12M Prognose · ${point.direction} · ${liveForecastPercent(point.expectedChangePct)}",
-            color = MaterialTheme.colorScheme.primary,
+            "12M Prognose · ${point.direction} · ${liveForecastPercent(point.expectedChangePct)}$targetSuffix",
+            color = LiveForecastBase,
             fontWeight = FontWeight.Black,
             style = if (compact) MaterialTheme.typography.bodySmall else MaterialTheme.typography.titleMedium
         )
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("Bear ${liveForecastScenario(point.bearTargetPriceEur, point.bearChangePct)}", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-            Text("Basis ${liveForecastScenario(point.targetPriceEur, point.expectedChangePct)}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall)
-            Text("Bull ${liveForecastScenario(point.bullTargetPriceEur, point.bullChangePct)}", color = MaterialTheme.colorScheme.secondary, style = MaterialTheme.typography.bodySmall)
+            Text("Schwach ${liveForecastScenario(point.bearTargetPriceEur, point.bearChangePct)}", color = LiveForecastBear, style = MaterialTheme.typography.bodySmall)
+            Text("Erwartet ${liveForecastScenario(point.targetPriceEur, point.expectedChangePct)}", color = LiveForecastBase, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall)
+            Text("Stark ${liveForecastScenario(point.bullTargetPriceEur, point.bullChangePct)}", color = LiveForecastBull, style = MaterialTheme.typography.bodySmall)
         }
         point.reasons.take(if (compact) 1 else 2).forEachIndexed { index, reason ->
             Text(

@@ -62,16 +62,34 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val hadReadyData = previousState is UiState.Ready
             if (!silent && !hadReadyData) _state.value = UiState.Loading
             runCatching {
-                val dashboard = ApiClient.loadDashboard()
+                val dashboardDeferred = async { ApiClient.loadDashboard() }
+                val radarBuyDeferred = async {
+                    runCatching { ApiClient.loadRadarPage(
+                        RadarQuery(
+                            recommendation = "BUY",
+                            sort = "SCORE_DESC",
+                            page = 1,
+                            pageSize = 20,
+                            tradeRepublicVerified = true
+                        )
+                    ) }.getOrNull()
+                }
+                val dashboard = dashboardDeferred.await()
+                val radarBuyItems = radarBuyDeferred.await()?.items.orEmpty()
+                    .filter { it.purchaseEligible }
+                    .map { it.asInvestmentItem() }
                 val application = getApplication<Application>()
-                promoteCustomPortfolioAssets(application, dashboard.items)
+                promoteCustomPortfolioAssets(application, (radarBuyItems + dashboard.items).distinctBy { it.id })
                 val customQuotes = _customItems.value.map { custom ->
                     async {
                         runCatching { ApiClient.loadCustomQuote(custom) }
                             .getOrElse { custom.fallbackItem(it.message ?: "Kursdaten fehlen", custom.manualPriceEur) }
                     }
                 }.awaitAll()
-                dashboard.copy(items = (dashboard.items + customQuotes).distinctBy { it.id })
+                dashboard.copy(
+                    topPickId = radarBuyItems.firstOrNull()?.id ?: dashboard.topPickId,
+                    items = (radarBuyItems + dashboard.items + customQuotes).distinctBy { it.id }
+                )
             }
                 .onSuccess {
                     val application = getApplication<Application>()
