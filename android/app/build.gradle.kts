@@ -87,4 +87,4 @@ dependencies {
     implementation("com.google.firebase:firebase-messaging")
 }
 
-// Release candidate: Investment Radar 2.1.0
+// Final release verification: Investment Radar 2.1.0 after live-universe buffer fix
