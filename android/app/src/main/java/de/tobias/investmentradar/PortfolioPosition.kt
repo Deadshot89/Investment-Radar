@@ -194,10 +194,11 @@ data class PortfolioPosition(
     }
 
     fun upsertPurchase(purchase: PortfolioPurchase): PortfolioPosition {
+        val base = materializeImportedOpeningPosition()
         val normalized = purchase.copy(investedAmount = purchase.investedAmount.coerceAtLeast(0.0), shares = purchase.shares.coerceAtLeast(0.0))
-        val index = purchases.indexOfFirst { it.id == normalized.id }
-        val next = if (index >= 0) purchases.toMutableList().apply { set(index, normalized) } else purchases + normalized
-        return copy(snapshotValueEur = null, snapshotCostBasisEur = null, trackedShares = null, purchases = next)
+        val index = base.purchases.indexOfFirst { it.id == normalized.id }
+        val next = if (index >= 0) base.purchases.toMutableList().apply { set(index, normalized) } else base.purchases + normalized
+        return base.copy(snapshotValueEur = null, snapshotCostBasisEur = null, trackedShares = null, purchases = next)
     }
     fun upsertPurchaseIfValid(purchase: PortfolioPurchase): PortfolioPosition? = upsertPurchase(purchase).takeIf { it.isLedgerValid() }
     fun removePurchase(purchaseId: String): PortfolioPosition = copy(purchases = purchases.filterNot { it.id == purchaseId })

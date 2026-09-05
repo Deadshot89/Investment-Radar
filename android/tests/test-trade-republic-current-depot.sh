@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 # Regression contract for the complete Trade Republic snapshot supplied on 05.09.2026.
-# This test also triggers the final main-branch release verification for 2.1.2.
 set -euo pipefail
 FILE="android/app/src/main/java/de/tobias/investmentradar/UserPortfolioSeed.kt"
 for expected in \
@@ -18,4 +17,15 @@ done
 grep -Fq 'trackedShares = imported.shares' "$FILE" || { echo 'Imported shares are not persisted'; exit 1; }
 grep -Fq 'snapshotCostBasisEur = imported.shares * imported.buyIn' "$FILE" || { echo 'Imported cost basis is not derived from shares and buy-in'; exit 1; }
 grep -Fq 'name = "iBonds Dec 2026 USD (Dist)"' "$FILE" || { echo 'iBonds asset missing'; exit 1; }
+
+# The screenshot did not provide a ticker or ISIN. Never fabricate identifiers.
+# Use fixed context instead of ')' as delimiter because the product name itself contains '(Dist)'.
+IBONDS_BLOCK=$(grep -A 8 -F 'id = "custom-ibonds-dec-2026-usd"' "$FILE")
+echo "$IBONDS_BLOCK" | grep -Fq 'ticker = ""' || { echo 'iBonds ticker must stay blank until verified'; exit 1; }
+echo "$IBONDS_BLOCK" | grep -Fq 'isin = ""' || { echo 'iBonds ISIN must stay blank until verified'; exit 1; }
+if echo "$IBONDS_BLOCK" | grep -Fq 'risk = '; then
+  echo 'iBonds risk must not be invented from the screenshot'
+  exit 1
+fi
+
 echo 'Current Trade Republic depot snapshot contract passed.'

@@ -137,10 +137,9 @@ object UserPortfolioSeed {
             CustomInvestment(
                 id = "custom-ibonds-dec-2026-usd",
                 name = "iBonds Dec 2026 USD (Dist)",
-                ticker = "IB26",
+                ticker = "",
                 isin = "",
-                type = "Anleihen-ETF",
-                risk = 2
+                type = "Festverzinslich"
             )
         )
     }
