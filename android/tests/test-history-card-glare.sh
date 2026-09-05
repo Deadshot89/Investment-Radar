@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Keeps the approved history cards dark enough that their text stays readable.
 SRC="android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt"
 
 if ! grep -q 'private const val NeonPanelGlowAlpha = 0.04f' "$SRC"; then
