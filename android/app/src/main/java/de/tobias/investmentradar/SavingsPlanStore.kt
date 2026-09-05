@@ -12,6 +12,13 @@ object SavingsPlanStore {
     private const val EXECUTIONS_KEY = "executions_v1"
     private const val SEEDED_KEY = "trade_republic_savings_plans_2026_09_05_v1"
     private const val CONFIRMED_DATES_KEY = "trade_republic_savings_plan_dates_2026_09_05_v2"
+    private val CONFIRMED_DEFAULT_PLAN_IDS = setOf(
+        "tr-meta-twice-monthly",
+        "tr-samsung-gdr-twice-monthly",
+        "tr-private-equity-a-twice-monthly",
+        "tr-private-equity-b-twice-monthly",
+        "tr-msft-monthly"
+    )
 
     fun initialPlans(): List<SavingsPlan> = listOf(
         SavingsPlan(
@@ -74,6 +81,8 @@ object SavingsPlanStore {
 
     fun applyConfirmedDefaultSchedules(plans: List<SavingsPlan>, today: String): List<SavingsPlan> =
         plans.map { plan ->
+            if (plan.id !in CONFIRMED_DEFAULT_PLAN_IDS) return@map plan
+
             val isBlankLegacySchedule = plan.dayOfMonth1 == null && plan.dayOfMonth2 == null && plan.nextDueDate == null
             val isConfirmedDefaultsWithoutNextDate = plan.nextDueDate == null && when (plan.frequency) {
                 SavingsPlanFrequency.MONTHLY -> plan.dayOfMonth1 == 1 && plan.dayOfMonth2 == null
