@@ -110,8 +110,28 @@ object UserPortfolioSeed {
             prefs.edit().putBoolean(KEY_FULL_CURRENT, true).apply()
         }
 
-        ensureCustomAsset(context, CustomInvestment("custom-nel-asa", "Nel ASA", "NEL.OL", "NO0010081235", "Aktie", 5))
-        ensureCustomAsset(context, CustomInvestment("custom-samsung-gdr", "Samsung (GDR)", "SMSN", "US7960508882", "Aktie", 3))
+        ensureCustomAsset(
+            context,
+            CustomInvestment(
+                id = "custom-nel-asa",
+                name = "Nel ASA",
+                ticker = "NEL.OL",
+                isin = "NO0010081235",
+                type = "Aktie",
+                risk = 5
+            )
+        )
+        ensureCustomAsset(
+            context,
+            CustomInvestment(
+                id = "custom-samsung-gdr",
+                name = "Samsung (GDR)",
+                ticker = "SMSN",
+                isin = "US7960508882",
+                type = "Aktie",
+                risk = 3
+            )
+        )
         ensureCustomAsset(
             context,
             CustomInvestment(
