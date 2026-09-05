@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Regression contract for the complete Trade Republic snapshot supplied on 05.09.2026.
+# This test also triggers the final main-branch release verification for 2.1.2.
 set -euo pipefail
 FILE="android/app/src/main/java/de/tobias/investmentradar/UserPortfolioSeed.kt"
 for expected in \
