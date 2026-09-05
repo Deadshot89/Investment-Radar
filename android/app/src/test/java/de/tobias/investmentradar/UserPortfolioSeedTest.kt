@@ -7,18 +7,19 @@ import org.junit.Test
 
 class UserPortfolioSeedTest {
     @Test
-    fun latestTradeRepublicSnapshotMatchesCurrentSevenPositionDepot() {
+    fun latestTradeRepublicSnapshotMatchesCurrentEightPositionDepot() {
         val snapshot = UserPortfolioSeed.latestSnapshotValues()
 
-        assertEquals(7, snapshot.size)
-        assertEquals(1714.83, snapshot.getValue("meta"), 0.001)
-        assertEquals(110.89, snapshot.getValue("custom-nel-asa"), 0.001)
-        assertEquals(50.15, snapshot.getValue("spyi"), 0.001)
-        assertEquals(42.96, snapshot.getValue("custom-samsung-gdr"), 0.001)
-        assertEquals(32.08, snapshot.getValue("msft"), 0.001)
-        assertEquals(20.19, snapshot.getValue("is3s"), 0.001)
-        assertEquals(15.14, snapshot.getValue("googl"), 0.001)
-        assertEquals(1986.24, snapshot.values.sum(), 0.001)
+        assertEquals(8, snapshot.size)
+        assertEquals(1213.11, snapshot.getValue("meta"), 0.001)
+        assertEquals(113.45, snapshot.getValue("custom-nel-asa"), 0.001)
+        assertEquals(50.25, snapshot.getValue("spyi"), 0.001)
+        assertEquals(45.45, snapshot.getValue("custom-samsung-gdr"), 0.001)
+        assertEquals(31.31, snapshot.getValue("msft"), 0.001)
+        assertEquals(20.30, snapshot.getValue("is3s"), 0.001)
+        assertEquals(15.00, snapshot.getValue("googl"), 0.001)
+        assertEquals(3.02, snapshot.getValue("custom-ibonds-dec-2026-usd"), 0.001)
+        assertEquals(1491.89, snapshot.values.sum(), 0.001)
     }
 
     @Test
