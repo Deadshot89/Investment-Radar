@@ -70,6 +70,21 @@ class SavingsPlanStoreTest {
     }
 
     @Test
+    fun migrationLeavesUnknownBlankPlanUntouched() {
+        val custom = SavingsPlan(
+            id = "custom-plan",
+            name = "Custom",
+            itemId = "googl",
+            amountEur = 5.0,
+            frequency = SavingsPlanFrequency.MONTHLY
+        )
+
+        val migrated = SavingsPlanStore.applyConfirmedDefaultSchedules(listOf(custom), "2026-09-05")
+
+        assertEquals(custom, migrated.single())
+    }
+
+    @Test
     fun mergingSeedNeverDuplicatesExistingPlanIds() {
         val seed = SavingsPlanStore.initialPlans()
         val editedMeta = seed.first { it.itemId == "meta" }.copy(amountEur = 25.0)
