@@ -1,5 +1,6 @@
 package de.tobias.investmentradar
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -42,6 +43,8 @@ fun InvestmentDetailScreen(
     val context = LocalContext.current
     val effectiveItem = detailItem(item, customItem)
 
+    BackHandler { onBack() }
+
     if (effectiveItem == null) {
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
@@ -51,8 +54,8 @@ fun InvestmentDetailScreen(
             item {
                 TextButton(onClick = onBack) { Text("← Zurück") }
                 DetailCard {
-                    Text("Wertpapier nicht mehr verfügbar", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleLarge)
-                    Text("Der Eintrag ist nicht mehr im aktuellen Radar oder in deinen eigenen Werten enthalten.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Wertpapier nicht im Radar enthalten", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleLarge)
+                    Text("Der Eintrag ist aktuell weder im Radar noch in deinen eigenen Werten enthalten.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -93,7 +96,7 @@ fun InvestmentDetailScreen(
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(detailPrice(effectiveItem), fontWeight = FontWeight.Bold)
                     Text(
-                        effectiveItem.percentChange?.let { detailSignedPercent(it) } ?: "Tag Nicht verfügbar",
+                        effectiveItem.percentChange?.let { detailSignedPercent(it) } ?: "Tag: keine aktuellen Daten",
                         color = when {
                             effectiveItem.percentChange == null -> MaterialTheme.colorScheme.onSurfaceVariant
                             effectiveItem.percentChange >= 0.0 -> MaterialTheme.colorScheme.primary
@@ -104,7 +107,7 @@ fun InvestmentDetailScreen(
                 }
                 HorizontalDivider()
                 DetailValueRow("Empfehlung", RecommendationPresentation.label(effectiveItem))
-                DetailValueRow("Gesamtscore", effectiveItem.scoreTotal?.let { "$it/100" } ?: "Nicht verfügbar")
+                DetailValueRow("Gesamtscore", effectiveItem.scoreTotal?.let { "$it/100" } ?: "Noch keine Analyse")
             }
         }
 
@@ -154,13 +157,13 @@ fun InvestmentDetailScreen(
                     DetailValueRow("Growth (Wachstum)", detailScore(effectiveItem.scoreGrowth))
                     DetailValueRow("Momentum", detailScore(effectiveItem.scoreMomentum))
                     DetailValueRow("Risk (Risiko)", detailScore(effectiveItem.scoreRisk))
-                    DetailValueRow("Coverage (Datenabdeckung)", effectiveItem.coverage?.let { "$it %" } ?: "Nicht verfügbar")
+                    DetailValueRow("Coverage (Datenabdeckung)", effectiveItem.coverage?.let { "$it %" } ?: "Datenabdeckung fehlt")
                 }
             } else {
                 DetailCard {
                     Text("Analyse V2", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
                     Text(
-                        if (customItem != null) "Analyse V2 für diesen eigenen Wert nicht verfügbar" else "Analyse V2 nicht verfügbar",
+                        if (customItem != null) "Für diesen eigenen Wert liegt noch keine Analyse vor" else "Noch keine Analyse vorhanden",
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -171,7 +174,7 @@ fun InvestmentDetailScreen(
             DetailCard {
                 Text("Datenstatus", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
                 DetailValueRow("Status", freshness.label)
-                DetailValueRow("Coverage", freshness.coverage?.let { "$it %" } ?: "Nicht verfügbar")
+                DetailValueRow("Coverage", freshness.coverage?.let { "$it %" } ?: "Datenabdeckung fehlt")
                 freshness.analysisAsOf?.let { DetailValueRow("Analyse-Stand", detailTimestamp(it)) }
                 when (freshness.status) {
                     FreshnessStatus.CURRENT -> Text("Die für die Analyse verwendeten Daten liegen innerhalb der Frischegrenzen.", color = MaterialTheme.colorScheme.primary)
@@ -193,7 +196,7 @@ fun InvestmentDetailScreen(
                     "12M" to momentum?.m12
                 ).filter { it.second != null }
                 if (momentumRows.isEmpty()) {
-                    Text("Nicht verfügbar", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Keine aktuellen Momentum-Daten", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else {
                     momentumRows.forEach { (period, value) ->
                         DetailValueRow(period, detailSignedPercent(value!!))
@@ -208,7 +211,7 @@ fun InvestmentDetailScreen(
             DetailCard {
                 Text("Fundamentaldaten", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
                 if (!fundamentals.hasDetailMetrics()) {
-                    Text("Fundamentaldaten nicht verfügbar", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Keine Fundamentaldaten vorhanden", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else {
                     fundamentals?.pe?.let { DetailValueRow("KGV / P/E", detailNumber(it)) }
                     fundamentals?.priceToSales?.let { DetailValueRow("KUV / P/S", detailNumber(it)) }
@@ -242,10 +245,10 @@ fun InvestmentDetailScreen(
                     Text("Deine Position", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
                     DetailValueRow("Bestand", detailShares(portfolioPosition.shares))
                     DetailValueRow("Investiert", detailMoney(portfolioPosition.investedAmount))
-                    DetailValueRow("Ø Einstand", portfolioPosition.averageBuyPrice()?.let(::detailMoney) ?: "Nicht verfügbar")
-                    DetailValueRow("Aktueller Wert", portfolioPosition.currentValue(comparablePrice)?.let(::detailMoney) ?: "Nicht verfügbar")
+                    DetailValueRow("Ø Einstand", portfolioPosition.averageBuyPrice()?.let(::detailMoney) ?: "Einstand nicht erfasst")
+                    DetailValueRow("Aktueller Wert", portfolioPosition.currentValue(comparablePrice)?.let(::detailMoney) ?: "Kurs fehlt")
                     DetailValueRow("Realisierter G/V", detailSignedMoney(portfolioPosition.realizedProfitLoss()))
-                    DetailValueRow("Gesamt G/V", portfolioPosition.totalProfitLoss(comparablePrice)?.let(::detailSignedMoney) ?: "Nicht verfügbar")
+                    DetailValueRow("Gesamt G/V", portfolioPosition.totalProfitLoss(comparablePrice)?.let(::detailSignedMoney) ?: "Gesamt G/V nicht berechenbar")
                 }
             }
         }
@@ -253,10 +256,10 @@ fun InvestmentDetailScreen(
         item {
             DetailCard {
                 Text("Datenquellen", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
-                DetailValueRow("Kurs", freshness.quoteSource ?: "Nicht verfügbar")
-                DetailValueRow("Historie / Momentum", freshness.historySource ?: "Nicht verfügbar")
+                DetailValueRow("Kurs", freshness.quoteSource ?: "Quelle nicht gemeldet")
+                DetailValueRow("Historie / Momentum", freshness.historySource ?: "Quelle nicht gemeldet")
                 momentum?.asOf?.takeIf { it.isNotBlank() }?.let { DetailValueRow("Historie Stand", detailTimestamp(it)) }
-                DetailValueRow("Fundamentaldaten", freshness.fundamentalSource ?: "Nicht verfügbar")
+                DetailValueRow("Fundamentaldaten", freshness.fundamentalSource ?: "Quelle nicht gemeldet")
                 fundamentals?.asOf?.takeIf { it.isNotBlank() }?.let { DetailValueRow("Fundamental Stand", detailTimestamp(it)) }
             }
         }
@@ -330,7 +333,7 @@ private fun detailTrend(momentum: MomentumSnapshot?): String {
         m3 != null && m6 != null && m3 > 0.0 && m6 > 0.0 -> "Positiver Trend"
         m3 != null && m6 != null && m3 < 0.0 && m6 < 0.0 -> "Negativer Trend"
         m3 != null || m6 != null -> "Gemischter Trend"
-        else -> "Nicht verfügbar"
+        else -> "Noch kein Trend berechenbar"
     }
 }
 
@@ -351,11 +354,11 @@ private fun FundamentalSnapshot?.hasDetailMetrics(): Boolean {
     ).any { it != null }
 }
 
-private fun detailScore(value: Int?): String = value?.let { "$it/100" } ?: "Nicht verfügbar"
+private fun detailScore(value: Int?): String = value?.let { "$it/100" } ?: "Noch keine Analyse"
 
 private fun detailPrice(item: InvestmentItem): String {
-    val value = item.price?.let { String.format(Locale.GERMANY, "%.2f", it) } ?: "Nicht verfügbar"
-    return if (item.price == null) "Kurs $value" else "Kurs $value ${item.currency}".trim()
+    val value = item.price?.let { String.format(Locale.GERMANY, "%.2f", it) }
+    return if (value == null) "Kurs: Keine aktuellen Daten" else "Kurs $value ${item.currency}".trim()
 }
 
 private fun detailNumber(value: Double): String = String.format(Locale.GERMANY, "%.2f", value)
@@ -368,4 +371,4 @@ private fun detailTimestamp(value: String): String = value.replace('T', ' ').rem
 
 private fun detailForecastScenario(targetPriceEur: Double?, changePct: Double): String =
     targetPriceEur?.let { String.format(Locale.GERMANY, "%.2f € (%+.1f %%)", it, changePct) }
-        ?: String.format(Locale.GERMANY, "%+.1f %% · Zielpreis nicht verfügbar", changePct)
+        ?: String.format(Locale.GERMANY, "%+.1f %% · Zielpreis noch nicht berechenbar", changePct)
