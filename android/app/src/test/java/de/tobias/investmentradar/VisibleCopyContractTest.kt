@@ -24,8 +24,13 @@ class VisibleCopyContractTest {
             }
             .toList()
 
+        if (matches.isNotEmpty()) {
+            println("GENERIC_UNAVAILABLE_MATCHES")
+            matches.forEach(::println)
+        }
+
         assertTrue(
-            "Visible Android copy must explain the concrete cause instead of using generic 'Nicht verfügbar':\n${matches.joinToString("\n")}",
+            "Visible Android copy must explain the concrete cause instead of using generic copy: ${matches.size} matches",
             matches.isEmpty()
         )
     }
