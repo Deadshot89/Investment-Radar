@@ -6,7 +6,7 @@ import org.junit.Test
 
 class LivePortfolioSummaryTest {
     @Test
-    fun liveSummaryUsesSamePortfolioMetricsAndKeepsAllSevenPositions() {
+    fun liveSummaryUsesSamePortfolioMetricsAndKeepsAllEightPositions() {
         val values = UserPortfolioSeed.latestSnapshotValues()
         val costs = UserPortfolioSeed.latestSnapshotCostBasis()
         val positions = values.mapValues { (id, value) ->
@@ -16,13 +16,13 @@ class LivePortfolioSummaryTest {
 
         val summary = LivePortfolioSummary.build(items, positions, emptyList())
 
-        assertEquals(7, summary.positionCount)
-        assertEquals(1986.24, summary.currentValue, 0.001)
-        assertEquals(2008.49, summary.costBasis, 0.001)
-        assertEquals(-22.25, summary.profitLoss, 0.001)
-        assertEquals(-1.1078, summary.profitLossPct, 0.001)
+        assertEquals(8, summary.positionCount)
+        assertEquals(1491.89, summary.currentValue, 0.001)
+        assertEquals(1485.6424, summary.costBasis, 0.001)
+        assertEquals(6.2476, summary.profitLoss, 0.001)
+        assertEquals(0.4205, summary.profitLossPct, 0.001)
         assertTrue(summary.performanceComplete)
-        assertEquals(7, summary.positions.size)
+        assertEquals(8, summary.positions.size)
         assertEquals("meta", summary.positions.first().itemId)
     }
 }
