@@ -14,7 +14,7 @@ class VisibleCopyContractTest {
         val root = candidates.firstOrNull(File::isDirectory)
             ?: error("Could not locate Android main source directory from ${System.getProperty("user.dir")}")
 
-        val forbidden = Regex("nicht\\s+verfügbar", RegexOption.IGNORE_CASE)
+        val forbidden = Regex("nicht(?:\\s+\\S+){0,3}\\s+verfügbar", RegexOption.IGNORE_CASE)
         val matches = root.walkTopDown()
             .filter { it.isFile && it.extension == "kt" }
             .flatMap { file ->
@@ -24,13 +24,8 @@ class VisibleCopyContractTest {
             }
             .toList()
 
-        if (matches.isNotEmpty()) {
-            println("GENERIC_UNAVAILABLE_MATCHES")
-            matches.forEach(::println)
-        }
-
         assertTrue(
-            "Visible Android copy must explain the concrete cause instead of using generic copy: ${matches.size} matches",
+            "Visible Android copy must explain the concrete cause instead of using generic unavailable wording:\n${matches.joinToString("\n")}",
             matches.isEmpty()
         )
     }
