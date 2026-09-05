@@ -18,10 +18,10 @@ grep -q 'universeTotal' "$WF"
 grep -q '2000' "$WF"
 grep -q 'Publish APK for in-app updates' "$WF"
 
-# The backend contract remains 2.1.0; this UI-only Android release advances independently to 2.1.1.
-grep -q 'versionCode = 54' "$GRADLE"
-grep -q 'versionName = "2.1.1"' "$GRADLE"
-grep -q 'Investment Radar 2.1.1' "$GRADLE"
+# The backend contract remains 2.1.0; this Android depot-data release advances independently to 2.1.2.
+grep -q 'versionCode = 55' "$GRADLE"
+grep -q 'versionName = "2.1.2"' "$GRADLE"
+grep -q 'Investment Radar 2.1.2' "$GRADLE"
 grep -q '"version": "2.1.0"' "$BACKEND"
 grep -q 'backendVersion: "2.1.0"' "$HEALTH"
 grep -q 'universeTarget: 2000' "$HEALTH"
@@ -50,5 +50,5 @@ test -n "$publish_line"
 test "$gate_line" -lt "$publish_line"
 
 echo "PASS Android publish is gated on live backend 2.1.0 and >=2000 radar instruments"
-echo "PASS Android app release is monotonic at 2.1.1 / code 54"
+echo "PASS Android app release is monotonic at 2.1.2 / code 55"
 echo "PASS existing releases are immutable by android/app tree"
