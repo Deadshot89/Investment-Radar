@@ -76,7 +76,10 @@ class SavingsPlanStoreTest {
             name = "Custom",
             itemId = "googl",
             amountEur = 5.0,
-            frequency = SavingsPlanFrequency.MONTHLY
+            frequency = SavingsPlanFrequency.MONTHLY,
+            dayOfMonth1 = null,
+            dayOfMonth2 = null,
+            nextDueDate = null
         )
 
         val migrated = SavingsPlanStore.applyConfirmedDefaultSchedules(listOf(custom), "2026-09-05")
