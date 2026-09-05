@@ -19,7 +19,8 @@ grep -Fq 'snapshotCostBasisEur = imported.shares * imported.buyIn' "$FILE" || { 
 grep -Fq 'name = "iBonds Dec 2026 USD (Dist)"' "$FILE" || { echo 'iBonds asset missing'; exit 1; }
 
 # The screenshot did not provide a ticker or ISIN. Never fabricate identifiers.
-IBONDS_BLOCK=$(sed -n '/id = "custom-ibonds-dec-2026-usd"/,/)/p' "$FILE")
+# Use fixed context instead of ')' as delimiter because the product name itself contains '(Dist)'.
+IBONDS_BLOCK=$(grep -A 8 -F 'id = "custom-ibonds-dec-2026-usd"' "$FILE")
 echo "$IBONDS_BLOCK" | grep -Fq 'ticker = ""' || { echo 'iBonds ticker must stay blank until verified'; exit 1; }
 echo "$IBONDS_BLOCK" | grep -Fq 'isin = ""' || { echo 'iBonds ISIN must stay blank until verified'; exit 1; }
 if echo "$IBONDS_BLOCK" | grep -Fq 'risk = '; then
