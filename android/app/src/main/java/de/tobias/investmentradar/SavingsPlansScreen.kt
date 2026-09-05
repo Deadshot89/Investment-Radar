@@ -2,6 +2,7 @@ package de.tobias.investmentradar
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -257,7 +258,7 @@ fun SavingsPlansScreen(
 }
 
 @Composable
-private fun SavingsPlanCard(content: @Composable Column.() -> Unit) {
+private fun SavingsPlanCard(content: @Composable ColumnScope.() -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
@@ -265,9 +266,8 @@ private fun SavingsPlanCard(content: @Composable Column.() -> Unit) {
     ) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            content()
-        }
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            content = content
+        )
     }
 }
