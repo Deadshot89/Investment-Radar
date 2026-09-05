@@ -40,6 +40,7 @@ jobs:
             android/tests/test-update-status-ui.sh \
             android/tests/test-trade-republic-navigator-wiring.sh \
             android/tests/test-history-card-glare.sh \
+            android/tests/test-trade-republic-current-depot.sh \
             android/tests/test-release-backend-gate.sh; do
             echo "=== $test_file ==="
             bash "$test_file"
