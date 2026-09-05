@@ -44,6 +44,16 @@ fun PortfolioDashboard(
     }
     val costBasisComplete = metrics.positions.filter { it.active }.all { it.costBasisKnown }
     var trackedSharesDialogItemId by remember { mutableStateOf<String?>(null) }
+    var showSavingsPlans by remember { mutableStateOf(false) }
+
+    if (showSavingsPlans) {
+        SavingsPlansScreen(
+            items = items,
+            onBack = { showSavingsPlans = false },
+            vm = vm
+        )
+        return
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
@@ -51,11 +61,12 @@ fun PortfolioDashboard(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Column(Modifier.weight(1f)) {
                     Text("PORTFOLIO", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                     Text("Mein Depot", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
                 }
+                OutlinedButton(onClick = { showSavingsPlans = true }) { Text("Sparpläne") }
                 Button(onClick = onAddCustom) { Text("Wert hinzufügen") }
             }
         }
