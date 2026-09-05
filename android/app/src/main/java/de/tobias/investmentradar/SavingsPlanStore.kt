@@ -3,12 +3,15 @@ package de.tobias.investmentradar
 import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 object SavingsPlanStore {
     private const val PREFS = "investment_radar_savings_plans"
     private const val PLANS_KEY = "plans_v1"
     private const val EXECUTIONS_KEY = "executions_v1"
     private const val SEEDED_KEY = "trade_republic_savings_plans_2026_09_05_v1"
+    private const val CONFIRMED_DATES_KEY = "trade_republic_savings_plan_dates_2026_09_05_v2"
 
     fun initialPlans(): List<SavingsPlan> = listOf(
         SavingsPlan(
@@ -17,8 +20,8 @@ object SavingsPlanStore {
             itemId = "meta",
             amountEur = 10.0,
             frequency = SavingsPlanFrequency.TWICE_MONTHLY,
-            dayOfMonth1 = null,
-            dayOfMonth2 = null,
+            dayOfMonth1 = 1,
+            dayOfMonth2 = 15,
             nextDueDate = null
         ),
         SavingsPlan(
@@ -27,8 +30,8 @@ object SavingsPlanStore {
             itemId = "custom-samsung-gdr",
             amountEur = 10.0,
             frequency = SavingsPlanFrequency.TWICE_MONTHLY,
-            dayOfMonth1 = null,
-            dayOfMonth2 = null,
+            dayOfMonth1 = 1,
+            dayOfMonth2 = 15,
             nextDueDate = null
         ),
         SavingsPlan(
@@ -37,8 +40,8 @@ object SavingsPlanStore {
             itemId = null,
             amountEur = 5.0,
             frequency = SavingsPlanFrequency.TWICE_MONTHLY,
-            dayOfMonth1 = null,
-            dayOfMonth2 = null,
+            dayOfMonth1 = 1,
+            dayOfMonth2 = 15,
             nextDueDate = null
         ),
         SavingsPlan(
@@ -47,8 +50,8 @@ object SavingsPlanStore {
             itemId = null,
             amountEur = 5.0,
             frequency = SavingsPlanFrequency.TWICE_MONTHLY,
-            dayOfMonth1 = null,
-            dayOfMonth2 = null,
+            dayOfMonth1 = 1,
+            dayOfMonth2 = 15,
             nextDueDate = null
         ),
         SavingsPlan(
@@ -57,7 +60,7 @@ object SavingsPlanStore {
             itemId = "msft",
             amountEur = 10.0,
             frequency = SavingsPlanFrequency.MONTHLY,
-            dayOfMonth1 = null,
+            dayOfMonth1 = 1,
             dayOfMonth2 = null,
             nextDueDate = null
         )
@@ -69,11 +72,34 @@ object SavingsPlanStore {
         return byId.values.sortedBy { it.id }
     }
 
+    fun applyConfirmedDefaultSchedules(plans: List<SavingsPlan>, today: String): List<SavingsPlan> =
+        plans.map { plan ->
+            val isBlankLegacySchedule = plan.dayOfMonth1 == null && plan.dayOfMonth2 == null && plan.nextDueDate == null
+            val isConfirmedDefaultsWithoutNextDate = plan.nextDueDate == null && when (plan.frequency) {
+                SavingsPlanFrequency.MONTHLY -> plan.dayOfMonth1 == 1 && plan.dayOfMonth2 == null
+                SavingsPlanFrequency.TWICE_MONTHLY -> plan.dayOfMonth1 == 1 && plan.dayOfMonth2 == 15
+            }
+            if (!isBlankLegacySchedule && !isConfirmedDefaultsWithoutNextDate) return@map plan
+
+            val withConfirmedDays = when (plan.frequency) {
+                SavingsPlanFrequency.MONTHLY -> plan.copy(dayOfMonth1 = 1, dayOfMonth2 = null, nextDueDate = today)
+                SavingsPlanFrequency.TWICE_MONTHLY -> plan.copy(dayOfMonth1 = 1, dayOfMonth2 = 15, nextDueDate = today)
+            }
+            withConfirmedDays.copy(nextDueDate = SavingsPlanSchedule.nextDueDate(withConfirmedDays, today))
+        }
+
     fun ensureSeeded(context: Context) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        if (prefs.getBoolean(SEEDED_KEY, false)) return
-        savePlans(context, mergeSeed(readPlans(context)))
-        prefs.edit().putBoolean(SEEDED_KEY, true).apply()
+        if (!prefs.getBoolean(SEEDED_KEY, false)) {
+            savePlans(context, mergeSeed(readPlans(context)))
+            prefs.edit().putBoolean(SEEDED_KEY, true).apply()
+        }
+
+        if (!prefs.getBoolean(CONFIRMED_DATES_KEY, false)) {
+            val today = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
+            savePlans(context, applyConfirmedDefaultSchedules(readPlans(context), today))
+            prefs.edit().putBoolean(CONFIRMED_DATES_KEY, true).apply()
+        }
     }
 
     fun readPlans(context: Context): List<SavingsPlan> {
