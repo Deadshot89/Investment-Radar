@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -132,6 +133,10 @@ fun InvestmentRadarUi(
     var updateStatusMessage by remember { mutableStateOf<String?>(null) }
     var updateCheckRequested by remember { mutableIntStateOf(0) }
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
+    BackHandler(enabled = tab != 0 && selectedDetailId == null) {
+        tab = 0
+    }
 
     LaunchedEffect(pushNavigationRequest) {
         if (pushNavigationRequest > 0L) {
@@ -306,7 +311,7 @@ fun InvestmentRadarUi(
                                             detailReturnTab = 3
                                             selectedDetailId = id
                                         }
-                                        else -> missingAlertItemMessage = "Das Wertpapier ist im aktuellen Radar nicht mehr verfügbar."
+                                        else -> missingAlertItemMessage = "Das Wertpapier ist nicht im aktuellen Radar enthalten."
                                     }
                                 },
                                 onMarkAllRead = vm::markAllAlertsRead,
@@ -370,7 +375,7 @@ fun InvestmentRadarUi(
     missingAlertItemMessage?.let { message ->
         AlertDialog(
             onDismissRequest = { missingAlertItemMessage = null },
-            title = { Text("Wertpapier nicht verfügbar") },
+            title = { Text("Wertpapier nicht im Radar") },
             text = { Text(message) },
             confirmButton = {
                 TextButton(onClick = { missingAlertItemMessage = null }) { Text("OK") }
@@ -930,7 +935,7 @@ private fun RecommendationRow(item: InvestmentItem, personal: PersonalRecommenda
                 Text("${item.ticker} · Score ${RecommendationPresentation.scoreText(item.scoreTotal)} · Risiko ${item.risk}/5", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
                 if (position?.isActiveHolding() == true) {
                     Text(
-                        if (depotValue != null) "IM DEPOT · ${formatMoney(depotValue)}" else "IM DEPOT · Wert nicht verfügbar",
+                        if (depotValue != null) "IM DEPOT · ${formatMoney(depotValue)}" else "IM DEPOT · Kurs fehlt",
                         color = RadarPurple,
                         fontWeight = FontWeight.Black,
                         style = MaterialTheme.typography.labelLarge

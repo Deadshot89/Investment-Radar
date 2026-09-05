@@ -1,5 +1,6 @@
 package de.tobias.investmentradar
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -63,6 +64,10 @@ fun SavingsPlansScreen(
     }
 
     LaunchedEffect(Unit) { reload() }
+
+    BackHandler(enabled = editingPlan == null && message == null) {
+        onBack()
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
@@ -161,7 +166,7 @@ fun SavingsPlansScreen(
                                     }
                                     is SavingsPlanConfirmationResult.AlreadyConfirmed -> message = "Diese Ausführung wurde bereits gebucht."
                                     SavingsPlanConfirmationResult.InstrumentMissing -> message = "Instrument ist noch nicht eindeutig zugeordnet."
-                                    SavingsPlanConfirmationResult.PriceUnavailable -> message = "Aktueller Kurs ist nicht verfügbar."
+                                    SavingsPlanConfirmationResult.PriceUnavailable -> message = "Kein aktueller Kurs vorhanden."
                                     SavingsPlanConfirmationResult.PurchasePersistenceFailed -> message = "Der Kauf konnte nicht im Depot gespeichert werden."
                                     SavingsPlanConfirmationResult.ExecutionMissing -> message = "Die Ausführung ist nicht mehr offen."
                                 }

@@ -84,7 +84,7 @@ fun PortfolioDashboard(
                 PortfolioDashboardValue("Positionen", metrics.heldPositionCount.toString())
                 PortfolioDashboardValue(
                     "Größte Position",
-                    if (largestName != null && metrics.largestWeightPct != null) "$largestName · ${portfolioPercent(metrics.largestWeightPct)}" else "Nicht verfügbar"
+                    if (largestName != null && metrics.largestWeightPct != null) "$largestName · ${portfolioPercent(metrics.largestWeightPct)}" else "Noch keine aktive Position"
                 )
                 HorizontalDivider()
                 val profit = metrics.totalProfitLoss
