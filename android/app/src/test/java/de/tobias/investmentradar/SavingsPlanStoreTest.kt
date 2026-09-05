@@ -23,13 +23,50 @@ class SavingsPlanStoreTest {
     }
 
     @Test
-    fun screenshotSeedDoesNotInventExecutionDates() {
-        SavingsPlanStore.initialPlans().forEach { plan ->
-            assertNull(plan.dayOfMonth1)
-            assertNull(plan.dayOfMonth2)
+    fun confirmedTradeRepublicExecutionDaysAreSeeded() {
+        val plans = SavingsPlanStore.initialPlans()
+
+        plans.filter { it.frequency == SavingsPlanFrequency.TWICE_MONTHLY }.forEach { plan ->
+            assertEquals(1, plan.dayOfMonth1)
+            assertEquals(15, plan.dayOfMonth2)
             assertNull(plan.nextDueDate)
-            assertTrue(!plan.scheduleConfigured)
         }
+
+        val microsoft = plans.single { it.itemId == "msft" }
+        assertEquals(1, microsoft.dayOfMonth1)
+        assertNull(microsoft.dayOfMonth2)
+        assertNull(microsoft.nextDueDate)
+    }
+
+    @Test
+    fun migrationAddsConfirmedDatesToExistingBlankSchedules() {
+        val oldPlans = SavingsPlanStore.initialPlans().map {
+            it.copy(dayOfMonth1 = null, dayOfMonth2 = null, nextDueDate = null)
+        }
+
+        val migrated = SavingsPlanStore.applyConfirmedDefaultSchedules(oldPlans, "2026-09-05")
+
+        migrated.filter { it.frequency == SavingsPlanFrequency.TWICE_MONTHLY }.forEach { plan ->
+            assertEquals(1, plan.dayOfMonth1)
+            assertEquals(15, plan.dayOfMonth2)
+            assertEquals("2026-09-15", plan.nextDueDate)
+        }
+        assertEquals("2026-10-01", migrated.single { it.itemId == "msft" }.nextDueDate)
+    }
+
+    @Test
+    fun migrationPreservesUserEditedSchedule() {
+        val editedMeta = SavingsPlanStore.initialPlans().first { it.itemId == "meta" }.copy(
+            dayOfMonth1 = 3,
+            dayOfMonth2 = 17,
+            nextDueDate = "2026-09-17"
+        )
+
+        val migrated = SavingsPlanStore.applyConfirmedDefaultSchedules(listOf(editedMeta), "2026-09-05")
+
+        assertEquals(3, migrated.single().dayOfMonth1)
+        assertEquals(17, migrated.single().dayOfMonth2)
+        assertEquals("2026-09-17", migrated.single().nextDueDate)
     }
 
     @Test
