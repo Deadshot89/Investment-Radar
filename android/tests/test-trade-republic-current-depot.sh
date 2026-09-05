@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Regression contract for the complete Trade Republic snapshot supplied on 05.09.2026.
 set -euo pipefail
 FILE="android/app/src/main/java/de/tobias/investmentradar/UserPortfolioSeed.kt"
 for expected in \
