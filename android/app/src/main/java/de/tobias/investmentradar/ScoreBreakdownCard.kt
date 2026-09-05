@@ -18,7 +18,7 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun ScoreBreakdownCard(item: InvestmentItem, modifier: Modifier = Modifier) {
-    val coverageText = item.coverage?.let { "$it %" } ?: "Nicht verfügbar"
+    val coverageText = item.coverage?.let { "$it %" } ?: "Datenabdeckung fehlt"
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
@@ -51,7 +51,7 @@ private fun ScoreLine(label: String, score: Int?) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(label, style = MaterialTheme.typography.bodySmall)
             Text(
-                score?.let { "$it/100" } ?: "Nicht verfügbar",
+                score?.let { "$it/100" } ?: "Noch keine Analyse",
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.Bold
             )
