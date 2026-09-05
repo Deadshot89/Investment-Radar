@@ -22,7 +22,7 @@ data class SavingsPlan(
     val itemId: String?,
     val amountEur: Double,
     val frequency: SavingsPlanFrequency,
-    val dayOfMonth1: Int,
+    val dayOfMonth1: Int?,
     val dayOfMonth2: Int?,
     val nextDueDate: String?,
     val enabled: Boolean = true
@@ -31,11 +31,16 @@ data class SavingsPlan(
         require(id.isNotBlank())
         require(name.isNotBlank())
         require(amountEur.isFinite() && amountEur > 0.0)
-        require(dayOfMonth1 in 1..31)
-        if (frequency == SavingsPlanFrequency.TWICE_MONTHLY) {
-            require(dayOfMonth2 != null && dayOfMonth2 in 1..31 && dayOfMonth2 != dayOfMonth1)
-        }
+        require(dayOfMonth1 == null || dayOfMonth1 in 1..31)
+        require(dayOfMonth2 == null || dayOfMonth2 in 1..31)
+        require(dayOfMonth1 == null || dayOfMonth2 == null || dayOfMonth1 != dayOfMonth2)
     }
+
+    val scheduleConfigured: Boolean
+        get() = when (frequency) {
+            SavingsPlanFrequency.MONTHLY -> dayOfMonth1 != null && nextDueDate != null
+            SavingsPlanFrequency.TWICE_MONTHLY -> dayOfMonth1 != null && dayOfMonth2 != null && nextDueDate != null
+        }
 }
 
 data class SavingsPlanExecution(
@@ -66,9 +71,10 @@ object SavingsPlanSchedule {
     fun nextDueDate(plan: SavingsPlan, afterDate: String): String {
         val after = parseDate(afterDate)
         val candidates = when (plan.frequency) {
-            SavingsPlanFrequency.MONTHLY -> listOf(plan.dayOfMonth1)
+            SavingsPlanFrequency.MONTHLY -> listOfNotNull(plan.dayOfMonth1)
             SavingsPlanFrequency.TWICE_MONTHLY -> listOfNotNull(plan.dayOfMonth1, plan.dayOfMonth2).sorted()
         }
+        require(candidates.isNotEmpty()) { "Savings plan schedule is not configured" }
 
         for (monthOffset in 0..14) {
             val month = (after.clone() as Calendar).apply {
@@ -84,8 +90,8 @@ object SavingsPlanSchedule {
     }
 
     fun dueExecutions(plan: SavingsPlan, today: String): List<SavingsPlanExecution> {
-        if (!plan.enabled) return emptyList()
-        val dueDate = plan.nextDueDate ?: return emptyList()
+        if (!plan.enabled || !plan.scheduleConfigured) return emptyList()
+        val dueDate = requireNotNull(plan.nextDueDate)
         val due = parseDate(dueDate)
         val current = parseDate(today)
         if (due.after(current)) return emptyList()
