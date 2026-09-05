@@ -24,7 +24,7 @@ data class SavingsPlan(
     val frequency: SavingsPlanFrequency,
     val dayOfMonth1: Int,
     val dayOfMonth2: Int?,
-    val nextDueDate: String,
+    val nextDueDate: String?,
     val enabled: Boolean = true
 ) {
     init {
@@ -85,10 +85,11 @@ object SavingsPlanSchedule {
 
     fun dueExecutions(plan: SavingsPlan, today: String): List<SavingsPlanExecution> {
         if (!plan.enabled) return emptyList()
-        val due = parseDate(plan.nextDueDate)
+        val dueDate = plan.nextDueDate ?: return emptyList()
+        val due = parseDate(dueDate)
         val current = parseDate(today)
         if (due.after(current)) return emptyList()
-        return listOf(SavingsPlanExecution.pending(plan.id, plan.nextDueDate, plan.amountEur))
+        return listOf(SavingsPlanExecution.pending(plan.id, dueDate, plan.amountEur))
     }
 
     private fun parseDate(value: String): Calendar {
