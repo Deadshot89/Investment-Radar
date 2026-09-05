@@ -14,258 +14,112 @@ Die App besitzt bereits getrennte Bausteine für Portfolio, Sparpläne, Forecast
 
 ## Verbindliche Produktregeln
 
-### 1. Alle Depotpositionen werden gleich behandelt
+### Handlungssignale und Bewertung
 
-Jede bekannte Depotposition wird anhand derselben Bewertungslogik analysiert. Die prozentuale Depotgewichtung darf für keine Position allein eine Handlungsempfehlung auslösen oder verhindern.
+Jede bekannte Depotposition wird anhand derselben Grundlogik analysiert. Die prozentuale Depotgewichtung darf für keine Position allein eine Handlungsempfehlung auslösen oder verhindern. Das gilt auch für Meta.
 
-Das gilt ausdrücklich auch für Meta. Meta wird vollständig geprüft, erhält aber weder einen Bonus noch einen Malus aufgrund seiner aktuellen Depotgröße. Dasselbe gilt für Microsoft, Alphabet, Nel, ETFs und alle weiteren Positionen.
+Für jede bewertbare Position existiert genau eines der Signale `NACHKAUFEN`, `HALTEN`, `REDUZIEREN`, `VERKAUFEN` oder intern `KEINE_BELASTBARE_BEWERTUNG`. Fehlende oder veraltete Pflichtdaten dürfen niemals durch ein geratenes Signal ersetzt werden.
 
-Die Depotzusammensetzung darf als Kontext angezeigt werden, beeinflusst aber nicht direkt das Handlungssignal.
+Die Bewertung kombiniert typgerecht Unternehmens-/Produktqualität, Bewertung, Wachstum bzw. Ertragsentwicklung, fundamentale Entwicklung, Momentum, Risiko, Prognose/Zielbereich sowie Datenfrische und Datenvollständigkeit. ETF- und Fixed-Income-Produkte erhalten keine unpassenden Einzelaktienmetriken.
 
-### 2. Handlungssignale
+Jedes belastbare Signal zeigt eine kurze Begründung, positive Faktoren, Risiken, einen belastbaren Zielbereich sofern berechenbar, Analysezeitpunkt und Datenfrische. Die Einschätzung ist eine datenbasierte Entscheidungshilfe und keine Garantie.
 
-Für jede bewertbare Position existiert genau eines der folgenden Signale:
+## Tägliche automatische Analyse und Push
 
-- `NACHKAUFEN`
-- `HALTEN`
-- `REDUZIEREN`
-- `VERKAUFEN`
-- `KEINE_BELASTBARE_BEWERTUNG`
+Die App plant genau einen automatischen Depot-Analysezyklus pro Kalendertag. Mehrfachstarts am selben Tag sind idempotent. Die Analyse und die Prüfung fälliger Sparpläne dürfen nicht davon abhängen, dass ein bestimmter Screen geöffnet wurde.
 
-`KEINE_BELASTBARE_BEWERTUNG` ist zwingend, wenn die Datengrundlage nicht ausreichend oder veraltet ist. Fehlende Daten dürfen niemals durch ein geratenes Kauf-, Halte- oder Verkaufssignal ersetzt werden.
+Bei Netzwerk-, API- oder Datenfehlern bleibt die letzte belastbare Analyse erhalten und wird als veraltet markiert. Es entsteht kein neues geratenes Signal.
 
-### 3. Bewertungsgrundlage
-
-Das Signal basiert auf einer nachvollziehbaren Kombination aus:
-
-- Unternehmens-/Produktqualität
-- Bewertung
-- Wachstum bzw. Ertragsentwicklung
-- fundamentaler Entwicklung
-- Momentum
-- Risiko
-- Prognose und Zielbereich
-- Datenfrische und Datenvollständigkeit
-
-Bei ETFs oder festverzinslichen Produkten werden nur passende Kriterien angewendet. Nicht sinnvolle Einzelaktienmetriken dürfen nicht künstlich auf Fonds oder Anleihen übertragen werden.
-
-Die Gewichtung des Instruments im Nutzerdepot ist kein Signal-Faktor.
-
-### 4. Erklärbarkeit
-
-Jedes belastbare Signal zeigt mindestens:
-
-- aktuelles Signal
-- kurze Begründung
-- wesentliche positive Faktoren
-- wesentliche Risiken
-- Prognose-/Zielbereich, sofern belastbar berechenbar
-- Zeitstempel der zugrunde liegenden Analyse
-- Hinweis auf Datenfrische
-
-Die App muss deutlich machen, dass die Einschätzung eine datenbasierte Entscheidungshilfe und keine Garantie für zukünftige Kursentwicklung ist.
-
-## Tägliche automatische Analyse
-
-### Ausführung
-
-Die App plant genau einen automatischen Depot-Analysezyklus pro Kalendertag. Android-seitig wird dafür die vorhandene Hintergrundarbeits-Infrastruktur genutzt oder, falls noch nicht vorhanden, WorkManager als einzige periodische Scheduling-Schicht eingeführt.
-
-Mehrfachstarts am selben Tag müssen idempotent sein. Ein zweiter Lauf darf keine doppelten Benachrichtigungen oder doppelten Analysehistorien erzeugen.
-
-### Ohne App-Öffnung
-
-Die tägliche Analyse darf nicht davon abhängen, dass der Nutzer zuerst den Sparplan- oder Depot-Screen öffnet. Fällige Sparpläne und relevante Signaländerungen müssen im Hintergrund erkannt werden können, soweit Android die geplante Arbeit ausführen kann.
-
-### Fehlerfall
-
-Bei Netzwerkfehlern, API-Fehlern oder unzureichenden Daten bleibt die letzte belastbare Analyse erhalten, wird aber als veraltet markiert. Es wird kein neues Handlungssignal aus unvollständigen Daten erzeugt.
-
-## Signaländerungen und Push-Benachrichtigungen
-
-### Benachrichtigungsprinzip
-
-Es gibt keine tägliche Routine-Push-Nachricht nur weil eine Analyse stattgefunden hat.
-
-Eine Push-Benachrichtigung wird erzeugt, wenn mindestens einer dieser Fälle eintritt:
-
-- ein belastbares Handlungssignal ändert sich
-- ein zuvor nicht belastbar bewertbares Instrument erhält erstmals ein belastbares Signal
-- ein belastbares Signal fällt wegen unzureichender Daten auf `KEINE_BELASTBARE_BEWERTUNG`, sofern dies für die Entscheidung relevant ist
-- ein Sparplan ist zur Bestätigung fällig
-
-Wiederholte identische Ergebnisse erzeugen keine erneute Push-Benachrichtigung.
-
-### Signalwechsel
-
-Die Benachrichtigung nennt mindestens Instrument, altes Signal, neues Signal und eine kurze Hauptbegründung. Ein Tipp auf die Benachrichtigung öffnet die passende Investment-Detailansicht oder den Sparplan-Bestätigungsfluss.
+Es gibt keine tägliche Routine-Push-Nachricht. Push entsteht nur bei einer relevanten Signaländerung, beim erstmaligen Entstehen eines belastbaren Signals, beim entscheidungsrelevanten Verlust einer belastbaren Bewertung oder bei einem fälligen Sparplan. Identische Ergebnisse erzeugen keine erneute Benachrichtigung. Ein Tipp öffnet die passende Detail- oder Sparplanansicht.
 
 ## Sparpläne
 
-### Bestehende Regeln bleiben erhalten
+Geplante Sparplanbeträge verändern das reale Depot nicht. Am Fälligkeitstag entsteht genau eine offene Ausführung pro Plan und Datum. Der Nutzer bestätigt `Ausgeführt` oder `Nicht ausgeführt`; nur `Ausgeführt` erzeugt eine Depottransaktion.
 
-Geplante Sparplanbeträge verändern das reale Depot nicht.
+Bei `Ausgeführt` nutzt die App den besten verfügbaren belastbaren Marktpreis aus der bestehenden Kursquelle. Fehlt ein belastbarer Preis, bleibt die Ausführung offen und das Depot unverändert.
 
-Am Fälligkeitstag entsteht genau eine offene Ausführung pro Plan und geplantem Datum. Der Nutzer bestätigt nur:
+Die zwei Private-Equity-Sparpläne bleiben getrennt. Solange ihre realen Instrumente nicht eindeutig verifiziert sind, bleibt die Ausführung gesperrt; Ticker, ISIN oder Depotposition werden nicht erfunden.
 
-- `Ausgeführt`
-- `Nicht ausgeführt`
+## Depotpflege und Trade Republic
 
-Nur `Ausgeführt` darf eine echte Depottransaktion erzeugen.
+2.2 implementiert keinen inoffiziellen Trade-Republic-Login, kein Session-Scraping, keine PIN-Abfrage und keine Nachbildung privater Schnittstellen. Der bestehende Depotstand bleibt die lokale Quelle der Wahrheit. Reguläre Sparpläne werden mit einem Bestätigungsschritt fortgeschrieben; Sonderkäufe und Verkäufe bleiben über den vorhandenen Depotfluss erfassbar.
 
-### Automatischer Preis
+Ein vollständiger automatischer Trade-Republic-Depotabgleich gehört nicht zu 2.2, solange keine geeignete offizielle Schnittstelle existiert.
 
-Bei `Ausgeführt` verwendet die App den besten verfügbaren belastbaren Marktpreis aus der bestehenden Kursquelle. Es gibt keine manuelle Preiseingabe im Standardfluss.
+Beim Öffnen eines Instruments versucht Android zuerst einen verifizierten Trade-Republic-App-/Deep-Link. Nur verifizierte Ziele werden verwendet. Ein Browser-Fallback darf nicht als erfolgreicher App-Start ausgegeben werden. Für Instrumente ohne verifizierte Zielkennung wird keine Kennung erfunden. Fehler beim externen Öffnen dürfen die App nicht verlassen oder zum Absturz bringen.
 
-Wenn kein belastbarer Preis verfügbar ist, bleibt die Ausführung offen und das Depot unverändert.
+## Advisor-Architektur
 
-### Private Equity
+Die fachliche Kernkomponente ist eine reine testbare Advisor Engine ohne Android-UI-, Notification- oder SharedPreferences-Abhängigkeiten. Unterschiedliche Instrumenttypen werden vor der Bewertung typgerecht normalisiert. Fehlende Pflichtdaten führen intern zu `KEINE_BELASTBARE_BEWERTUNG` statt zu erfundenen Defaultwerten.
 
-Die zwei vorhandenen Private-Equity-Sparpläne bleiben getrennt.
+Die App speichert pro Instrument mindestens das letzte belastbare Ergebnis und das unmittelbar vorherige Ergebnis, damit echte Signaländerungen erkannt werden können. Eine kleine begrenzte lokale Historie genügt.
 
-Solange die zugrunde liegenden Produkte nicht eindeutig über eine reale, vom Nutzer gelieferte oder bereits verifizierte Instrument-ID identifiziert sind, bleibt `Ausgeführt` für diese Pläne gesperrt. Die App darf weder Ticker noch ISIN noch Depotposition erraten.
+## UI und verständliche Zustände
 
-## Depotpflege ohne inoffiziellen Trade-Republic-Zugriff
+Die Depotübersicht zeigt pro Position kompakt das aktuelle Beratersignal; Signal und Depot-G/V bleiben getrennte Informationen. Die Detailansicht zeigt Handlungssignal, Begründung, positive Faktoren, Risiken, Zielbereich/Prognose, Zeitpunkt der letzten belastbaren Analyse und Datenstatus.
 
-Investment Radar 2.2 implementiert keinen inoffiziellen Trade-Republic-Login, kein Session-Scraping, keine PIN-Abfrage und keine automatisierte Nachbildung privater App-Schnittstellen.
+### Kein sichtbares „Nicht verfügbar“
 
-Der bestehende Depotstand bleibt die lokale Quelle der Wahrheit. Reguläre Sparplanausführungen können mit einem einzigen Bestätigungsschritt fortgeschrieben werden. Sonderkäufe und Verkäufe bleiben über den vorhandenen Depotfluss erfassbar.
+Die Formulierungen `Nicht verfügbar`, `nicht verfügbar` und sinngleiche pauschale Platzhalter dürfen in der sichtbaren App-Oberfläche nicht verwendet werden. Die interne technische Zustandsbezeichnung `KEINE_BELASTBARE_BEWERTUNG` bleibt erlaubt, wird aber nicht wörtlich als generischer UI-Platzhalter angezeigt.
 
-Ein vollständiger automatischer Trade-Republic-Depotabgleich gehört nicht zum 2.2-Lieferumfang, solange keine geeignete offizielle Schnittstelle zur Verfügung steht.
+Stattdessen nennt die UI den tatsächlichen Zustand konkret, beispielsweise `Keine aktuellen Daten`, `Noch keine Analyse`, `Nicht im aktuellen Radar enthalten`, `Keine verifizierte Trade-Republic-Zuordnung` oder `Verbindung konnte nicht hergestellt werden`. Die Formulierung muss zur tatsächlichen Ursache passen und darf keine Verfügbarkeit vortäuschen.
 
-## Trade-Republic-Weiterleitung
+## Android-Zurück-Navigation
 
-### Ziel
+Die Android-System-/Gesten-Zurück-Taste navigiert innerhalb der App durch den tatsächlich sichtbaren UI-Zustand und darf eine Unterseite nicht unmittelbar durch Beenden der Activity verlassen.
 
-Beim Öffnen eines Instruments versucht Android zuerst einen für das Instrument bekannten und sicheren Deep-/App-Link.
+Die Priorität lautet:
 
-### Regeln
+1. Offener Dialog, Drawer oder Overlay wird geschlossen.
+2. Eine Investment-Detailansicht kehrt zur vorherigen Liste bzw. Depotansicht zurück.
+3. Sparplan-, Alarm- und andere Unterseiten kehren zu ihrer aufrufenden Hauptansicht zurück.
+4. Erst auf der obersten Startansicht ohne offenen untergeordneten Zustand darf Android-Zurück die App verlassen.
 
-- Die App darf nur verifizierte Links verwenden.
-- Ein erfolgreicher Browser-Fallback darf nicht als erfolgreicher Trade-Republic-App-Start ausgegeben werden.
-- Wenn kein funktionierender App-Link bekannt ist, wird ein neutraler Browser-Fallback angeboten.
-- Für Instrumente ohne verifizierte Trade-Republic-Zielkennung wird keine Kennung erfunden.
-- Fehler beim externen Öffnen dürfen die Investment-Detailansicht nicht verlassen oder zum Absturz bringen.
-
-## Analysearchitektur
-
-### Advisor Engine
-
-Die neue fachliche Kernkomponente erhält eine reine, testbare Bewertungsfunktion. Sie konsumiert normalisierte Markt-, Fundamental-, Forecast- und Datenfrischewerte und liefert ein `AdvisorResult`.
-
-Empfohlene Domänenschnittstelle:
-
-```kotlin
-enum class AdvisorSignal {
-    NACHKAUFEN,
-    HALTEN,
-    REDUZIEREN,
-    VERKAUFEN,
-    KEINE_BELASTBARE_BEWERTUNG
-}
-
-data class AdvisorResult(
-    val itemId: String,
-    val signal: AdvisorSignal,
-    val rationale: String,
-    val positives: List<String>,
-    val risks: List<String>,
-    val targetLowEur: Double?,
-    val targetHighEur: Double?,
-    val analyzedAtEpochMs: Long,
-    val dataFreshness: AdvisorDataFreshness
-)
-```
-
-Die Engine darf keine Android-UI-, Notification- oder SharedPreferences-Abhängigkeiten besitzen.
-
-### Daten-Normalisierung
-
-Vor der Bewertung werden unterschiedliche Instrumenttypen auf eine gemeinsame, aber typgerechte Eingabestruktur normalisiert. Einzelaktien, ETFs und festverzinsliche Produkte dürfen unterschiedliche Teilmetriken besitzen.
-
-Fehlende Pflichtdaten führen zu `KEINE_BELASTBARE_BEWERTUNG` statt zu Defaultwerten, die wie echte Daten wirken.
-
-### Analysehistorie
-
-Die App speichert pro Instrument mindestens das letzte belastbare Ergebnis sowie das unmittelbar vorherige Ergebnis, damit echte Signaländerungen erkannt werden können.
-
-Für 2.2 ist keine unbegrenzt wachsende Historien-Datenbank erforderlich. Eine kleine begrenzte lokale Historie genügt.
-
-## UI
-
-### Depotübersicht
-
-Jede Depotposition zeigt kompakt das aktuelle Beratersignal. Signal und Depot-G/V bleiben visuell getrennte Informationen.
-
-### Investment-Detailansicht
-
-Die Detailansicht erweitert den bestehenden Forecast-Bereich um:
-
-- Handlungssignal
-- Begründung
-- positive Faktoren
-- Risiken
-- Zielbereich/Prognose
-- Zeitpunkt der letzten belastbaren Analyse
-- Datenstatus
-
-### Datenfehler
-
-Bei veralteten oder unvollständigen Daten zeigt die UI keine scheinbar aktuelle Empfehlung. Das letzte belastbare Signal darf weiterhin sichtbar sein, muss aber eindeutig als veraltet markiert sein.
+Die Navigation verwendet eine zentrale Back-Entscheidung statt voneinander unabhängiger Back-Handler, damit ein Tastendruck genau einen Zustand zurücknimmt. Externe Browser-/Trade-Republic-Starts verändern den internen Back-State nicht. Notification-Deep-Links müssen einen sinnvollen Rückweg in die App besitzen.
 
 ## Persistenz und Idempotenz
 
-Analyseergebnisse erhalten eine stabile Identität aus Instrument und Analysetag. Signaländerungs-Pushes erhalten eine stabile Ereignis-ID aus Instrument, vorherigem Signal, neuem Signal und Analysetag.
-
-Damit werden doppelte Benachrichtigungen bei wiederholter Hintergrundausführung verhindert.
-
-Sparplanausführungen behalten ihre bereits vorhandene stabile Identität aus Plan und Fälligkeitsdatum.
+Analyseergebnisse erhalten eine stabile Identität aus Instrument und Analysetag. Signaländerungs-Pushes erhalten eine stabile Ereignis-ID aus Instrument, vorherigem Signal, neuem Signal und Analysetag. Sparplanausführungen behalten ihre stabile Identität aus Plan und Fälligkeitsdatum.
 
 ## Fehler- und Sicherheitsregeln
 
 - Keine erfundenen Ticker, ISINs, Kurse, Zielpreise oder fundamentalen Kennzahlen.
 - Keine Handlungsempfehlung aus fehlenden Pflichtdaten.
-- Keine Depotänderung ohne explizite Nutzerbestätigung einer Ausführung oder einer manuellen Transaktion.
-- Keine doppelte Sparplanausführung.
-- Keine doppelte Signaländerungsbenachrichtigung.
+- Keine Depotänderung ohne explizite Nutzerbestätigung einer Ausführung oder manuellen Transaktion.
+- Keine doppelten Sparplanausführungen oder Signaländerungsbenachrichtigungen.
 - Netzwerkfehler verändern bestehende Depotbestände nicht.
-- Fehlgeschlagene Analyse überschreibt kein zuletzt belastbares Ergebnis mit scheinbar gültigen Nullen.
+- Fehlgeschlagene Analysen überschreiben kein belastbares Ergebnis mit scheinbar gültigen Nullen.
 - Externe Links werden defensiv geöffnet und verursachen keinen App-Absturz.
+- Die sichtbare App enthält keinen generischen Text `Nicht verfügbar`/`nicht verfügbar`.
+- Android-Zurück verlässt keine Unterseite direkt durch Beenden der Activity.
 
 ## Versionierung und Release
 
-Der nächste Android-Release ist `2.1.5` mit `versionCode = 58`.
-
-Die bestehende Backend-Version bleibt `2.1.0`, solange die Umsetzung vollständig mit dem vorhandenen API-Vertrag möglich ist. Falls während der Implementierung eine unvermeidbare Backend-Vertragsänderung festgestellt wird, wird die Arbeit angehalten und als Architekturänderung erneut freigegeben, bevor der Backend-Vertrag verändert wird.
-
-Der veröffentlichte Release 2.1.4 bleibt unverändert.
+Der nächste Android-Release ist `2.1.5` mit `versionCode = 58`. Das Backend bleibt `2.1.0`, solange die Umsetzung mit dem vorhandenen API-Vertrag möglich ist. Falls eine unvermeidbare Backend-Vertragsänderung festgestellt wird, wird die Arbeit angehalten und erneut architektonisch freigegeben. Release 2.1.4 bleibt unverändert.
 
 ## Teststrategie
 
-Die Umsetzung folgt TDD. Für jeden fachlichen Block wird zuerst ein reproduzierbarer RED-Test erzeugt.
+Die Umsetzung folgt TDD. Mindestens folgende Fälle werden automatisiert geprüft:
 
-Mindestens folgende Fälle müssen automatisiert geprüft werden:
-
-1. Alle Instrumente verwenden dieselbe Grund-Signallogik unabhängig von ihrer Depotgewichtung.
-2. Meta erhält bei identischen Analysedaten dasselbe Signal wie ein gleich bewertetes anderes Instrument, unabhängig von Positionsgröße.
-3. Fehlende Pflichtdaten ergeben `KEINE_BELASTBARE_BEWERTUNG`.
-4. Ein identisches Tagessignal erzeugt keine Push-Benachrichtigung.
-5. Ein echter Signalwechsel erzeugt genau eine Push-Benachrichtigung.
-6. Wiederholte Ausführung desselben Tageslaufs ist idempotent.
-7. Ein fälliger Sparplan wird auch ohne Öffnen des Sparplan-Screens als offen erkannt.
-8. Bestätigung `Ausgeführt` verändert das Depot genau einmal.
-9. Fehlender belastbarer Kurs lässt die Sparplanausführung offen und das Depot unverändert.
-10. Nicht eindeutig zugeordnete Private-Equity-Pläne können keine Depotbuchung erzeugen.
-11. Veraltete Daten markieren die letzte belastbare Analyse als veraltet, ohne ein neues erfundenes Signal zu erzeugen.
-12. Trade-Republic-App-Link wird bevorzugt; bei Nichtverfügbarkeit greift der Browser-Fallback ohne Absturz.
-13. Instrumente ohne verifizierte externe Zielkennung erzeugen keine erfundene Kennung.
-14. Bestehende Portfolio-, Depotimport-, Sparplan- und Release-Verträge bleiben grün.
-15. Release-Verträge erwarten Android 2.1.5 / code 58 und weiterhin Backend 2.1.0.
+1. Signalberechnung ist unabhängig von Depotgewichtung.
+2. Fehlende Pflichtdaten ergeben intern `KEINE_BELASTBARE_BEWERTUNG`.
+3. Identische Tagessignale erzeugen keinen Push; echte Wechsel genau einen.
+4. Tageslauf und Sparplanausführungen sind idempotent.
+5. Fällige Sparpläne werden ohne Öffnen des Sparplan-Screens erkannt.
+6. `Ausgeführt` verändert das Depot genau einmal; fehlender Preis gar nicht.
+7. Nicht eindeutig zugeordnete Private-Equity-Pläne erzeugen keine Depotbuchung.
+8. Veraltete Daten erhalten die letzte belastbare Analyse ohne erfundenes neues Signal.
+9. Verifizierter Trade-Republic-App-Link wird bevorzugt; Browser-Fallback stürzt nicht ab.
+10. Instrumente ohne verifizierte externe Zielkennung erzeugen keine erfundene Kennung.
+11. UI-Contract-Test findet keine sichtbaren Vorkommen von `Nicht verfügbar`/`nicht verfügbar`.
+12. Android-Zurück schließt zuerst Dialog/Overlay, dann Detailansicht, dann Unterseite und verlässt erst die Startansicht.
+13. Ein Back-Tastendruck führt genau eine Navigationsstufe zurück.
+14. Notification-Deep-Link in eine Detailansicht besitzt einen Rückweg zur passenden Hauptansicht.
+15. Bestehende Portfolio-, Depotimport-, Sparplan- und Release-Verträge bleiben grün.
+16. Release-Verträge erwarten Android 2.1.5 / code 58 und Backend 2.1.0.
 
 ## Definition of Done
 
-2.2 gilt erst als fertig, wenn alle neuen JVM- und Contract-Tests sowie die bestehenden Regressionstests grün sind, der signierte Android-Release-Build erfolgreich erstellt und die APK-Signatur geprüft wurde.
+2.2 gilt erst als fertig, wenn alle neuen JVM-/Contract-Tests und bestehenden Regressionstests grün sind, der signierte Android-Release-Build erfolgreich erstellt und die APK-Signatur geprüft wurde. Erst danach darf der Stand nach `main` integriert und als unveränderlicher Release 2.1.5 veröffentlicht werden.
 
-Erst danach darf der Feature-Stand nach `main` integriert und als neuer unveränderlicher Release 2.1.5 veröffentlicht werden.
-
-Es wird nicht als fertig bezeichnet, solange Push, tägliche Analyse, Sparplan-Hintergrundprüfung oder Release-Build nur theoretisch implementiert, aber nicht durch frische Tests bzw. Workflow-Evidenz bestätigt sind.
+Push, tägliche Analyse, Sparplan-Hintergrundprüfung, Textbereinigung, Android-Zurück-Navigation und Release-Build müssen durch frische Tests bzw. Workflow-Evidenz bestätigt sein.
