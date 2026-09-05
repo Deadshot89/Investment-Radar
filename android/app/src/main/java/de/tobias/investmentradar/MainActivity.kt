@@ -58,6 +58,7 @@ private val RadarPurple = Color(0xFF9F7BFF)
 private val RadarCyan = Color(0xFF4DE6FF)
 private val RadarPink = Color(0xFFFF5EDB)
 private val RadarGlow = Color(0x332EE59D)
+private const val NeonPanelGlowAlpha = 0.04f
 
 class MainActivity : ComponentActivity() {
     private var pendingOpenItemId by mutableStateOf<String?>(null)
@@ -1007,7 +1008,7 @@ private fun NeonPanel(
         Column(
             Modifier
                 .fillMaxWidth()
-                .background(Brush.linearGradient(listOf(accent.copy(alpha = 0.10f), RadarSurface.copy(alpha = 0.99f), RadarSurface2.copy(alpha = 0.96f))))
+                .background(Brush.linearGradient(listOf(accent.copy(alpha = NeonPanelGlowAlpha), RadarSurface.copy(alpha = 0.99f), RadarSurface2.copy(alpha = 0.96f))))
                 .border(1.dp, accent.copy(alpha = 0.34f), RoundedCornerShape(22.dp))
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
