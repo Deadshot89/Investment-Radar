@@ -20,9 +20,9 @@ if grep -q 'accent.copy(alpha = 0.10f), RadarSurface.copy(alpha = 0.99f)' "$SRC"
   exit 1
 fi
 
-# A changed APK must not overwrite the already published immutable v2.1.0 release.
-if ! grep -q 'versionCode = 54' "$BUILD" || ! grep -q 'versionName = "2.1.1"' "$BUILD"; then
-  echo "Expected the glare fix to ship as a new immutable Android release 2.1.1 (code 54)"
+# The glare fix remains present in the current immutable Android release line.
+if ! grep -q 'versionCode = 55' "$BUILD" || ! grep -q 'versionName = "2.1.2"' "$BUILD"; then
+  echo "Expected the current release line to be Android 2.1.2 (code 55)"
   exit 1
 fi
 
