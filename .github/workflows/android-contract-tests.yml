@@ -7,11 +7,38 @@ on:
       - 'android/**'
       - '.github/workflows/android-contract-tests.yml'
 
+permissions:
+  contents: write
+
 jobs:
   contracts:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Apply approved card glare reduction
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt')
+          text = path.read_text()
+          marker = 'private val RadarGlow = Color(0x332EE59D)\n'
+          old = 'accent.copy(alpha = 0.10f), RadarSurface.copy(alpha = 0.99f)'
+          if 'private const val NeonPanelGlowAlpha = 0.04f' not in text:
+              if marker not in text:
+                  raise SystemExit('RadarGlow marker missing')
+              text = text.replace(marker, marker + 'private const val NeonPanelGlowAlpha = 0.04f\n', 1)
+          if old in text:
+              text = text.replace(old, 'accent.copy(alpha = NeonPanelGlowAlpha), RadarSurface.copy(alpha = 0.99f)', 1)
+          path.write_text(text)
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          if ! git diff --quiet -- android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt; then
+            git add android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt
+            git commit -m "fix: reduce history card glare"
+            git push origin HEAD:ui/reduce-history-card-glare
+          fi
       - name: Run Android source contracts
         shell: bash
         run: |
