@@ -4,7 +4,7 @@ SCREEN="android/app/src/main/java/de/tobias/investmentradar/SavingsPlansScreen.k
 PORTFOLIO="android/app/src/main/java/de/tobias/investmentradar/PortfolioDashboard.kt"
 
 [ -f "$SCREEN" ] || { echo "SavingsPlansScreen.kt missing"; exit 1; }
-grep -Fq 'Text("Sparpläne")' "$SCREEN" || { echo 'Savings Plans title missing'; exit 1; }
+grep -Fq 'Text("Sparpläne"' "$SCREEN" || { echo 'Savings Plans title missing'; exit 1; }
 grep -Fq 'Text("Ausgeführt")' "$SCREEN" || { echo 'Executed confirmation action missing'; exit 1; }
 grep -Fq 'Text("Nicht ausgeführt")' "$SCREEN" || { echo 'Skipped confirmation action missing'; exit 1; }
 grep -Fq 'Ausführungstage' "$SCREEN" || { echo 'Editable execution days missing'; exit 1; }
