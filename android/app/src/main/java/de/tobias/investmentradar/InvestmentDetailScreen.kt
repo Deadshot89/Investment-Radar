@@ -46,46 +46,6 @@ fun InvestmentDetailScreen(
 ) {
     val context = LocalContext.current
     val effectiveItem = detailItem(item, customItem)
-    val hostActivity = context as? MainActivity
-    val savingsPush = effectiveItem == null &&
-        hostActivity?.intent?.getBooleanExtra("openSavingsPlans", false) == true &&
-        hostActivity.intent?.getStringExtra("openItemId") == PushNavigationTarget.SAVINGS_ITEM_ID
-
-    if (savingsPush) {
-        val vm: MainViewModel = viewModel()
-        val state by vm.state.collectAsState()
-        BackHandler { onOpenPortfolio() }
-        when (val s = state) {
-            UiState.Loading -> Column(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                CircularProgressIndicator()
-                Text("Sparpläne werden geladen", modifier = Modifier.padding(top = 12.dp))
-            }
-            is UiState.Error -> LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-                contentPadding = PaddingValues(bottom = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                item {
-                    TextButton(onClick = onOpenPortfolio) { Text("← Zum Portfolio") }
-                    DetailCard {
-                        Text("Sparpläne konnten nicht geladen werden", fontWeight = FontWeight.Black)
-                        Text(s.message, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-            }
-            is UiState.Ready -> SavingsPlansScreen(
-                items = s.data.items,
-                onBack = onOpenPortfolio,
-                vm = vm
-            )
-        }
-        return
-    }
-
     if (effectiveItem == null) {
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
