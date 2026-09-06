@@ -78,10 +78,17 @@ class DailyAnalysisWorker(
             )
         }
         val budget = dashboard?.budget?.coerceAtLeast(0) ?: 100
+        val previousPlan = PortfolioAdvisorStore.latest(applicationContext)?.plan
         val plan = PortfolioAdvisorEngine.allocate(candidates, budget)
+        val planEvents = AdvisorChangePolicy.planEvents(previousPlan, plan, today)
         PortfolioAdvisorStore.save(applicationContext, today, plan)
 
-        AdvisorNotificationManager.publishAdvisorEvents(applicationContext, output.events)
+        val displayNames = analysisItems.associate { it.id to it.name }
+        AdvisorNotificationManager.publishAdvisorEvents(
+            applicationContext,
+            (output.events + planEvents).distinctBy { it.id },
+            displayNames
+        )
         AdvisorNotificationManager.publishDueSavingsPlans(
             applicationContext,
             dueExecutions,
