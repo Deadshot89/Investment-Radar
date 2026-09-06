@@ -42,7 +42,8 @@ jobs:
             android/tests/test-history-card-glare.sh \
             android/tests/test-trade-republic-current-depot.sh \
             android/tests/test-savings-plans-ui.sh \
-            android/tests/test-release-backend-gate.sh; do
+            android/tests/test-release-backend-gate.sh \
+            android/tests/test-version-contract.sh; do
             echo "=== $test_file ==="
             bash "$test_file"
             status=$?
