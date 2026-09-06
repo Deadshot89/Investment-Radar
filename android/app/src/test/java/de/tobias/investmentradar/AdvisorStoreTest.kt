@@ -2,6 +2,7 @@ package de.tobias.investmentradar
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AdvisorStoreTest {
@@ -48,10 +49,89 @@ class AdvisorStoreTest {
         assertEquals(once, twice)
     }
 
-    private fun result(signal: AdvisorSignal, reliable: Boolean) = AdvisorResult(
+    @Test
+    fun unchangedDailyResultDoesNotGrowMaterialHistory() {
+        val previous = result(AdvisorSignal.HALTEN, true)
+        val history = listOf(
+            AdvisorHistoryEntry(
+                analysisDay = "2026-09-05",
+                previousSignal = null,
+                newSignal = AdvisorSignal.HALTEN,
+                score = 64,
+                reasons = listOf("test")
+            )
+        )
+
+        val next = AdvisorMaterialHistory.record(history, previous, previous, "2026-09-06")
+
+        assertEquals(history, next)
+    }
+
+    @Test
+    fun twentyOneMaterialChangesKeepNewestTwentyOnly() {
+        var history = emptyList<AdvisorHistoryEntry>()
+        var previous = result(AdvisorSignal.HALTEN, true)
+        repeat(21) { index ->
+            val next = result(
+                signal = if (index % 2 == 0) AdvisorSignal.NACHKAUFEN else AdvisorSignal.HALTEN,
+                reliable = true,
+                score = 70 + index
+            )
+            history = AdvisorMaterialHistory.record(
+                history,
+                previous,
+                next,
+                "2026-09-${(index + 1).toString().padStart(2, '0')}"
+            )
+            previous = next
+        }
+
+        assertEquals(20, history.size)
+        assertEquals("2026-09-21", history.first().analysisDay)
+        assertEquals("2026-09-02", history.last().analysisDay)
+    }
+
+    @Test
+    fun reliabilityChangeIsMaterialEvenWhenSignalDoesNotChange() {
+        val reliable = result(AdvisorSignal.HALTEN, true)
+        val unreliableSameSignal = result(AdvisorSignal.HALTEN, false, score = null)
+
+        val history = AdvisorMaterialHistory.record(
+            emptyList(),
+            reliable,
+            unreliableSameSignal,
+            "2026-09-06"
+        )
+
+        assertEquals(1, history.size)
+    }
+
+    @Test
+    fun existingV1SnapshotJsonStillDecodes() {
+        val encoded = AdvisorStore.encode(
+            mapOf(
+                "meta" to AdvisorHistoryState.record(
+                    AdvisorSnapshot(),
+                    result(AdvisorSignal.HALTEN, true),
+                    "2026-09-05"
+                )
+            )
+        )
+
+        val decoded = AdvisorStore.decode(encoded)
+
+        assertTrue(decoded.containsKey("meta"))
+        assertEquals(AdvisorSignal.HALTEN, decoded["meta"]?.current?.result?.signal)
+    }
+
+    private fun result(
+        signal: AdvisorSignal,
+        reliable: Boolean,
+        score: Int? = if (reliable) 64 else null
+    ) = AdvisorResult(
         instrumentId = "meta",
         signal = signal,
-        score = if (reliable) 64 else null,
+        score = score,
         reliable = reliable,
         reasons = listOf("test"),
         risks = emptyList()
