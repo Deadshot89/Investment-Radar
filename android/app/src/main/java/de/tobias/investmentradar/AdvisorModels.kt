@@ -45,5 +45,7 @@ data class AdvisorResult(
     val score: Int?,
     val reliable: Boolean,
     val reasons: List<String>,
-    val risks: List<String>
+    val risks: List<String>,
+    val confidencePct: Int = 0,
+    val timingFactor: Double = 1.0
 )
