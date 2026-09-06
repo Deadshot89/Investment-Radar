@@ -1,0 +1,107 @@
+name: Apply 2.2 Navigation Fix
+
+on:
+  push:
+    branches:
+      - feat/investment-radar-2.2
+    paths:
+      - '.github/workflows/apply-2-2-navigation-fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/investment-radar-2.2
+      - name: Apply central navigation wiring
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              if text.count(old) != 1:
+                  raise SystemExit(f"Expected exactly one match in {path}, got {text.count(old)} for: {old[:80]!r}")
+              p.write_text(text.replace(old, new, 1))
+
+          main = 'android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt'
+          portfolio = 'android/app/src/main/java/de/tobias/investmentradar/PortfolioDashboard.kt'
+          savings = 'android/app/src/main/java/de/tobias/investmentradar/SavingsPlansScreen.kt'
+
+          replace_once(main,
+          '''    private var pendingOpenAlerts by mutableStateOf(false)\n    private var pushNavigationRequest by mutableLongStateOf(0L)''',
+          '''    private var pendingOpenAlerts by mutableStateOf(false)\n    private var pendingOpenSavingsPlans by mutableStateOf(false)\n    private var pushNavigationRequest by mutableLongStateOf(0L)''')
+
+          replace_once(main,
+          '''        setContent {\n            InvestmentRadarUi(\n                initialTab = if (pendingOpenAlerts || pendingOpenItemId != null) 3 else 0,\n                initialDetailId = pendingOpenItemId,\n                initialAlertId = pendingOpenAlertId,\n                pushNavigationRequest = pushNavigationRequest\n            )\n        }''',
+          '''        setContent {\n            val target = PushNavigationTarget.resolve(\n                openSavingsPlans = pendingOpenSavingsPlans,\n                openAlerts = pendingOpenAlerts,\n                itemId = pendingOpenItemId\n            )\n            InvestmentRadarUi(\n                initialTab = when (target) {\n                    PushNavigationTarget.SAVINGS_PLANS -> 2\n                    PushNavigationTarget.ALERTS, PushNavigationTarget.ALERT_DETAIL -> 3\n                    PushNavigationTarget.HOME -> 0\n                },\n                initialDetailId = pendingOpenItemId?.takeIf { target == PushNavigationTarget.ALERT_DETAIL },\n                initialAlertId = pendingOpenAlertId,\n                initialOpenSavingsPlans = target == PushNavigationTarget.SAVINGS_PLANS,\n                pushNavigationRequest = pushNavigationRequest\n            )\n        }''')
+
+          replace_once(main,
+          '''        pendingOpenAlerts = intent.getBooleanExtra("openAlerts", false)\n        pushNavigationRequest++''',
+          '''        pendingOpenAlerts = intent.getBooleanExtra("openAlerts", false)\n        pendingOpenSavingsPlans = intent.getBooleanExtra("openSavingsPlans", false)\n        pushNavigationRequest++''')
+
+          replace_once(main,
+          '''    initialDetailId: String? = null,\n    initialAlertId: String? = null,\n    pushNavigationRequest: Long = 0L''',
+          '''    initialDetailId: String? = null,\n    initialAlertId: String? = null,\n    initialOpenSavingsPlans: Boolean = false,\n    pushNavigationRequest: Long = 0L''')
+
+          replace_once(main,
+          '''    var detailReturnTab by remember { mutableIntStateOf(if (initialDetailId.isNullOrBlank()) initialTab.coerceIn(0, 3) else 3) }\n    var missingAlertItemMessage''',
+          '''    var detailReturnTab by remember { mutableIntStateOf(if (initialDetailId.isNullOrBlank()) initialTab.coerceIn(0, 3) else 3) }\n    var showSavingsPlans by remember { mutableStateOf(initialOpenSavingsPlans) }\n    var missingAlertItemMessage''')
+
+          replace_once(main,
+          '''    BackHandler(enabled = tab != 0 && selectedDetailId == null) {\n        tab = 0\n    }''',
+          '''    val activeOverlay = when {\n        budgetDialog -> AppOverlay.BUDGET\n        investmentDialogItem != null -> AppOverlay.PURCHASE_HISTORY\n        customAssetDialog -> AppOverlay.CUSTOM_ASSET\n        editingCustomAsset != null -> AppOverlay.EDIT_CUSTOM_ASSET\n        missingAlertItemMessage != null -> AppOverlay.MISSING_ALERT_ITEM\n        updateDialogVisible -> AppOverlay.UPDATE\n        updateStatusMessage != null -> AppOverlay.UPDATE_STATUS\n        else -> AppOverlay.NONE\n    }\n    val navigationState = AppNavigationState(\n        rootTab = tab,\n        detailId = selectedDetailId,\n        detailReturnTab = detailReturnTab,\n        child = if (showSavingsPlans) AppChildScreen.SAVINGS_PLANS else AppChildScreen.NONE,\n        overlay = activeOverlay\n    )\n\n    BackHandler(enabled = navigationState.onBack() !is BackResult.ExitActivity) {\n        when (val backResult = navigationState.onBack()) {\n            is BackResult.Consume -> {\n                val next = backResult.next\n                if (navigationState.overlay != AppOverlay.NONE && next.overlay == AppOverlay.NONE) {\n                    when (navigationState.overlay) {\n                        AppOverlay.BUDGET -> budgetDialog = false\n                        AppOverlay.PURCHASE_HISTORY -> investmentDialogItem = null\n                        AppOverlay.CUSTOM_ASSET -> customAssetDialog = false\n                        AppOverlay.EDIT_CUSTOM_ASSET -> editingCustomAsset = null\n                        AppOverlay.MISSING_ALERT_ITEM -> missingAlertItemMessage = null\n                        AppOverlay.UPDATE -> updateDialogVisible = false\n                        AppOverlay.UPDATE_STATUS -> updateStatusMessage = null\n                        AppOverlay.NONE -> Unit\n                    }\n                }\n                tab = next.rootTab\n                selectedDetailId = next.detailId\n                detailReturnTab = next.detailReturnTab\n                showSavingsPlans = next.child == AppChildScreen.SAVINGS_PLANS\n            }\n            BackResult.ExitActivity -> Unit\n        }\n    }''')
+
+          replace_once(main,
+          '''            tab = if (initialTab == 3 || !initialDetailId.isNullOrBlank()) 3 else initialTab.coerceIn(0, 3)\n            detailReturnTab = 3\n            selectedDetailId = initialDetailId?.takeIf { it.isNotBlank() }''',
+          '''            tab = if (!initialDetailId.isNullOrBlank()) 3 else initialTab.coerceIn(0, 3)\n            detailReturnTab = if (initialDetailId.isNullOrBlank()) initialTab.coerceIn(0, 3) else 3\n            selectedDetailId = initialDetailId?.takeIf { it.isNotBlank() }\n            showSavingsPlans = initialOpenSavingsPlans''')
+
+          replace_once(main,
+          '''                    NavigationBarItem(selected = tab == 0, onClick = { selectedDetailId = null; tab = 0 }, icon = { Icon(Icons.Default.ShowChart, null) }, label = { Text("Live") })\n                    NavigationBarItem(selected = tab == 1, onClick = { selectedDetailId = null; tab = 1 }, icon = { Icon(Icons.Default.Search, null) }, label = { Text("Radar") })\n                    NavigationBarItem(selected = tab == 2, onClick = { selectedDetailId = null; tab = 2 }, icon = { Icon(Icons.Default.Favorite, null) }, label = { Text("Portfolio") })\n                    NavigationBarItem(selected = tab == 3, onClick = { selectedDetailId = null; tab = 3 }, icon = { Icon(Icons.Default.Notifications, null) }, label = { Text("Alarme") })''',
+          '''                    NavigationBarItem(selected = tab == 0, onClick = { selectedDetailId = null; showSavingsPlans = false; tab = 0 }, icon = { Icon(Icons.Default.ShowChart, null) }, label = { Text("Live") })\n                    NavigationBarItem(selected = tab == 1, onClick = { selectedDetailId = null; showSavingsPlans = false; tab = 1 }, icon = { Icon(Icons.Default.Search, null) }, label = { Text("Radar") })\n                    NavigationBarItem(selected = tab == 2, onClick = { selectedDetailId = null; showSavingsPlans = false; tab = 2 }, icon = { Icon(Icons.Default.Favorite, null) }, label = { Text("Portfolio") })\n                    NavigationBarItem(selected = tab == 3, onClick = { selectedDetailId = null; showSavingsPlans = false; tab = 3 }, icon = { Icon(Icons.Default.Notifications, null) }, label = { Text("Alarme") })''')
+
+          replace_once(main,
+          '''                                personalById = personalById,\n                                onOpenDetail = { id ->''',
+          '''                                personalById = personalById,\n                                showSavingsPlans = showSavingsPlans,\n                                onShowSavingsPlansChange = { showSavingsPlans = it },\n                                onOpenDetail = { id ->''')
+
+          replace_once(portfolio,
+          '''    personalById: Map<String, PersonalRecommendation>,\n    onOpenDetail: (String) -> Unit,''',
+          '''    personalById: Map<String, PersonalRecommendation>,\n    showSavingsPlans: Boolean,\n    onShowSavingsPlansChange: (Boolean) -> Unit,\n    onOpenDetail: (String) -> Unit,''')
+
+          replace_once(portfolio,
+          '''    var trackedSharesDialogItemId by remember { mutableStateOf<String?>(null) }\n    var showSavingsPlans by remember { mutableStateOf(false) }''',
+          '''    var trackedSharesDialogItemId by remember { mutableStateOf<String?>(null) }''')
+
+          replace_once(portfolio,
+          '''            onBack = { showSavingsPlans = false },''',
+          '''            onBack = { onShowSavingsPlansChange(false) },''')
+
+          replace_once(portfolio,
+          '''                OutlinedButton(onClick = { showSavingsPlans = true }) { Text("Sparpläne") }''',
+          '''                OutlinedButton(onClick = { onShowSavingsPlansChange(true) }) { Text("Sparpläne") }''')
+
+          replace_once(savings,
+          '''import androidx.activity.compose.BackHandler\n''',
+          '''''')
+          replace_once(savings,
+          '''    BackHandler(enabled = editingPlan == null && message == null) {\n        onBack()\n    }\n\n''',
+          '''''')
+          PY
+      - name: Commit navigation fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt \
+                  android/app/src/main/java/de/tobias/investmentradar/PortfolioDashboard.kt \
+                  android/app/src/main/java/de/tobias/investmentradar/SavingsPlansScreen.kt
+          git diff --cached --check
+          git commit -m "fix: centralize back and savings push navigation"
+          git push origin HEAD:feat/investment-radar-2.2
