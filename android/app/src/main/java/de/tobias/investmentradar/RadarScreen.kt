@@ -43,7 +43,7 @@ fun RadarScreenV2(
     items: List<InvestmentItem>,
     holdingIds: Set<String>,
     watchlistIds: Set<String>,
-    personalById: Map<String, PersonalRecommendation>,
+    advisorById: Map<String, PortfolioAdvisorCandidate>,
     onToggleWatchlist: (String) -> Unit,
     onBought: (InvestmentItem) -> Unit,
     onEditInvestment: (InvestmentItem) -> Unit,
@@ -285,7 +285,7 @@ fun RadarScreenV2(
             val investment = summary.asInvestmentItem()
             RadarResultCardV2(
                 summary = summary,
-                personal = personalById[summary.id],
+                advisorCandidate = advisorById[summary.id],
                 isHeld = summary.id in holdingIds,
                 isWatchlisted = summary.id in watchlistIds,
                 onToggleWatchlist = { onToggleWatchlist(summary.id) },
@@ -388,7 +388,7 @@ private fun FilterGroup(label: String, content: @Composable () -> Unit) {
 @Composable
 private fun RadarResultCardV2(
     summary: RadarSummaryItem,
-    personal: PersonalRecommendation?,
+    advisorCandidate: PortfolioAdvisorCandidate?,
     isHeld: Boolean,
     isWatchlisted: Boolean,
     onToggleWatchlist: () -> Unit,
@@ -415,7 +415,10 @@ private fun RadarResultCardV2(
             summary.percentChange?.let { Text("Tag ${formatRadarPercent(it)}", color = if (it >= 0.0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error) }
             RadarForecastPreview(summary)
             Text(summary.tradeRepublicStatusLabel(), style = MaterialTheme.typography.bodySmall, color = if (summary.tradeRepublicEligible == true) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
-            personal?.let { Text("Monatskauf ${it.allocationEur} € · Depot ${String.format(Locale.GERMANY, "%.1f", it.currentWeightPct)} % · ${it.concentrationLabel}", style = MaterialTheme.typography.bodySmall) }
+            advisorCandidate?.let {
+                Text("Berater: ${radarAdvisorActionLabel(it.action)} · Konfidenz ${it.advisor.confidencePct} %", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                Text("Sparplan ${it.monthlySavingsEur} € / Monat", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             summary.recommendationReasons.take(2).forEach { Text("• $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             Button(onClick = onOpenDetail, modifier = Modifier.fillMaxWidth()) { Text("Details") }
             OutlinedButton(onClick = onOpenTradeRepublic, modifier = Modifier.fillMaxWidth()) { Text("Trade Republic öffnen") }
@@ -540,4 +543,15 @@ private fun formatRadarForecastRange(point: ForecastPoint): String {
     } else {
         String.format(Locale.GERMANY, "%+.1f bis %+.1f %%", point.bearChangePct, point.bullChangePct)
     }
+}
+
+
+private fun radarAdvisorActionLabel(action: PortfolioAdvisorAction): String = when (action) {
+    PortfolioAdvisorAction.NACHKAUFEN -> "Nachkaufen"
+    PortfolioAdvisorAction.HALTEN -> "Halten"
+    PortfolioAdvisorAction.REDUZIEREN -> "Reduzieren"
+    PortfolioAdvisorAction.VERKAUFEN -> "Verkaufen"
+    PortfolioAdvisorAction.NEU_AUFNEHMEN -> "Neu aufnehmen"
+    PortfolioAdvisorAction.NICHT_AUFNEHMEN -> "Nicht aufnehmen"
+    PortfolioAdvisorAction.KEINE_BELASTBARE_BEWERTUNG -> "Bewertung prüfen"
 }

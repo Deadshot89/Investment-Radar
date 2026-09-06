@@ -288,12 +288,19 @@ fun InvestmentRadarUi(
                     UiState.Loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
                     is UiState.Error -> ErrorView(s.message) { vm.refresh() }
                     is UiState.Ready -> {
-                        val personalPlan = RecommendationEngine.plan(
-                            s.data.items,
-                            budget,
-                            PortfolioAnalysis.values(s.data.items, positions, customItems)
-                        )
-                        val personalById = personalPlan.items.associateBy { it.itemId }
+                        val portfolioValues = PortfolioAnalysis.values(s.data.items, positions, customItems)
+                        val monthlySavings = SavingsPlanBudget.monthlyAmounts(SavingsPlanStore.readPlans(context))
+                        val advisorCandidates = s.data.items.map { item ->
+                            PortfolioAdvisorCandidateFactory.create(
+                                item = item,
+                                isHolding = item.id in holdingIds,
+                                currentValueEur = portfolioValues[item.id],
+                                monthlySavingsEur = monthlySavings[item.id] ?: 0,
+                                freshness = DataFreshness.summarize(item)
+                            )
+                        }
+                        val advisorPlan = PortfolioAdvisorEngine.allocate(advisorCandidates, budget)
+                        val advisorById = advisorPlan.candidates.associateBy { it.itemId }
                         val detailId = selectedDetailId
                         if (detailId != null) {
                             val detailItem = s.data.items.firstOrNull { it.id == detailId }
@@ -302,7 +309,8 @@ fun InvestmentRadarUi(
                                 item = detailItem,
                                 customItem = detailCustom,
                                 position = positions[detailId],
-                                personalRecommendation = personalById[detailId],
+                                advisorCandidate = advisorById[detailId],
+                                advisorHistory = AdvisorStore.history(context, detailId),
                                 isWatchlisted = detailId in watchlistIds,
                                 onBack = { selectedDetailId = null; tab = detailReturnTab },
                                 onToggleWatchlist = vm::toggleWatchlist,
@@ -317,7 +325,7 @@ fun InvestmentRadarUi(
                                 positions = positions,
                                 customItems = customItems,
                                 watchlistIds = watchlistIds,
-                                personalPlan = personalPlan,
+                                advisorPlan = advisorPlan,
                                 onEditBudget = { budgetDialog = true },
                                 onOpenRadar = { selectedDetailId = null; tab = 1 },
                                 onOpenPortfolio = { selectedDetailId = null; tab = 2 }
@@ -326,7 +334,7 @@ fun InvestmentRadarUi(
                                 items = s.data.items,
                                 holdingIds = holdingIds,
                                 watchlistIds = watchlistIds,
-                                personalById = personalById,
+                                advisorById = advisorById,
                                 onToggleWatchlist = vm::toggleWatchlist,
                                 onBought = { investmentDialogItem = it },
                                 onEditInvestment = { investmentDialogItem = it },
@@ -339,7 +347,7 @@ fun InvestmentRadarUi(
                                 items = s.data.items,
                                 positions = positions,
                                 customItems = customItems,
-                                personalById = personalById,
+                                advisorPlan = advisorPlan,
                                 showSavingsPlans = showSavingsPlans,
                                 onShowSavingsPlansChange = { showSavingsPlans = it },
                                 onOpenDetail = { id ->
@@ -478,15 +486,15 @@ private fun DashboardScreen(
     positions: Map<String, PortfolioPosition>,
     customItems: List<CustomInvestment>,
     watchlistIds: Set<String>,
-    personalPlan: PersonalPlan,
+    advisorPlan: PortfolioAdvisorPlan,
     onEditBudget: () -> Unit,
     onOpenRadar: () -> Unit,
     onOpenPortfolio: () -> Unit
 ) {
     val context = LocalContext.current
-    val cashAmount = personalPlan.cashAmount
-    val personalById = personalPlan.items.associateBy { it.itemId }
-    val allocations = personalPlan.items.associate { it.itemId to it.allocationEur }
+    val cashAmount = advisorPlan.cashEur
+    val advisorById = advisorPlan.candidates.associateBy { it.itemId }
+    val allocations = advisorPlan.allocations.associate { it.itemId to it.amountEur }
     val top = data.items
         .filter { RecommendationPresentation.effectiveRecommendation(it) == "BUY" }
         .maxByOrNull { it.scoreTotal ?: Int.MIN_VALUE }
@@ -497,9 +505,7 @@ private fun DashboardScreen(
         item.id in holdingIds && RecommendationPresentation.effectiveRecommendation(item) == "REVIEW"
     }
     val missingQuoteItems = data.items.filter { it.status.equals("EIGEN", true) && it.price == null }
-    val concentrationWarning = personalPlan.items.maxByOrNull { it.currentWeightPct }
-        ?.takeIf { it.currentWeightPct >= 40.0 }
-        ?.let { row -> data.items.firstOrNull { it.id == row.itemId }?.let { it to row.currentWeightPct } }
+    val concentrationWarning: Pair<InvestmentItem, Double>? = null
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
@@ -511,7 +517,7 @@ private fun DashboardScreen(
             NeonPanel(accent = RadarCyan) {
                 Text("LIVE DASHBOARD", style = MaterialTheme.typography.labelLarge, color = RadarCyan, fontWeight = FontWeight.Black)
                 Text("Analyse V2 für deinen nächsten Monatskauf", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
-                Text("Qualität, Bewertung, Wachstum, Momentum, Risiko und deine aktuelle Depotgewichtung fließen zusammen.", color = RadarMuted)
+                Text("Qualität, Bewertung, Wachstum, Momentum, Risiko und Datenqualität bestimmen das Signal. Depotgewicht bleibt davon getrennt.", color = RadarMuted)
             }
         }
         item {
@@ -555,8 +561,8 @@ private fun DashboardScreen(
 
         if (top != null) item {
             val label = RecommendationPresentation.label(top)
-            val personal = personalById[top.id]
-            val amount = personal?.allocationEur ?: 0
+            val advisor = advisorById[top.id]
+            val amount = allocations[top.id] ?: 0
             val topDepotValue = positions[top.id]?.takeIf { it.isActiveHolding() }?.currentValue(top.price)
             Text("HEUTIGE EMPFEHLUNG", style = MaterialTheme.typography.labelLarge, color = RadarMuted, fontWeight = FontWeight.Bold)
             NeonPanel(accent = recommendationColor(label)) {
@@ -574,16 +580,16 @@ private fun DashboardScreen(
                         "Depotwert" to topDepotValue?.let(::formatMoney).orEmpty().ifBlank { "–" },
                         "Score" to RecommendationPresentation.scoreText(top.scoreTotal),
                         "Signal" to RecommendationPresentation.confidence(top),
-                        "Depotanteil" to personal?.currentWeightPct?.let { String.format(Locale.GERMANY, "%.1f %%", it) }.orEmpty().ifBlank { "–" }
+                        "Konfidenz" to advisor?.advisor?.confidencePct?.let { "$it %" }.orEmpty().ifBlank { "–" }
                     )
                 )
                 Text(
-                    if (amount > 0) "Diesen Monat $amount € investieren" else personal?.explanation ?: "DIESEN MONAT WARTEN",
+                    if (amount > 0) "Diesen Monat $amount € investieren" else advisor?.advisor?.reasons?.firstOrNull() ?: "DIESEN MONAT WARTEN",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Black,
                     color = recommendationColor(label)
                 )
-                Text(personal?.explanation ?: RecommendationPresentation.topReasons(top).joinToString(" · ").ifBlank { "Analyse liegt vor." }, color = RadarText)
+                Text(advisor?.advisor?.reasons?.joinToString(" · ") ?: RecommendationPresentation.topReasons(top).joinToString(" · ").ifBlank { "Analyse liegt vor." }, color = RadarText)
                 Text(priceLine(top), color = RadarMuted)
                 LiveForecastSummary(top)
                 ScoreBreakdownCard(top)
@@ -628,12 +634,12 @@ private fun DashboardScreen(
         }
 
         items(data.items.sortedByDescending { allocations[it.id] ?: 0 }) { item ->
-            RecommendationRow(item, personalById[item.id], positions[item.id]) { TradeRepublicNavigator.open(context, item) }
+            RecommendationRow(item, null, positions[item.id]) { TradeRepublicNavigator.open(context, item) }
         }
 
         item {
             Text(
-                "Nur objektive BUY-Signale erhalten neues Budget. Depotkonzentration und Risiko können die persönliche Zuteilung reduzieren oder blockieren. Keine automatische Order.",
+                "Nur belastbare Beratersignale erhalten neues Budget. Depotgewicht bleibt Information und bestimmt nicht die Handlung. Keine automatische Order.",
                 style = MaterialTheme.typography.bodySmall,
                 color = RadarMuted,
                 modifier = Modifier.padding(top = 6.dp)
