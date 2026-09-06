@@ -28,7 +28,7 @@ object DailyAnalysisCoordinator {
             val input = AdvisorInputFactory.from(item, forecast, freshness)
             val proposed = AdvisorEngine.evaluate(input)
             val before = snapshots[itemId] ?: AdvisorSnapshot()
-            val result = AdvisorStabilityPolicy.resolve(before, proposed)
+            val result = AdvisorStabilityPolicy.resolve(before, proposed, analysisDay)
             val event = AdvisorChangePolicy.notificationEvent(
                 previous = before.current?.result,
                 current = result,
