@@ -2,12 +2,13 @@ package de.tobias.investmentradar
 
 object AdvisorStabilityPolicy {
     fun resolve(previous: AdvisorSnapshot, proposed: AdvisorResult): AdvisorResult {
-        if (!proposed.reliable) return proposed
+        val cleanProposed = proposed.clearPending()
+        if (!proposed.reliable) return cleanProposed
 
-        val current = previous.current?.result ?: return proposed
-        if (current.instrumentId != proposed.instrumentId) return proposed
-        if (!current.reliable) return proposed
-        if (!isWorse(proposed.signal, current.signal)) return proposed
+        val current = previous.current?.result ?: return cleanProposed
+        if (current.instrumentId != proposed.instrumentId) return cleanProposed
+        if (!current.reliable) return cleanProposed
+        if (!isWorse(proposed.signal, current.signal)) return cleanProposed
 
         val proposedScore = proposed.score
         val lastReliable = previous.lastReliable?.result
@@ -16,14 +17,29 @@ object AdvisorStabilityPolicy {
             proposedScore != null && proposedScore <= 25
         val largeScoreDrop = proposedScore != null && lastReliableScore != null &&
             lastReliableScore - proposedScore >= 25
-        if (severeSell || largeScoreDrop) return proposed
+        if (severeSell || largeScoreDrop) return cleanProposed
 
-        if (current.signal == proposed.signal) return proposed
+        if (current.pendingWorseSignal == proposed.signal && current.pendingWorseCount >= 1) {
+            return cleanProposed
+        }
 
-        return lastReliable
+        val stable = lastReliable
             ?.takeIf { it.instrumentId == proposed.instrumentId && it.reliable }
             ?: current
+        return stable.copy(
+            pendingWorseSignal = proposed.signal,
+            pendingWorseCount = if (current.pendingWorseSignal == proposed.signal) {
+                current.pendingWorseCount + 1
+            } else {
+                1
+            }
+        )
     }
+
+    private fun AdvisorResult.clearPending(): AdvisorResult = copy(
+        pendingWorseSignal = null,
+        pendingWorseCount = 0
+    )
 
     private fun isWorse(proposed: AdvisorSignal, current: AdvisorSignal): Boolean {
         val proposedSeverity = severity(proposed) ?: return false
