@@ -21,6 +21,7 @@ class RootNavigationWiringContractTest {
         val main = source("android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt")
         val portfolio = source("android/app/src/main/java/de/tobias/investmentradar/PortfolioDashboard.kt")
         val savings = source("android/app/src/main/java/de/tobias/investmentradar/SavingsPlansScreen.kt")
+        val detail = source("android/app/src/main/java/de/tobias/investmentradar/InvestmentDetailScreen.kt")
 
         assertTrue(main.contains("AppNavigationState("))
         assertTrue(main.contains("AppChildScreen.SAVINGS_PLANS"))
@@ -30,6 +31,8 @@ class RootNavigationWiringContractTest {
         assertTrue(portfolio.contains("onShowSavingsPlansChange: (Boolean) -> Unit"))
         assertFalse(savings.contains("import androidx.activity.compose.BackHandler"))
         assertFalse(savings.contains("BackHandler("))
+        assertFalse(detail.contains("import androidx.activity.compose.BackHandler"))
+        assertFalse(detail.contains("BackHandler("))
         assertFalse(main.contains("BackHandler(enabled = tab != 0 && selectedDetailId == null)"))
     }
 
