@@ -1,20 +1,23 @@
 #!/usr/bin/env bash
 set -euo pipefail
 SRC="android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt"
-ENGINE="android/app/src/main/java/de/tobias/investmentradar/RecommendationEngine.kt"
 
-grep -q 'val personalPlan = RecommendationEngine.plan' "$SRC"
+# 2.3 hat genau einen gemeinsamen PortfolioAdvisorPlan am Root.
+grep -q 'val advisorPlan = PortfolioAdvisorEngine.allocate' "$SRC"
 grep -q 'PortfolioAnalysis.values(s.data.items, positions, customItems)' "$SRC"
-grep -q 'personalPlan = personalPlan' "$SRC"
-grep -q 'personalPlan: PersonalPlan' "$SRC"
-grep -q 'cashAmount' "$SRC"
-grep -q 'DIESEN MONAT WARTEN' "$SRC"
-grep -q 'currentWeightPct' "$ENGINE"
+grep -q 'SavingsPlanBudget.monthlyAmounts' "$SRC"
+grep -q 'advisorPlan = advisorPlan' "$SRC"
+grep -q 'advisorById = advisorById' "$SRC"
 
-COUNT=$(grep -c 'RecommendationEngine.plan' "$SRC" || true)
+COUNT=$(grep -c 'PortfolioAdvisorEngine.allocate' "$SRC" || true)
 if [ "$COUNT" -ne 1 ]; then
-  echo "Expected exactly one shared RecommendationEngine.plan call, found $COUNT"
+  echo "Expected exactly one shared PortfolioAdvisorEngine.allocate call, found $COUNT"
   exit 1
 fi
 
-echo "PASS shared portfolio-aware personal plan"
+if grep -q 'RecommendationEngine.plan' "$SRC"; then
+  echo "Legacy RecommendationEngine.plan must not drive the root UI"
+  exit 1
+fi
+
+echo "PASS shared Investment Radar 2.3 advisor plan"
