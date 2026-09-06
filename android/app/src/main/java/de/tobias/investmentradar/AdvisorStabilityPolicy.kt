@@ -1,11 +1,16 @@
 package de.tobias.investmentradar
 
 object AdvisorStabilityPolicy {
-    fun resolve(previous: AdvisorSnapshot, proposed: AdvisorResult): AdvisorResult {
+    fun resolve(
+        previous: AdvisorSnapshot,
+        proposed: AdvisorResult,
+        analysisDay: String? = null
+    ): AdvisorResult {
         val cleanProposed = proposed.clearPending()
         if (!proposed.reliable) return cleanProposed
 
-        val current = previous.current?.result ?: return cleanProposed
+        val currentDated = previous.current ?: return cleanProposed
+        val current = currentDated.result
         if (current.instrumentId != proposed.instrumentId) return cleanProposed
         if (!current.reliable) return cleanProposed
         if (!isWorse(proposed.signal, current.signal)) return cleanProposed
@@ -19,7 +24,12 @@ object AdvisorStabilityPolicy {
             lastReliableScore - proposedScore >= 25
         if (severeSell || largeScoreDrop) return cleanProposed
 
-        if (current.pendingWorseSignal == proposed.signal && current.pendingWorseCount >= 1) {
+        val alreadyPending = current.pendingWorseSignal == proposed.signal &&
+            current.pendingWorseCount >= 1
+        if (alreadyPending && analysisDay != null && currentDated.analysisDay == analysisDay) {
+            return current
+        }
+        if (alreadyPending) {
             return cleanProposed
         }
 
@@ -28,11 +38,7 @@ object AdvisorStabilityPolicy {
             ?: current
         return stable.copy(
             pendingWorseSignal = proposed.signal,
-            pendingWorseCount = if (current.pendingWorseSignal == proposed.signal) {
-                current.pendingWorseCount + 1
-            } else {
-                1
-            }
+            pendingWorseCount = 1
         )
     }
 
