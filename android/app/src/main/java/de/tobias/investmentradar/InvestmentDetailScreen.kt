@@ -16,16 +16,21 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import java.util.Locale
 
 @Composable
@@ -42,6 +47,45 @@ fun InvestmentDetailScreen(
 ) {
     val context = LocalContext.current
     val effectiveItem = detailItem(item, customItem)
+    val hostActivity = context as? MainActivity
+    val savingsPush = effectiveItem == null &&
+        hostActivity?.intent?.getBooleanExtra("openSavingsPlans", false) == true &&
+        hostActivity.intent?.getStringExtra("openItemId") == PushNavigationTarget.SAVINGS_ITEM_ID
+
+    if (savingsPush) {
+        val vm: MainViewModel = viewModel()
+        val state by vm.state.collectAsState()
+        BackHandler { onOpenPortfolio() }
+        when (val s = state) {
+            UiState.Loading -> Column(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                CircularProgressIndicator()
+                Text("Sparpläne werden geladen", modifier = Modifier.padding(top = 12.dp))
+            }
+            is UiState.Error -> LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                contentPadding = PaddingValues(bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                item {
+                    TextButton(onClick = onOpenPortfolio) { Text("← Zum Portfolio") }
+                    DetailCard {
+                        Text("Sparpläne konnten nicht geladen werden", fontWeight = FontWeight.Black)
+                        Text(s.message, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+            is UiState.Ready -> SavingsPlansScreen(
+                items = s.data.items,
+                onBack = onOpenPortfolio,
+                vm = vm
+            )
+        }
+        return
+    }
 
     BackHandler { onBack() }
 
