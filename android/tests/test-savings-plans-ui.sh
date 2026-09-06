@@ -10,7 +10,8 @@ grep -Fq 'Text("Nicht ausgeführt")' "$SCREEN" || { echo 'Skipped confirmation a
 grep -Fq 'Ausführungstage' "$SCREEN" || { echo 'Editable execution days missing'; exit 1; }
 grep -Fq 'Instrument noch nicht eindeutig zugeordnet' "$SCREEN" || { echo 'Private Equity safety message missing'; exit 1; }
 grep -Fq 'SavingsPlansScreen(' "$PORTFOLIO" || { echo 'Portfolio savings-plan navigation missing'; exit 1; }
-grep -Fq 'showSavingsPlans = true' "$PORTFOLIO" || { echo 'Portfolio savings-plan entry action missing'; exit 1; }
+grep -Fq 'onShowSavingsPlansChange(true)' "$PORTFOLIO" || { echo 'Root-owned portfolio savings-plan entry action missing'; exit 1; }
+grep -Fq 'onShowSavingsPlansChange(false)' "$PORTFOLIO" || { echo 'Root-owned portfolio savings-plan return action missing'; exit 1; }
 if grep -Eq 'calculableCurrentValue[^\n]*(amountEur|SavingsPlan)|investedCostBasis[^\n]*(amountEur|SavingsPlan)' "$SCREEN" "$PORTFOLIO"; then
   echo 'Planned savings-plan amounts must not be added to portfolio totals'
   exit 1

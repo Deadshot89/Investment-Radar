@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -64,6 +65,7 @@ class MainActivity : ComponentActivity() {
     private var pendingOpenItemId by mutableStateOf<String?>(null)
     private var pendingOpenAlertId by mutableStateOf<String?>(null)
     private var pendingOpenAlerts by mutableStateOf(false)
+    private var pendingOpenSavingsPlans by mutableStateOf(false)
     private var pushNavigationRequest by mutableLongStateOf(0L)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -76,10 +78,20 @@ class MainActivity : ComponentActivity() {
         }
         applyPushIntent(intent)
         setContent {
+            val target = PushNavigationTarget.resolve(
+                openSavingsPlans = pendingOpenSavingsPlans,
+                openAlerts = pendingOpenAlerts,
+                itemId = pendingOpenItemId
+            )
             InvestmentRadarUi(
-                initialTab = if (pendingOpenAlerts || pendingOpenItemId != null) 3 else 0,
-                initialDetailId = pendingOpenItemId,
+                initialTab = when (target) {
+                    PushNavigationTarget.SAVINGS_PLANS -> 2
+                    PushNavigationTarget.ALERTS, PushNavigationTarget.ALERT_DETAIL -> 3
+                    PushNavigationTarget.HOME -> 0
+                },
+                initialDetailId = pendingOpenItemId?.takeIf { target == PushNavigationTarget.ALERT_DETAIL },
                 initialAlertId = pendingOpenAlertId,
+                initialOpenSavingsPlans = target == PushNavigationTarget.SAVINGS_PLANS,
                 pushNavigationRequest = pushNavigationRequest
             )
         }
@@ -95,6 +107,7 @@ class MainActivity : ComponentActivity() {
         pendingOpenItemId = intent.getStringExtra("openItemId")?.takeIf { it.isNotBlank() }
         pendingOpenAlertId = intent.getStringExtra("openAlertId")?.takeIf { it.isNotBlank() }
         pendingOpenAlerts = intent.getBooleanExtra("openAlerts", false)
+        pendingOpenSavingsPlans = intent.getBooleanExtra("openSavingsPlans", false)
         pushNavigationRequest++
     }
 }
@@ -106,6 +119,7 @@ fun InvestmentRadarUi(
     initialTab: Int = 0,
     initialDetailId: String? = null,
     initialAlertId: String? = null,
+    initialOpenSavingsPlans: Boolean = false,
     pushNavigationRequest: Long = 0L
 ) {
     val state by vm.state.collectAsState()
@@ -121,6 +135,7 @@ fun InvestmentRadarUi(
     var tab by remember { mutableIntStateOf(initialTab.coerceIn(0, 3)) }
     var selectedDetailId by remember { mutableStateOf(initialDetailId?.takeIf { it.isNotBlank() }) }
     var detailReturnTab by remember { mutableIntStateOf(if (initialDetailId.isNullOrBlank()) initialTab.coerceIn(0, 3) else 3) }
+    var showSavingsPlans by remember { mutableStateOf(initialOpenSavingsPlans) }
     var missingAlertItemMessage by rememberSaveable { mutableStateOf<String?>(null) }
     var budgetDialog by remember { mutableStateOf(false) }
     var investmentDialogItem by remember { mutableStateOf<InvestmentItem?>(null) }
@@ -133,11 +148,55 @@ fun InvestmentRadarUi(
     var updateCheckRequested by remember { mutableIntStateOf(0) }
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
+    val activeOverlay = when {
+        budgetDialog -> AppOverlay.BUDGET
+        investmentDialogItem != null -> AppOverlay.PURCHASE_HISTORY
+        customAssetDialog -> AppOverlay.CUSTOM_ASSET
+        editingCustomAsset != null -> AppOverlay.EDIT_CUSTOM_ASSET
+        missingAlertItemMessage != null -> AppOverlay.MISSING_ALERT_ITEM
+        updateDialogVisible -> AppOverlay.UPDATE
+        updateStatusMessage != null -> AppOverlay.UPDATE_STATUS
+        else -> AppOverlay.NONE
+    }
+    val navigationState = AppNavigationState(
+        rootTab = tab,
+        detailId = selectedDetailId,
+        detailReturnTab = detailReturnTab,
+        child = if (showSavingsPlans) AppChildScreen.SAVINGS_PLANS else AppChildScreen.NONE,
+        overlay = activeOverlay
+    )
+
+    BackHandler(enabled = navigationState.onBack() !is BackResult.ExitActivity) {
+        when (val backResult = navigationState.onBack()) {
+            is BackResult.Consume -> {
+                val next = backResult.next
+                if (navigationState.overlay != AppOverlay.NONE && next.overlay == AppOverlay.NONE) {
+                    when (navigationState.overlay) {
+                        AppOverlay.BUDGET -> budgetDialog = false
+                        AppOverlay.PURCHASE_HISTORY -> investmentDialogItem = null
+                        AppOverlay.CUSTOM_ASSET -> customAssetDialog = false
+                        AppOverlay.EDIT_CUSTOM_ASSET -> editingCustomAsset = null
+                        AppOverlay.MISSING_ALERT_ITEM -> missingAlertItemMessage = null
+                        AppOverlay.UPDATE -> updateDialogVisible = false
+                        AppOverlay.UPDATE_STATUS -> updateStatusMessage = null
+                        AppOverlay.NONE -> Unit
+                    }
+                }
+                tab = next.rootTab
+                selectedDetailId = next.detailId
+                detailReturnTab = next.detailReturnTab
+                showSavingsPlans = next.child == AppChildScreen.SAVINGS_PLANS
+            }
+            BackResult.ExitActivity -> Unit
+        }
+    }
+
     LaunchedEffect(pushNavigationRequest) {
         if (pushNavigationRequest > 0L) {
-            tab = if (initialTab == 3 || !initialDetailId.isNullOrBlank()) 3 else initialTab.coerceIn(0, 3)
-            detailReturnTab = 3
+            tab = if (!initialDetailId.isNullOrBlank()) 3 else initialTab.coerceIn(0, 3)
+            detailReturnTab = if (initialDetailId.isNullOrBlank()) initialTab.coerceIn(0, 3) else 3
             selectedDetailId = initialDetailId?.takeIf { it.isNotBlank() }
+            showSavingsPlans = initialOpenSavingsPlans
             initialAlertId?.takeIf { it.isNotBlank() }?.let { vm.markAlertRead(it) }
         }
     }
@@ -212,10 +271,10 @@ fun InvestmentRadarUi(
             },
             bottomBar = {
                 NavigationBar(containerColor = RadarSurface) {
-                    NavigationBarItem(selected = tab == 0, onClick = { selectedDetailId = null; tab = 0 }, icon = { Icon(Icons.Default.ShowChart, null) }, label = { Text("Live") })
-                    NavigationBarItem(selected = tab == 1, onClick = { selectedDetailId = null; tab = 1 }, icon = { Icon(Icons.Default.Search, null) }, label = { Text("Radar") })
-                    NavigationBarItem(selected = tab == 2, onClick = { selectedDetailId = null; tab = 2 }, icon = { Icon(Icons.Default.Favorite, null) }, label = { Text("Portfolio") })
-                    NavigationBarItem(selected = tab == 3, onClick = { selectedDetailId = null; tab = 3 }, icon = { Icon(Icons.Default.Notifications, null) }, label = { Text("Alarme") })
+                    NavigationBarItem(selected = tab == 0, onClick = { selectedDetailId = null; showSavingsPlans = false; tab = 0 }, icon = { Icon(Icons.Default.ShowChart, null) }, label = { Text("Live") })
+                    NavigationBarItem(selected = tab == 1, onClick = { selectedDetailId = null; showSavingsPlans = false; tab = 1 }, icon = { Icon(Icons.Default.Search, null) }, label = { Text("Radar") })
+                    NavigationBarItem(selected = tab == 2, onClick = { selectedDetailId = null; showSavingsPlans = false; tab = 2 }, icon = { Icon(Icons.Default.Favorite, null) }, label = { Text("Portfolio") })
+                    NavigationBarItem(selected = tab == 3, onClick = { selectedDetailId = null; showSavingsPlans = false; tab = 3 }, icon = { Icon(Icons.Default.Notifications, null) }, label = { Text("Alarme") })
                 }
             }
         ) { padding ->
@@ -281,6 +340,8 @@ fun InvestmentRadarUi(
                                 positions = positions,
                                 customItems = customItems,
                                 personalById = personalById,
+                                showSavingsPlans = showSavingsPlans,
+                                onShowSavingsPlansChange = { showSavingsPlans = it },
                                 onOpenDetail = { id ->
                                     detailReturnTab = 2
                                     selectedDetailId = id
@@ -306,7 +367,7 @@ fun InvestmentRadarUi(
                                             detailReturnTab = 3
                                             selectedDetailId = id
                                         }
-                                        else -> missingAlertItemMessage = "Das Wertpapier ist im aktuellen Radar nicht mehr verfügbar."
+                                        else -> missingAlertItemMessage = "Das Wertpapier ist nicht im aktuellen Radar enthalten."
                                     }
                                 },
                                 onMarkAllRead = vm::markAllAlertsRead,
@@ -370,7 +431,7 @@ fun InvestmentRadarUi(
     missingAlertItemMessage?.let { message ->
         AlertDialog(
             onDismissRequest = { missingAlertItemMessage = null },
-            title = { Text("Wertpapier nicht verfügbar") },
+            title = { Text("Wertpapier nicht im Radar") },
             text = { Text(message) },
             confirmButton = {
                 TextButton(onClick = { missingAlertItemMessage = null }) { Text("OK") }
@@ -930,7 +991,7 @@ private fun RecommendationRow(item: InvestmentItem, personal: PersonalRecommenda
                 Text("${item.ticker} · Score ${RecommendationPresentation.scoreText(item.scoreTotal)} · Risiko ${item.risk}/5", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
                 if (position?.isActiveHolding() == true) {
                     Text(
-                        if (depotValue != null) "IM DEPOT · ${formatMoney(depotValue)}" else "IM DEPOT · Wert nicht verfügbar",
+                        if (depotValue != null) "IM DEPOT · ${formatMoney(depotValue)}" else "IM DEPOT · Kurs fehlt",
                         color = RadarPurple,
                         fontWeight = FontWeight.Black,
                         style = MaterialTheme.typography.labelLarge

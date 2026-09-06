@@ -173,7 +173,7 @@ object AppUpdateManager {
     private fun startDownload(context: Context, update: AppUpdateInfo) {
         val updatesDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
         if (updatesDir == null) {
-            Toast.makeText(context, "Update-Speicher ist nicht verfügbar.", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "Update-Speicher kann nicht geöffnet werden.", Toast.LENGTH_LONG).show()
             return
         }
         val apkFile = File(updatesDir, "investment-radar-${update.versionName}.apk")

@@ -12,6 +12,7 @@ object SavingsPlanStore {
     private const val EXECUTIONS_KEY = "executions_v1"
     private const val SEEDED_KEY = "trade_republic_savings_plans_2026_09_05_v1"
     private const val CONFIRMED_DATES_KEY = "trade_republic_savings_plan_dates_2026_09_05_v2"
+    private const val PRIVATE_EQUITY_NAMES_KEY = "trade_republic_private_equity_names_2026_09_05_v3"
     private val CONFIRMED_DEFAULT_PLAN_IDS = setOf(
         "tr-meta-twice-monthly",
         "tr-samsung-gdr-twice-monthly",
@@ -43,7 +44,7 @@ object SavingsPlanStore {
         ),
         SavingsPlan(
             id = "tr-private-equity-a-twice-monthly",
-            name = "Private Equity",
+            name = "Private Equity 1",
             itemId = null,
             amountEur = 5.0,
             frequency = SavingsPlanFrequency.TWICE_MONTHLY,
@@ -53,7 +54,7 @@ object SavingsPlanStore {
         ),
         SavingsPlan(
             id = "tr-private-equity-b-twice-monthly",
-            name = "Private Equity",
+            name = "Private Equity 2",
             itemId = null,
             amountEur = 5.0,
             frequency = SavingsPlanFrequency.TWICE_MONTHLY,
@@ -77,6 +78,15 @@ object SavingsPlanStore {
         val byId = existing.associateBy { it.id }.toMutableMap()
         initialPlans().forEach { seed -> byId.putIfAbsent(seed.id, seed) }
         return byId.values.sortedBy { it.id }
+    }
+
+    fun applyPrivateEquityDisplayNames(plans: List<SavingsPlan>): List<SavingsPlan> = plans.map { plan ->
+        if (!plan.name.trim().equals("Private Equity", ignoreCase = true)) return@map plan
+        when (plan.id) {
+            "tr-private-equity-a-twice-monthly" -> plan.copy(name = "Private Equity 1")
+            "tr-private-equity-b-twice-monthly" -> plan.copy(name = "Private Equity 2")
+            else -> plan
+        }
     }
 
     fun applyConfirmedDefaultSchedules(plans: List<SavingsPlan>, today: String): List<SavingsPlan> =
@@ -108,6 +118,11 @@ object SavingsPlanStore {
             val today = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
             savePlans(context, applyConfirmedDefaultSchedules(readPlans(context), today))
             prefs.edit().putBoolean(CONFIRMED_DATES_KEY, true).apply()
+        }
+
+        if (!prefs.getBoolean(PRIVATE_EQUITY_NAMES_KEY, false)) {
+            savePlans(context, applyPrivateEquityDisplayNames(readPlans(context)))
+            prefs.edit().putBoolean(PRIVATE_EQUITY_NAMES_KEY, true).apply()
         }
     }
 

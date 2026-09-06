@@ -15,11 +15,64 @@ class SavingsPlanStoreTest {
         assertEquals(1, plans.count { it.itemId == "custom-samsung-gdr" && it.amountEur == 10.0 && it.frequency == SavingsPlanFrequency.TWICE_MONTHLY })
         assertEquals(1, plans.count { it.itemId == "msft" && it.amountEur == 10.0 && it.frequency == SavingsPlanFrequency.MONTHLY })
 
-        val privateEquity = plans.filter { it.name == "Private Equity" }
+        val privateEquity = plans.filter { it.id.startsWith("tr-private-equity-") }
         assertEquals(2, privateEquity.size)
+        assertEquals(setOf("Private Equity 1", "Private Equity 2"), privateEquity.map { it.name }.toSet())
         assertEquals(2, privateEquity.map { it.id }.distinct().size)
         assertTrue(privateEquity.all { it.amountEur == 5.0 && it.frequency == SavingsPlanFrequency.TWICE_MONTHLY })
         assertTrue(privateEquity.all { it.itemId == null })
+    }
+
+    @Test
+    fun legacyPrivateEquityNamesBecomeDistinctWithoutChangingOtherFields() {
+        val oldPlans = listOf(
+            SavingsPlan(
+                id = "tr-private-equity-a-twice-monthly",
+                name = "Private Equity",
+                itemId = null,
+                amountEur = 5.0,
+                frequency = SavingsPlanFrequency.TWICE_MONTHLY,
+                dayOfMonth1 = 1,
+                dayOfMonth2 = 15,
+                nextDueDate = "2026-09-15"
+            ),
+            SavingsPlan(
+                id = "tr-private-equity-b-twice-monthly",
+                name = "Private Equity",
+                itemId = null,
+                amountEur = 5.0,
+                frequency = SavingsPlanFrequency.TWICE_MONTHLY,
+                dayOfMonth1 = 1,
+                dayOfMonth2 = 15,
+                nextDueDate = "2026-09-15"
+            )
+        )
+
+        val migrated = SavingsPlanStore.applyPrivateEquityDisplayNames(oldPlans)
+
+        assertEquals("Private Equity 1", migrated.first { it.id.endsWith("a-twice-monthly") }.name)
+        assertEquals("Private Equity 2", migrated.first { it.id.endsWith("b-twice-monthly") }.name)
+        assertTrue(migrated.all { it.itemId == null && it.amountEur == 5.0 && it.nextDueDate == "2026-09-15" })
+    }
+
+    @Test
+    fun privateEquityNameMigrationPreservesAlreadyDistinctNamesAndUnknownPlans() {
+        val edited = SavingsPlan(
+            id = "tr-private-equity-a-twice-monthly",
+            name = "Mein PE Fonds",
+            itemId = null,
+            amountEur = 5.0,
+            frequency = SavingsPlanFrequency.TWICE_MONTHLY,
+            dayOfMonth1 = 1,
+            dayOfMonth2 = 15,
+            nextDueDate = "2026-09-15"
+        )
+        val unknown = edited.copy(id = "custom-pe", name = "Private Equity")
+
+        val migrated = SavingsPlanStore.applyPrivateEquityDisplayNames(listOf(edited, unknown))
+
+        assertEquals(edited, migrated.first { it.id == edited.id })
+        assertEquals(unknown, migrated.first { it.id == unknown.id })
     }
 
     @Test

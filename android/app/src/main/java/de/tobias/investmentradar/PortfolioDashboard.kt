@@ -25,6 +25,8 @@ fun PortfolioDashboard(
     positions: Map<String, PortfolioPosition>,
     customItems: List<CustomInvestment>,
     personalById: Map<String, PersonalRecommendation>,
+    showSavingsPlans: Boolean,
+    onShowSavingsPlansChange: (Boolean) -> Unit,
     onOpenDetail: (String) -> Unit,
     onEdit: (InvestmentItem) -> Unit,
     onRemove: (String) -> Unit,
@@ -44,12 +46,11 @@ fun PortfolioDashboard(
     }
     val costBasisComplete = metrics.positions.filter { it.active }.all { it.costBasisKnown }
     var trackedSharesDialogItemId by remember { mutableStateOf<String?>(null) }
-    var showSavingsPlans by remember { mutableStateOf(false) }
 
     if (showSavingsPlans) {
         SavingsPlansScreen(
             items = items,
-            onBack = { showSavingsPlans = false },
+            onBack = { onShowSavingsPlansChange(false) },
             vm = vm
         )
         return
@@ -66,7 +67,7 @@ fun PortfolioDashboard(
                     Text("PORTFOLIO", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                     Text("Mein Depot", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
                 }
-                OutlinedButton(onClick = { showSavingsPlans = true }) { Text("Sparpläne") }
+                OutlinedButton(onClick = { onShowSavingsPlansChange(true) }) { Text("Sparpläne") }
                 Button(onClick = onAddCustom) { Text("Wert hinzufügen") }
             }
         }
@@ -84,7 +85,7 @@ fun PortfolioDashboard(
                 PortfolioDashboardValue("Positionen", metrics.heldPositionCount.toString())
                 PortfolioDashboardValue(
                     "Größte Position",
-                    if (largestName != null && metrics.largestWeightPct != null) "$largestName · ${portfolioPercent(metrics.largestWeightPct)}" else "Nicht verfügbar"
+                    if (largestName != null && metrics.largestWeightPct != null) "$largestName · ${portfolioPercent(metrics.largestWeightPct)}" else "Noch keine aktive Position"
                 )
                 HorizontalDivider()
                 val profit = metrics.totalProfitLoss

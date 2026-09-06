@@ -8,6 +8,7 @@ class InvestmentRadarApp : Application() {
     override fun onCreate() {
         super.onCreate()
         FirebaseBootstrap.initialize(this)
+        DailyAnalysisScheduler.schedule(this)
     }
 }
 

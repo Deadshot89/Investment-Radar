@@ -4,6 +4,8 @@ SRC="android/app/src/main/java/de/tobias/investmentradar/ScoreBreakdownCard.kt"
 
 ! grep -q 'item.coverage ?: 0' "$SRC"
 ! grep -q 'score ?: 0' "$SRC"
-grep -q 'Nicht verfügbar' "$SRC"
+grep -q 'Noch keine Analyse' "$SRC"
+grep -q 'Datenabdeckung fehlt' "$SRC"
+! grep -qi 'nicht verfügbar' "$SRC"
 
 echo "PASS missing score presentation"

@@ -20,9 +20,9 @@ if grep -q 'accent.copy(alpha = 0.10f), RadarSurface.copy(alpha = 0.99f)' "$SRC"
   exit 1
 fi
 
-# The glare fix remains present in the current immutable Android release line.
-if ! grep -q 'versionCode = 57' "$BUILD" || ! grep -q 'versionName = "2.1.4"' "$BUILD"; then
-  echo "Expected the current release line to be Android 2.1.4 (code 57)"
+# The glare fix remains present in the current Android release candidate.
+if ! grep -q 'versionCode = 58' "$BUILD" || ! grep -q 'versionName = "2.1.5"' "$BUILD"; then
+  echo "Expected the current release candidate to be Android 2.1.5 (code 58)"
   exit 1
 fi
 

@@ -161,7 +161,7 @@ fun SavingsPlansScreen(
                                     }
                                     is SavingsPlanConfirmationResult.AlreadyConfirmed -> message = "Diese Ausführung wurde bereits gebucht."
                                     SavingsPlanConfirmationResult.InstrumentMissing -> message = "Instrument ist noch nicht eindeutig zugeordnet."
-                                    SavingsPlanConfirmationResult.PriceUnavailable -> message = "Aktueller Kurs ist nicht verfügbar."
+                                    SavingsPlanConfirmationResult.PriceUnavailable -> message = "Kein aktueller Kurs vorhanden."
                                     SavingsPlanConfirmationResult.PurchasePersistenceFailed -> message = "Der Kauf konnte nicht im Depot gespeichert werden."
                                     SavingsPlanConfirmationResult.ExecutionMissing -> message = "Die Ausführung ist nicht mehr offen."
                                 }
