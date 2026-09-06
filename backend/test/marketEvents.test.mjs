@@ -2,7 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   normalizeMarketEvents,
-  buildEventFingerprint
+  buildEventFingerprint,
+  parseMarketEventIds,
+  queryMarketEvents
 } from "../src/lib/marketEvents.mjs";
 
 const trustedSources = new Map([
@@ -101,4 +103,70 @@ test("normalization clamps materiality and confidence but does not invent conten
   assert.equal(normalized.materiality, 100);
   assert.equal(normalized.confidencePct, 0);
   assert.equal(normalized.summary, "");
+});
+
+test("market event ids are normalized deduplicated and bounded", () => {
+  assert.deepEqual(parseMarketEventIds(" MSFT,meta,msft , sap "), ["msft", "meta", "sap"]);
+  assert.throws(
+    () => parseMarketEventIds(Array.from({ length: 41 }, (_, index) => `id-${index}`).join(",")),
+    /höchstens 40/i
+  );
+});
+
+test("query combines providers and returns a stable generatedAt contract", async () => {
+  const calls = [];
+  const result = await queryMarketEvents(["msft", "meta"], {
+    providers: [
+      {
+        providerId: "issuer-feed",
+        load: async (ids) => {
+          calls.push(ids);
+          return [event()];
+        }
+      },
+      {
+        providerId: "trusted-wire",
+        load: async () => [
+          event({
+            providerId: "trusted-wire",
+            providerEventId: "wire-55",
+            instrumentId: "meta",
+            sourceName: "Trusted Wire",
+            sourceUrl: "https://wire.example/items/55"
+          })
+        ]
+      }
+    ],
+    trustedSources,
+    now: () => new Date("2026-09-06T17:00:00.000Z")
+  });
+
+  assert.deepEqual(calls, [["msft", "meta"]]);
+  assert.equal(result.generatedAt, "2026-09-06T17:00:00.000Z");
+  assert.equal(result.items.length, 2);
+  assert.deepEqual(result.errors, []);
+});
+
+test("provider failure is explicit and does not fabricate replacement events", async () => {
+  const result = await queryMarketEvents(["msft"], {
+    providers: [
+      {
+        providerId: "issuer-feed",
+        load: async () => {
+          throw new Error("upstream timeout");
+        }
+      }
+    ],
+    trustedSources,
+    now: () => new Date("2026-09-06T17:00:00.000Z")
+  });
+
+  assert.deepEqual(result.items, []);
+  assert.deepEqual(result.errors, [
+    {
+      providerId: "issuer-feed",
+      code: "PROVIDER_FAILED",
+      message: "upstream timeout"
+    }
+  ]);
 });
