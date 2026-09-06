@@ -106,7 +106,7 @@ class AdvisorEngineTest {
                 growth = null,
                 momentum = 65,
                 riskScore = 70,
-                forecast12mPct = 9.0,
+                forecastRanges = forecastRanges(9.0),
                 coveragePct = 82,
                 isFresh = true
             )
@@ -127,7 +127,7 @@ class AdvisorEngineTest {
                 growth = null,
                 momentum = 58,
                 riskScore = 80,
-                forecast12mPct = 4.0,
+                forecastRanges = forecastRanges(4.0),
                 coveragePct = 80,
                 isFresh = true
             )
@@ -160,8 +160,22 @@ class AdvisorEngineTest {
         growth = growth,
         momentum = momentum,
         riskScore = riskScore,
-        forecast12mPct = forecast12mPct,
+        forecastRanges = forecast12mPct?.let(::forecastRanges).orEmpty(),
         coveragePct = coveragePct,
         isFresh = isFresh
+    )
+
+    private fun forecastRanges(change12m: Double): List<AdvisorForecastRange> = listOf(
+        AdvisorForecastRange(
+            horizon = ForecastHorizon.TWELVE_MONTHS,
+            expectedChangePct = change12m,
+            lowerChangePct = change12m - 10.0,
+            upperChangePct = change12m + 10.0,
+            lowerTargetPriceEur = 90.0,
+            upperTargetPriceEur = 110.0,
+            confidencePct = 80,
+            reliable = true,
+            reasons = listOf("test")
+        )
     )
 }
