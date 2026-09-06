@@ -167,7 +167,11 @@ object AdvisorNotificationManager {
         added: List<String>
     ) {
         if (added.isEmpty()) return
-        val next = (existing + added).takeLast(MAX_LEDGER_IDS).toSet()
+        val next = (existing.toList() + added)
+            .filter { it.isNotBlank() }
+            .distinct()
+            .takeLast(MAX_LEDGER_IDS)
+            .toSet()
         prefs.edit().putStringSet(key, next).apply()
     }
 
