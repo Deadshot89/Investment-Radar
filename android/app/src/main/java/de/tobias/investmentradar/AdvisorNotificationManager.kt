@@ -106,6 +106,7 @@ object AdvisorNotificationManager {
                     body = body,
                     intent = Intent(context, MainActivity::class.java).apply {
                         putExtra("openSavingsPlans", true)
+                        putExtra("openItemId", PushNavigationTarget.SAVINGS_ITEM_ID)
                         flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
                     }
                 )
