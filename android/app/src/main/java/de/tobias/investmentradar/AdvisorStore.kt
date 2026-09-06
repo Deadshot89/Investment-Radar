@@ -223,6 +223,10 @@ object AdvisorStore {
         put("reliable", reliable)
         put("reasons", JSONArray(reasons))
         put("risks", JSONArray(risks))
+        put("confidencePct", confidencePct)
+        put("timingFactor", timingFactor)
+        pendingWorseSignal?.let { put("pendingWorseSignal", it.name) }
+        put("pendingWorseCount", pendingWorseCount.coerceAtLeast(0))
     }
 
     private fun JSONObject.toDatedResult(): DatedAdvisorResult? {
@@ -233,13 +237,20 @@ object AdvisorStore {
             AdvisorSignal.valueOf(resultObject.optString("signal"))
         }.getOrNull() ?: return null
         val score = if (resultObject.has("score")) resultObject.optInt("score") else null
+        val pendingWorseSignal = resultObject.optString("pendingWorseSignal")
+            .takeIf { it.isNotBlank() }
+            ?.let { runCatching { AdvisorSignal.valueOf(it) }.getOrNull() }
         val result = AdvisorResult(
             instrumentId = id,
             signal = signal,
             score = score,
             reliable = resultObject.optBoolean("reliable", false),
             reasons = resultObject.optJSONArray("reasons").toStringList(),
-            risks = resultObject.optJSONArray("risks").toStringList()
+            risks = resultObject.optJSONArray("risks").toStringList(),
+            confidencePct = resultObject.optInt("confidencePct", 0).coerceIn(0, 100),
+            timingFactor = resultObject.optDouble("timingFactor", 1.0),
+            pendingWorseSignal = pendingWorseSignal,
+            pendingWorseCount = resultObject.optInt("pendingWorseCount", 0).coerceAtLeast(0)
         )
         return DatedAdvisorResult(day, result)
     }
