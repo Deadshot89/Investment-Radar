@@ -7,9 +7,7 @@ object AdvisorInputFactory {
         freshness: DataFreshnessSummary
     ): AdvisorInput {
         val type = instrumentType(item.type)
-        val forecast12m = forecast.points
-            .firstOrNull { it.horizon == ForecastHorizon.TWELVE_MONTHS }
-            ?.expectedChangePct
+        val forecastRanges = AdvisorForecastPolicy.from(forecast, freshness)
 
         return AdvisorInput(
             instrumentId = item.id,
@@ -23,7 +21,7 @@ object AdvisorInputFactory {
             growth = if (type == AdvisorInstrumentType.STOCK) item.scoreGrowth else null,
             momentum = item.scoreMomentum,
             riskScore = item.scoreRisk,
-            forecast12mPct = forecast12m,
+            forecastRanges = forecastRanges,
             coveragePct = freshness.coverage ?: item.coverage ?: forecast.coveragePct ?: 0,
             isFresh = freshness.status != FreshnessStatus.STALE
         )
