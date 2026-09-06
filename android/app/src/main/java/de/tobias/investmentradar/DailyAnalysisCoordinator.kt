@@ -12,7 +12,7 @@ object DailyAnalysisCoordinator {
         holdingIds: Set<String>,
         items: List<InvestmentItem>,
         previousSnapshots: Map<String, AdvisorSnapshot>,
-        freshnessFor: (InvestmentItem) -> DataFreshnessSummary = DataFreshness::summarize
+        freshnessFor: (InvestmentItem) -> DataFreshnessSummary = { DataFreshness.summarize(it) }
     ): DailyAnalysisOutput {
         val byId = items.associateBy { it.id }
         val results = mutableListOf<AdvisorResult>()
