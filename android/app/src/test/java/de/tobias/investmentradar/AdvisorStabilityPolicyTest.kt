@@ -36,6 +36,26 @@ class AdvisorStabilityPolicyTest {
     }
 
     @Test
+    fun secondConsecutiveWorseProposalIsConfirmedAfterRealFirstDayRecording() {
+        val before = snapshot(
+            current = result(AdvisorSignal.HALTEN, score = 68),
+            previous = result(AdvisorSignal.HALTEN, score = 70),
+            lastReliable = result(AdvisorSignal.HALTEN, score = 68)
+        )
+        val firstProposal = result(AdvisorSignal.REDUZIEREN, score = 55)
+        val firstResolved = AdvisorStabilityPolicy.resolve(before, firstProposal)
+        val afterFirstDay = AdvisorHistoryState.record(before, firstResolved, "2026-09-06")
+
+        val secondResolved = AdvisorStabilityPolicy.resolve(
+            afterFirstDay,
+            result(AdvisorSignal.REDUZIEREN, score = 54)
+        )
+
+        assertEquals(AdvisorSignal.REDUZIEREN, secondResolved.signal)
+        assertEquals(54, secondResolved.score)
+    }
+
+    @Test
     fun severeReliableSellMayEscalateImmediately() {
         val previous = snapshot(
             current = result(AdvisorSignal.HALTEN, score = 70),
