@@ -47,5 +47,7 @@ data class AdvisorResult(
     val reasons: List<String>,
     val risks: List<String>,
     val confidencePct: Int = 0,
-    val timingFactor: Double = 1.0
+    val timingFactor: Double = 1.0,
+    val pendingWorseSignal: AdvisorSignal? = null,
+    val pendingWorseCount: Int = 0
 )
