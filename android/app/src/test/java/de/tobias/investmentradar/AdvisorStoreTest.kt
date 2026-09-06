@@ -124,6 +124,27 @@ class AdvisorStoreTest {
         assertEquals(AdvisorSignal.HALTEN, decoded["meta"]?.current?.result?.signal)
     }
 
+    @Test
+    fun snapshotRoundTripPreservesAdvisorConfidenceAndTimingFactor() {
+        val original = AdvisorResult(
+            instrumentId = "meta",
+            signal = AdvisorSignal.NACHKAUFEN,
+            score = 84,
+            reliable = true,
+            reasons = listOf("test"),
+            risks = emptyList(),
+            confidencePct = 83,
+            timingFactor = 0.87
+        )
+        val snapshot = AdvisorHistoryState.record(AdvisorSnapshot(), original, "2026-09-06")
+
+        val decoded = AdvisorStore.decode(AdvisorStore.encode(mapOf("meta" to snapshot)))
+        val restored = decoded["meta"]?.current?.result
+
+        assertEquals(83, restored?.confidencePct)
+        assertEquals(0.87, restored?.timingFactor ?: 0.0, 0.0001)
+    }
+
     private fun result(
         signal: AdvisorSignal,
         reliable: Boolean,
