@@ -43,16 +43,41 @@ class AdvisorStabilityPolicyTest {
             lastReliable = result(AdvisorSignal.HALTEN, score = 68)
         )
         val firstProposal = result(AdvisorSignal.REDUZIEREN, score = 55)
-        val firstResolved = AdvisorStabilityPolicy.resolve(before, firstProposal)
+        val firstResolved = AdvisorStabilityPolicy.resolve(before, firstProposal, "2026-09-06")
         val afterFirstDay = AdvisorHistoryState.record(before, firstResolved, "2026-09-06")
 
         val secondResolved = AdvisorStabilityPolicy.resolve(
             afterFirstDay,
-            result(AdvisorSignal.REDUZIEREN, score = 54)
+            result(AdvisorSignal.REDUZIEREN, score = 54),
+            "2026-09-07"
         )
 
         assertEquals(AdvisorSignal.REDUZIEREN, secondResolved.signal)
         assertEquals(54, secondResolved.score)
+    }
+
+    @Test
+    fun repeatedAnalysisOnSameDayDoesNotCountAsSecondConfirmation() {
+        val holding = result(AdvisorSignal.HALTEN, score = 68)
+        val firstPending = holding.copy(
+            pendingWorseSignal = AdvisorSignal.REDUZIEREN,
+            pendingWorseCount = 1
+        )
+        val previous = AdvisorSnapshot(
+            current = DatedAdvisorResult("2026-09-06", firstPending),
+            previous = DatedAdvisorResult("2026-09-05", holding),
+            lastReliable = DatedAdvisorResult("2026-09-06", firstPending)
+        )
+
+        val resolved = AdvisorStabilityPolicy.resolve(
+            previous,
+            result(AdvisorSignal.REDUZIEREN, score = 54),
+            "2026-09-06"
+        )
+
+        assertEquals(AdvisorSignal.HALTEN, resolved.signal)
+        assertEquals(AdvisorSignal.REDUZIEREN, resolved.pendingWorseSignal)
+        assertEquals(1, resolved.pendingWorseCount)
     }
 
     @Test
