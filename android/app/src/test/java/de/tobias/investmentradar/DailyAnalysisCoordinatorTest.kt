@@ -32,6 +32,25 @@ class DailyAnalysisCoordinatorTest {
     }
 
     @Test
+    fun evaluatesUnionOfHoldingsAndExplicitRadarCandidatesButIgnoresOutsider() {
+        val holding = advisorReadyItem("holding", quality = 74, valuation = 70, growth = 72, momentum = 66, risk = 70)
+        val candidate = advisorReadyItem("candidate", quality = 88, valuation = 80, growth = 84, momentum = 78, risk = 76)
+        val outsider = advisorReadyItem("outside", quality = 99, valuation = 99, growth = 99, momentum = 99, risk = 99)
+
+        val output = DailyAnalysisCoordinator.analyze(
+            analysisDay = "2026-09-06",
+            holdingIds = setOf("holding"),
+            candidateIds = setOf("candidate"),
+            items = listOf(holding, candidate, outsider),
+            previousSnapshots = emptyMap(),
+            freshnessFor = { DataFreshnessSummary(FreshnessStatus.CURRENT, "Aktuell", null, "test", "test", "test", 90) }
+        )
+
+        assertEquals(setOf("holding", "candidate"), output.results.map { it.instrumentId }.toSet())
+        assertTrue(output.results.none { it.instrumentId == "outside" })
+    }
+
+    @Test
     fun unchangedReliableSignalDoesNotCreateAnotherEvent() {
         val item = advisorReadyItem("meta", quality = 67, valuation = 58, growth = 61, momentum = 55, risk = 64)
         val forecast = ForecastEngine.forecast(item)
