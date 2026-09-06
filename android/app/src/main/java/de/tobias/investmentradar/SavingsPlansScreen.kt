@@ -1,6 +1,5 @@
 package de.tobias.investmentradar
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -64,10 +63,6 @@ fun SavingsPlansScreen(
     }
 
     LaunchedEffect(Unit) { reload() }
-
-    BackHandler(enabled = editingPlan == null && message == null) {
-        onBack()
-    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
