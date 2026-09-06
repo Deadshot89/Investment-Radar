@@ -32,7 +32,8 @@ object DailyAnalysisCoordinator {
             val event = AdvisorChangePolicy.notificationEvent(
                 previous = before.current?.result,
                 current = result,
-                analysisDay = analysisDay
+                analysisDay = analysisDay,
+                isHolding = itemId in holdingIds
             )
             val after = AdvisorHistoryState.record(before, result, analysisDay)
 
