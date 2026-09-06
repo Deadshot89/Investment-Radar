@@ -38,6 +38,7 @@ object PortfolioAdvisorEngine {
         budgetEur: Int
     ): PortfolioAdvisorPlan {
         val budget = budgetEur.coerceAtLeast(0)
+        val reallocations = ReallocationPolicy.suggest(candidates)
         val conflicts = candidates
             .filter {
                 it.monthlySavingsEur > 0 &&
@@ -57,7 +58,7 @@ object PortfolioAdvisorEngine {
                 budgetEur = 0,
                 allocations = emptyList(),
                 cashEur = 0,
-                reallocations = emptyList(),
+                reallocations = reallocations,
                 savingsPlanConflicts = conflicts,
                 candidates = candidates
             )
@@ -85,7 +86,7 @@ object PortfolioAdvisorEngine {
                 budgetEur = budget,
                 allocations = emptyList(),
                 cashEur = budget,
-                reallocations = emptyList(),
+                reallocations = reallocations,
                 savingsPlanConflicts = conflicts,
                 candidates = candidates
             )
@@ -106,7 +107,7 @@ object PortfolioAdvisorEngine {
                 budgetEur = budget,
                 allocations = emptyList(),
                 cashEur = budget,
-                reallocations = emptyList(),
+                reallocations = reallocations,
                 savingsPlanConflicts = conflicts,
                 candidates = candidates
             )
@@ -146,7 +147,7 @@ object PortfolioAdvisorEngine {
             budgetEur = budget,
             allocations = allocations,
             cashEur = budget - invested,
-            reallocations = emptyList(),
+            reallocations = reallocations,
             savingsPlanConflicts = conflicts,
             candidates = candidates
         )
