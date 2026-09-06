@@ -37,7 +37,8 @@ fun InvestmentDetailScreen(
     item: InvestmentItem?,
     customItem: CustomInvestment?,
     position: PortfolioPosition?,
-    personalRecommendation: PersonalRecommendation?,
+    advisorCandidate: PortfolioAdvisorCandidate?,
+    advisorHistory: List<AdvisorHistoryEntry>,
     isWatchlisted: Boolean,
     onBack: () -> Unit,
     onToggleWatchlist: (String) -> Unit,
@@ -75,6 +76,7 @@ fun InvestmentDetailScreen(
     val momentum = effectiveItem.momentum
     val fundamentals = effectiveItem.fundamentals
     val forecast = ForecastEngine.forecast(effectiveItem)
+    val advisorForecasts = AdvisorInputFactory.from(effectiveItem, forecast, freshness).forecastRanges.associateBy { it.horizon }
     val trend = detailTrend(momentum)
     val comparablePrice = effectiveItem.priceEur
         ?: effectiveItem.price?.takeIf { effectiveItem.currency.isBlank() || effectiveItem.currency.equals("EUR", ignoreCase = true) }
@@ -125,6 +127,13 @@ fun InvestmentDetailScreen(
                     if (index > 0) HorizontalDivider()
                     Text("${point.horizon.label} · ${point.direction}", fontWeight = FontWeight.Black)
                     DetailValueRow("Erwartet", detailForecastScenario(point.targetPriceEur, point.expectedChangePct))
+                    val advisorRange = advisorForecasts[point.horizon]
+                    if (advisorRange?.reliable == true && advisorRange.lowerTargetPriceEur != null && advisorRange.upperTargetPriceEur != null) {
+                        DetailValueRow("Zielbereich", "${detailMoney(advisorRange.lowerTargetPriceEur)} – ${detailMoney(advisorRange.upperTargetPriceEur)}")
+                    } else {
+                        Text("Zielbereich: ${advisorRange?.reasons?.firstOrNull() ?: "Datenbasis für diesen Horizont nicht ausreichend belastbar"}", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                    }
+                    DetailValueRow("Konfidenz", "${advisorRange?.confidencePct ?: 0} %")
                     DetailValueRow("Schwach", detailForecastScenario(point.bearTargetPriceEur, point.bearChangePct))
                     DetailValueRow("Stark", detailForecastScenario(point.bullTargetPriceEur, point.bullChangePct))
                     Text("Warum diese Prognose?", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
@@ -135,14 +144,29 @@ fun InvestmentDetailScreen(
             }
         }
 
-        personalRecommendation?.let { personal ->
+        advisorCandidate?.let { candidate ->
             item {
                 DetailCard {
                     Text("Deine Einordnung", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
-                    DetailValueRow("Monatskauf", "${personal.allocationEur} €")
-                    DetailValueRow("Depotgewicht", String.format(Locale.GERMANY, "%.1f %%", personal.currentWeightPct))
-                    DetailValueRow("Konzentration", personal.concentrationLabel)
-                    Text(personal.explanation, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    DetailValueRow("Handlung", detailAdvisorActionLabel(candidate.action))
+                    DetailValueRow("Konfidenz", "${candidate.advisor.confidencePct} %")
+                    DetailValueRow("Sparplan", "${candidate.monthlySavingsEur} € / Monat")
+                    candidate.advisor.reasons.take(3).forEach { Text("• $it", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    candidate.advisor.risks.take(3).forEach { Text("Risiko: $it", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+                }
+            }
+        }
+
+        item {
+            DetailCard {
+                Text("Änderungshistorie", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
+                if (advisorHistory.isEmpty()) {
+                    Text("Noch keine materielle Signaländerung gespeichert.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    advisorHistory.take(20).forEach { entry ->
+                        val before = entry.previousSignal?.let(::detailAdvisorSignalLabel) ?: "Erste Bewertung"
+                        Text("${entry.analysisDay}: $before → ${detailAdvisorSignalLabel(entry.newSignal)}${entry.score?.let { " · Score $it" }.orEmpty()}", style = MaterialTheme.typography.bodySmall)
+                    }
                 }
             }
         }
@@ -373,3 +397,22 @@ private fun detailTimestamp(value: String): String = value.replace('T', ' ').rem
 private fun detailForecastScenario(targetPriceEur: Double?, changePct: Double): String =
     targetPriceEur?.let { String.format(Locale.GERMANY, "%.2f € (%+.1f %%)", it, changePct) }
         ?: String.format(Locale.GERMANY, "%+.1f %% · Zielpreis noch nicht berechenbar", changePct)
+
+
+private fun detailAdvisorActionLabel(action: PortfolioAdvisorAction): String = when (action) {
+    PortfolioAdvisorAction.NACHKAUFEN -> "Nachkaufen"
+    PortfolioAdvisorAction.HALTEN -> "Halten"
+    PortfolioAdvisorAction.REDUZIEREN -> "Reduzieren"
+    PortfolioAdvisorAction.VERKAUFEN -> "Verkaufen"
+    PortfolioAdvisorAction.NEU_AUFNEHMEN -> "Neu aufnehmen"
+    PortfolioAdvisorAction.NICHT_AUFNEHMEN -> "Nicht aufnehmen"
+    PortfolioAdvisorAction.KEINE_BELASTBARE_BEWERTUNG -> "Bewertung prüfen"
+}
+
+private fun detailAdvisorSignalLabel(signal: AdvisorSignal): String = when (signal) {
+    AdvisorSignal.NACHKAUFEN -> "Nachkaufen"
+    AdvisorSignal.HALTEN -> "Halten"
+    AdvisorSignal.REDUZIEREN -> "Reduzieren"
+    AdvisorSignal.VERKAUFEN -> "Verkaufen"
+    AdvisorSignal.KEINE_BELASTBARE_BEWERTUNG -> "Bewertung prüfen"
+}

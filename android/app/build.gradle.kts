@@ -17,8 +17,8 @@ android {
         applicationId = "de.tobias.investmentradar"
         minSdk = 23
         targetSdk = 36
-        versionCode = 58
-        versionName = "2.1.5"
+        versionCode = 59
+        versionName = "2.1.6"
 
         buildConfigField("String", "API_BASE_URL", "\"${prop("INVESTMENT_API_BASE_URL", "https://YOUR-FUNCTION-APP.azurewebsites.net").trimEnd('/')}\"")
         buildConfigField("String", "FIREBASE_APP_ID", "\"${prop("FIREBASE_APP_ID")}\"")
@@ -83,9 +83,10 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     debugImplementation("androidx.compose.ui:ui-tooling")
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
 
     implementation(platform("com.google.firebase:firebase-bom:34.18.0"))
     implementation("com.google.firebase:firebase-messaging")
 }
 
-// Release candidate: Investment Radar 2.1.5
+// Release candidate: Investment Radar 2.1.6

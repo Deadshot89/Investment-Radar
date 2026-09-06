@@ -24,7 +24,7 @@ fun PortfolioDashboard(
     items: List<InvestmentItem>,
     positions: Map<String, PortfolioPosition>,
     customItems: List<CustomInvestment>,
-    personalById: Map<String, PersonalRecommendation>,
+    advisorPlan: PortfolioAdvisorPlan,
     showSavingsPlans: Boolean,
     onShowSavingsPlansChange: (Boolean) -> Unit,
     onOpenDetail: (String) -> Unit,
@@ -40,6 +40,8 @@ fun PortfolioDashboard(
         PortfolioMetrics.calculate(items, positions, customItems)
     }
     val itemById = remember(items) { items.associateBy { it.id } }
+    val advisorById = remember(advisorPlan) { advisorPlan.candidates.associateBy { it.itemId } }
+    val allocationById = remember(advisorPlan) { advisorPlan.allocations.associateBy { it.itemId } }
     val customById = remember(customItems) { customItems.associateBy { it.id } }
     val largestName = metrics.largestPositionId?.let { id ->
         itemById[id]?.name ?: customById[id]?.name ?: id
@@ -69,6 +71,29 @@ fun PortfolioDashboard(
                 }
                 OutlinedButton(onClick = { onShowSavingsPlansChange(true) }) { Text("Sparpläne") }
                 Button(onClick = onAddCustom) { Text("Wert hinzufügen") }
+            }
+        }
+
+        item {
+            PortfolioDashboardCard {
+                Text("Was soll ich jetzt tun?", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+                val invested = advisorPlan.allocations.sumOf { it.amountEur }
+                val shifted = advisorPlan.reallocations.sumOf { it.amountEur }
+                Text("$invested € investieren · $shifted € Umschichten · ${advisorPlan.cashEur} € Cash halten", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                advisorPlan.allocations.take(4).forEach { allocation ->
+                    val name = itemById[allocation.itemId]?.name ?: customById[allocation.itemId]?.name ?: allocation.itemId
+                    PortfolioDashboardValue(name, "+${allocation.amountEur} € · ${portfolioAdvisorActionLabel(allocation.action)}")
+                }
+                advisorPlan.reallocations.take(3).forEach { suggestion ->
+                    val from = itemById[suggestion.fromItemId]?.name ?: customById[suggestion.fromItemId]?.name ?: suggestion.fromItemId
+                    val to = itemById[suggestion.toItemId]?.name ?: customById[suggestion.toItemId]?.name ?: suggestion.toItemId
+                    Text("Umschichten: ${suggestion.amountEur} € · $from → $to", style = MaterialTheme.typography.bodySmall)
+                }
+                advisorPlan.savingsPlanConflicts.take(3).forEach { conflict ->
+                    val name = itemById[conflict.itemId]?.name ?: customById[conflict.itemId]?.name ?: conflict.itemId
+                    Text("Sparplan prüfen: $name · ${conflict.monthlySavingsEur} € · ${portfolioAdvisorActionLabel(conflict.action)}", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                }
+                if (advisorPlan.allocations.isEmpty()) Text("Für neues Kapital ist aktuell Cash halten die belastbarere Entscheidung.", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
 
@@ -115,7 +140,8 @@ fun PortfolioDashboard(
         items(metrics.positions, key = { it.itemId }) { row ->
             val item = itemById[row.itemId] ?: customById[row.itemId]?.fallbackItem()
             val custom = customById[row.itemId]
-            val personal = personalById[row.itemId]
+            val advisor = advisorById[row.itemId]
+            val allocation = allocationById[row.itemId]
             val position = positions[row.itemId]
             val importedSnapshot = position?.snapshotValueEur != null && position.purchases.isEmpty() && position.sales.isEmpty()
             val liveTrackedValue = importedSnapshot &&
@@ -163,10 +189,11 @@ fun PortfolioDashboard(
                     PortfolioDashboardValue("Empfehlung", RecommendationPresentation.label(item))
                     PortfolioDashboardValue("Score", RecommendationPresentation.scoreText(item.scoreTotal))
                 }
-                personal?.let {
-                    PortfolioDashboardValue("Monatskauf", "${it.allocationEur} €")
-                    PortfolioDashboardValue("Konzentration", it.concentrationLabel)
-                    Text(it.explanation, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                advisor?.let {
+                    PortfolioDashboardValue("Berater", portfolioAdvisorActionLabel(it.action))
+                    PortfolioDashboardValue("Zusatz diesen Monat", "${allocation?.amountEur ?: 0} €")
+                    PortfolioDashboardValue("Konfidenz", "${it.advisor.confidencePct} %")
+                    it.advisor.reasons.take(2).forEach { reason -> Text("• $reason", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
                 }
 
                 if (importedSnapshot) {
@@ -273,3 +300,14 @@ private fun portfolioSignedMoney(value: Double): String = String.format(Locale.G
 private fun portfolioPercent(value: Double): String = String.format(Locale.GERMANY, "%.1f %%", value)
 private fun portfolioSignedPercent(value: Double): String = String.format(Locale.GERMANY, "%+.1f %%", value)
 private fun portfolioShares(value: Double): String = String.format(Locale.GERMANY, "%.6f", value).trimEnd('0').trimEnd(',')
+
+
+private fun portfolioAdvisorActionLabel(action: PortfolioAdvisorAction): String = when (action) {
+    PortfolioAdvisorAction.NACHKAUFEN -> "Nachkaufen"
+    PortfolioAdvisorAction.HALTEN -> "Halten"
+    PortfolioAdvisorAction.REDUZIEREN -> "Reduzieren"
+    PortfolioAdvisorAction.VERKAUFEN -> "Verkaufen"
+    PortfolioAdvisorAction.NEU_AUFNEHMEN -> "Neu aufnehmen"
+    PortfolioAdvisorAction.NICHT_AUFNEHMEN -> "Nicht aufnehmen"
+    PortfolioAdvisorAction.KEINE_BELASTBARE_BEWERTUNG -> "Bewertung prüfen"
+}

@@ -9,7 +9,7 @@ CARD="android/app/src/main/java/de/tobias/investmentradar/ScoreBreakdownCard.kt"
 FILTERS="android/app/src/main/java/de/tobias/investmentradar/RadarFilterState.kt"
 
 grep -q 'scoreTotal' "$MODELS"
-grep -q 'RecommendationEngine' "$SRC"
+grep -q 'PortfolioAdvisorEngine.allocate' "$SRC"
 grep -q 'Datenabdeckung' "$CARD"
 grep -q 'Qualität' "$CARD"
 grep -q 'Bewertung' "$CARD"
@@ -39,8 +39,9 @@ grep -q 'loadRadarDetail' "$API"
 grep -q 'RadarFilterEngine' "$FILTERS"
 
 grep -q 'RadarScreenV2(' "$SRC"
-grep -q 'val personalPlan = RecommendationEngine.plan' "$SRC"
-grep -q 'val personalById = personalPlan.items.associateBy' "$SRC"
+grep -q 'val advisorPlan = PortfolioAdvisorEngine.allocate' "$SRC"
+grep -q 'val advisorById = advisorPlan.candidates.associateBy' "$SRC"
+! grep -q 'RecommendationEngine.plan' "$SRC"
 ! grep -q 'private enum class RadarSortOption' "$SRC"
 ! grep -q 'focusItemId: String?' "$SRC"
 ! grep -q 'private fun RadarScreen(' "$SRC"
@@ -49,4 +50,4 @@ bash android/tests/test-score-null-display.sh
 bash android/tests/test-investment-detail-ui.sh
 bash android/tests/test-investment-detail-wiring.sh
 
-echo "PASS Analysis V2 remains wired through Radar 2.1"
+echo "PASS Analysis V2 remains wired through Radar 2.1 and Advisor 2.3"

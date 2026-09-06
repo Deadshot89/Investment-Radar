@@ -44,18 +44,58 @@ object AdvisorNotificationManager {
         events.distinctBy { it.id }.filter { it.id in unseenIds }.forEach { event ->
             val name = displayNames[event.instrumentId]?.takeIf { it.isNotBlank() }
                 ?: event.instrumentId.uppercase(Locale.GERMANY)
-            val previous = event.previousSignal?.userLabel() ?: "Neue Bewertung"
-            val current = event.newSignal.userLabel()
             val reason = event.reasons.firstOrNull().orEmpty()
-            val body = buildString {
-                append("$name: $previous → $current")
-                if (reason.isNotBlank()) append(". $reason")
+            val title: String
+            val body: String
+            val level: String
+
+            when (event.kind) {
+                AdvisorNotificationEventKind.NEW_STRONG_OPPORTUNITY -> {
+                    title = "Neue starke Radar-Chance"
+                    body = buildString {
+                        append("$name erfüllt die Schwelle für eine neue starke Chance")
+                        if (reason.isNotBlank()) append(". $reason")
+                    }
+                    level = "BUY"
+                }
+                AdvisorNotificationEventKind.REALLOCATION -> {
+                    val fromName = event.fromItemId?.let { displayNames[it] ?: it.uppercase(Locale.GERMANY) } ?: name
+                    val toName = event.toItemId?.let { displayNames[it] ?: it.uppercase(Locale.GERMANY) }.orEmpty()
+                    val amount = event.amountEur ?: 0
+                    title = "Umschichtung prüfen"
+                    body = buildString {
+                        append("$amount € von $fromName")
+                        if (toName.isNotBlank()) append(" nach $toName")
+                        append(" umschichten")
+                        if (reason.isNotBlank()) append(". $reason")
+                    }
+                    level = "REVIEW"
+                }
+                AdvisorNotificationEventKind.RELIABILITY_LOST -> {
+                    title = "Bewertung nicht mehr belastbar"
+                    body = buildString {
+                        append("$name: Datenbasis reicht für die bisherige Bewertung nicht mehr aus")
+                        if (reason.isNotBlank()) append(". $reason")
+                    }
+                    level = "REVIEW"
+                }
+                AdvisorNotificationEventKind.SIGNAL_CHANGE -> {
+                    val previous = event.previousSignal?.userLabel() ?: "Neue Bewertung"
+                    val current = event.newSignal.userLabel()
+                    title = "Depot-Empfehlung geändert"
+                    body = buildString {
+                        append("$name: $previous → $current")
+                        if (reason.isNotBlank()) append(". $reason")
+                    }
+                    level = event.newSignal.alertLevel()
+                }
             }
+
             val alert = SignalAlert(
                 id = event.id,
                 itemId = event.instrumentId,
-                level = event.newSignal.alertLevel(),
-                title = "Depot-Empfehlung geändert",
+                level = level,
+                title = title,
                 message = body,
                 createdAt = event.analysisDay
             )
@@ -64,7 +104,7 @@ object AdvisorNotificationManager {
             if (show(
                     context = context,
                     notificationId = event.id.hashCode(),
-                    title = "${event.newSignal.emoji()} $name: $current",
+                    title = title,
                     body = body,
                     intent = Intent(context, MainActivity::class.java).apply {
                         putExtra("openAlerts", true)
@@ -180,22 +220,14 @@ object AdvisorNotificationManager {
         AdvisorSignal.HALTEN -> "Halten"
         AdvisorSignal.REDUZIEREN -> "Reduzieren"
         AdvisorSignal.VERKAUFEN -> "Verkaufen"
-        AdvisorSignal.KEINE_BELASTBARE_BEWERTUNG -> "Neue Prüfung nötig"
+        AdvisorSignal.KEINE_BELASTBARE_BEWERTUNG -> "Bewertung prüfen"
     }
 
     private fun AdvisorSignal.alertLevel(): String = when (this) {
         AdvisorSignal.NACHKAUFEN -> "BUY"
-        AdvisorSignal.HALTEN -> "INFO"
-        AdvisorSignal.REDUZIEREN -> "REVIEW"
-        AdvisorSignal.VERKAUFEN -> "SELL"
+        AdvisorSignal.HALTEN -> "WATCH"
+        AdvisorSignal.REDUZIEREN,
+        AdvisorSignal.VERKAUFEN,
         AdvisorSignal.KEINE_BELASTBARE_BEWERTUNG -> "REVIEW"
-    }
-
-    private fun AdvisorSignal.emoji(): String = when (this) {
-        AdvisorSignal.NACHKAUFEN -> "🟢"
-        AdvisorSignal.HALTEN -> "🔵"
-        AdvisorSignal.REDUZIEREN -> "🟠"
-        AdvisorSignal.VERKAUFEN -> "🔴"
-        AdvisorSignal.KEINE_BELASTBARE_BEWERTUNG -> "🟡"
     }
 }

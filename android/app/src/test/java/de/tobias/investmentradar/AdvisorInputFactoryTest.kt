@@ -45,7 +45,11 @@ class AdvisorInputFactoryTest {
         assertEquals(79, input.growth)
         assertEquals(68, input.momentum)
         assertEquals(74, input.riskScore)
-        assertEquals(14.5, input.forecast12mPct!!, 0.0001)
+        val twelve = input.forecastRanges.single { it.horizon == ForecastHorizon.TWELVE_MONTHS }
+        assertEquals(14.5, twelve.expectedChangePct, 0.0001)
+        assertEquals(520.0, twelve.lowerTargetPriceEur!!, 0.0001)
+        assertEquals(700.0, twelve.upperTargetPriceEur!!, 0.0001)
+        assertTrue(twelve.reliable)
         assertTrue(input.isFresh)
     }
 
@@ -110,7 +114,7 @@ class AdvisorInputFactoryTest {
         assertNull(input.growth)
         assertNull(input.momentum)
         assertNull(input.riskScore)
-        assertNull(input.forecast12mPct)
+        assertTrue(input.forecastRanges.isEmpty())
         assertEquals(0, input.coveragePct)
         assertFalse(input.isFresh)
     }
@@ -122,9 +126,9 @@ class AdvisorInputFactoryTest {
                 expectedChangePct = change,
                 bearChangePct = change - 10.0,
                 bullChangePct = change + 10.0,
-                targetPriceEur = null,
-                bearTargetPriceEur = null,
-                bullTargetPriceEur = null,
+                targetPriceEur = 100.0,
+                bearTargetPriceEur = 90.0,
+                bullTargetPriceEur = 110.0,
                 direction = "",
                 reasons = emptyList()
             )
