@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# Task 10 GREEN contract: all visible advisor surfaces share the same root plan.
 MAIN="android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt"
 PORTFOLIO="android/app/src/main/java/de/tobias/investmentradar/PortfolioDashboard.kt"
 RADAR="android/app/src/main/java/de/tobias/investmentradar/RadarScreen.kt"
