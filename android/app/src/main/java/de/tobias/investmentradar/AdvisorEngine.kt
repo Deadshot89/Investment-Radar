@@ -54,18 +54,18 @@ object AdvisorEngine {
                 if (input.growth == null) add("Wachstum")
                 if (input.momentum == null) add("Momentum")
                 if (input.riskScore == null) add("Risiko")
-                if (input.forecast12mPct == null) add("12M-Prognose")
+                if (forecast12m(input) == null) add("12M-Prognose")
             }
             AdvisorInstrumentType.ETF -> {
                 if (input.valuation == null) add("Bewertung")
                 if (input.momentum == null) add("Momentum")
                 if (input.riskScore == null) add("Risiko")
-                if (input.forecast12mPct == null) add("12M-Prognose")
+                if (forecast12m(input) == null) add("12M-Prognose")
             }
             AdvisorInstrumentType.FIXED_INCOME -> {
                 if (input.momentum == null) add("Momentum")
                 if (input.riskScore == null) add("Risiko")
-                if (input.forecast12mPct == null) add("12M-Prognose")
+                if (forecast12m(input) == null) add("12M-Prognose")
             }
         }
     }
@@ -76,18 +76,23 @@ object AdvisorEngine {
             input.growth!!.bounded() * 0.20 +
             input.momentum!!.bounded() * 0.15 +
             input.riskScore!!.bounded() * 0.10 +
-            forecastScore(input.forecast12mPct!!) * 0.10
+            forecastScore(requireNotNull(forecast12m(input))) * 0.10
 
     private fun etfScore(input: AdvisorInput): Double =
         input.valuation!!.bounded() * 0.30 +
             input.momentum!!.bounded() * 0.25 +
             input.riskScore!!.bounded() * 0.25 +
-            forecastScore(input.forecast12mPct!!) * 0.20
+            forecastScore(requireNotNull(forecast12m(input))) * 0.20
 
     private fun fixedIncomeScore(input: AdvisorInput): Double =
         input.momentum!!.bounded() * 0.20 +
             input.riskScore!!.bounded() * 0.50 +
-            forecastScore(input.forecast12mPct!!) * 0.30
+            forecastScore(requireNotNull(forecast12m(input))) * 0.30
+
+    private fun forecast12m(input: AdvisorInput): Double? =
+        input.forecastRanges
+            .firstOrNull { it.horizon == ForecastHorizon.TWELVE_MONTHS && it.reliable }
+            ?.expectedChangePct
 
     private fun forecastScore(changePct: Double): Double =
         (50.0 + changePct.coerceIn(-20.0, 20.0) * 2.5).coerceIn(0.0, 100.0)
@@ -109,7 +114,7 @@ object AdvisorEngine {
             if (it >= 70) add("Positives Momentum unterstützt das aktuelle Signal.")
             else if (it <= 40) add("Negatives Momentum belastet das Signal.")
         }
-        input.forecast12mPct?.let {
+        forecast12m(input)?.let {
             if (it >= 8.0) add("Die 12-Monats-Prognose zeigt positives Potenzial.")
             else if (it <= -5.0) add("Die 12-Monats-Prognose zeigt Abwärtsrisiko.")
         }
@@ -121,7 +126,7 @@ object AdvisorEngine {
             if (it <= 35) add("Das Risikoprofil ist aktuell ungünstig.")
         }
         if (input.coveragePct < 75) add("Die Datenabdeckung ist nur mittel und erhöht die Unsicherheit.")
-        input.forecast12mPct?.let {
+        forecast12m(input)?.let {
             if (it < 0.0) add("Die Basisschätzung für zwölf Monate ist negativ.")
         }
     }.take(3)
