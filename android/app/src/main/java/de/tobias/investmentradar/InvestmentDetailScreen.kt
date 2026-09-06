@@ -1,6 +1,5 @@
 package de.tobias.investmentradar
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -86,8 +85,6 @@ fun InvestmentDetailScreen(
         }
         return
     }
-
-    BackHandler { onBack() }
 
     if (effectiveItem == null) {
         LazyColumn(
