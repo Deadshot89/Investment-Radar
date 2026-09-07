@@ -13,6 +13,7 @@ object DailyAnalysisCoordinator {
         candidateIds: Set<String> = emptySet(),
         items: List<InvestmentItem>,
         previousSnapshots: Map<String, AdvisorSnapshot>,
+        marketEventsByInstrument: Map<String, List<MarketEvent>> = emptyMap(),
         freshnessFor: (InvestmentItem) -> DataFreshnessSummary = { DataFreshness.summarize(it) }
     ): DailyAnalysisOutput {
         val byId = items.associateBy { it.id }
@@ -26,9 +27,18 @@ object DailyAnalysisCoordinator {
             val freshness = freshnessFor(item)
             val forecast = ForecastEngine.forecast(item)
             val input = AdvisorInputFactory.from(item, forecast, freshness)
-            val proposed = AdvisorEngine.evaluate(input)
+            val base = AdvisorEngine.evaluate(input)
+            val eventContext = EventAwareAdvisorPolicy.context(
+                marketEventsByInstrument[itemId].orEmpty()
+            )
+            val proposed = EventAwareAdvisorPolicy.apply(base, eventContext)
             val before = snapshots[itemId] ?: AdvisorSnapshot()
-            val result = AdvisorStabilityPolicy.resolve(before, proposed, analysisDay)
+            val result = AdvisorStabilityPolicy.resolve(
+                previous = before,
+                proposed = proposed,
+                analysisDay = analysisDay,
+                criticalEvent = eventContext.criticalThesisBreak
+            )
             val event = AdvisorChangePolicy.notificationEvent(
                 previous = before.current?.result,
                 current = result,
