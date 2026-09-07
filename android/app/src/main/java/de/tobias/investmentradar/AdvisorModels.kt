@@ -15,11 +15,15 @@ enum class AdvisorInstrumentType {
 }
 
 data class AdvisorForecastRange(
-    val horizonMonths: Int,
-    val basePct: Double,
-    val bearPct: Double,
-    val bullPct: Double,
-    val confidencePct: Int
+    val horizon: ForecastHorizon,
+    val expectedChangePct: Double,
+    val lowerChangePct: Double,
+    val upperChangePct: Double,
+    val lowerTargetPriceEur: Double?,
+    val upperTargetPriceEur: Double?,
+    val confidencePct: Int,
+    val reliable: Boolean,
+    val reasons: List<String>
 )
 
 data class AdvisorInput(
