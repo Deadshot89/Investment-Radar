@@ -58,3 +58,15 @@ data class MarketEventImpact(
     val criticalThesisBreak: Boolean,
     val reasons: List<String>
 )
+
+data class MarketEventProviderError(
+    val providerId: String,
+    val code: String,
+    val message: String
+)
+
+data class MarketEventsResponse(
+    val generatedAt: String,
+    val items: List<MarketEvent>,
+    val errors: List<MarketEventProviderError>
+)
