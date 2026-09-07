@@ -5,3 +5,4 @@ import "./functions/testPush.mjs";
 import "./functions/customQuote.mjs";
 import "./functions/radar.mjs";
 import "./functions/instrumentDetail.mjs";
+import "./functions/marketEvents.mjs";
