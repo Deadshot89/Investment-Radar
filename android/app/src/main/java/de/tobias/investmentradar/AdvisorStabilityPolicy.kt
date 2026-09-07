@@ -7,48 +7,60 @@ object AdvisorStabilityPolicy {
         analysisDay: String? = null,
         criticalEvent: Boolean = false
     ): AdvisorResult {
-        val cleanProposed = proposed.copy(
-            pendingWorseSignal = null,
-            pendingWorseCount = 0
-        )
+        val cleanProposed = proposed.clearPending()
         if (!proposed.reliable) return cleanProposed
 
-        val current = previous.current?.result
-            ?.takeIf { it.instrumentId == proposed.instrumentId && it.reliable }
-            ?: return cleanProposed
+        val currentDated = previous.current ?: return cleanProposed
+        val current = currentDated.result
+        if (current.instrumentId != proposed.instrumentId) return cleanProposed
+        if (!current.reliable) return cleanProposed
         if (!isWorse(proposed.signal, current.signal)) return cleanProposed
 
         if (criticalEvent) return cleanProposed
 
         val proposedScore = proposed.score
-        val currentScore = current.score
-        val severeSell = proposed.signal == AdvisorSignal.VERKAUFEN && proposedScore != null && proposedScore <= 25
-        val severeScoreDrop = proposedScore != null && currentScore != null && currentScore - proposedScore >= 25
-        if (severeSell || severeScoreDrop) return cleanProposed
+        val lastReliable = previous.lastReliable?.result
+        val lastReliableScore = lastReliable?.score
+        val severeSell = proposed.signal == AdvisorSignal.VERKAUFEN &&
+            proposedScore != null && proposedScore <= 25
+        val largeScoreDrop = proposedScore != null && lastReliableScore != null &&
+            lastReliableScore - proposedScore >= 25
+        if (severeSell || largeScoreDrop) return cleanProposed
 
-        val alreadyCountedToday = analysisDay != null && previous.current?.day == analysisDay
-        val nextPendingCount = when {
-            alreadyCountedToday && current.pendingWorseSignal == proposed.signal -> current.pendingWorseCount
-            current.pendingWorseSignal == proposed.signal -> current.pendingWorseCount + 1
-            else -> 1
+        val alreadyPending = current.pendingWorseSignal == proposed.signal &&
+            current.pendingWorseCount >= 1
+        if (alreadyPending && analysisDay != null && currentDated.analysisDay == analysisDay) {
+            return current
         }
-        if (nextPendingCount >= 2) return cleanProposed
+        if (alreadyPending) {
+            return cleanProposed
+        }
 
-        return current.copy(
+        val stable = lastReliable
+            ?.takeIf { it.instrumentId == proposed.instrumentId && it.reliable }
+            ?: current
+        return stable.copy(
             pendingWorseSignal = proposed.signal,
-            pendingWorseCount = nextPendingCount,
-            reasons = (current.reasons + "Schwächeres Signal wartet auf Bestätigung").distinct().take(5)
+            pendingWorseCount = 1
         )
     }
 
-    private fun isWorse(proposed: AdvisorSignal, current: AdvisorSignal): Boolean =
-        severity(proposed) > severity(current)
+    private fun AdvisorResult.clearPending(): AdvisorResult = copy(
+        pendingWorseSignal = null,
+        pendingWorseCount = 0
+    )
 
-    private fun severity(signal: AdvisorSignal): Int = when (signal) {
+    private fun isWorse(proposed: AdvisorSignal, current: AdvisorSignal): Boolean {
+        val proposedSeverity = severity(proposed) ?: return false
+        val currentSeverity = severity(current) ?: return false
+        return proposedSeverity > currentSeverity
+    }
+
+    private fun severity(signal: AdvisorSignal): Int? = when (signal) {
         AdvisorSignal.NACHKAUFEN -> 0
         AdvisorSignal.HALTEN -> 1
         AdvisorSignal.REDUZIEREN -> 2
         AdvisorSignal.VERKAUFEN -> 3
-        AdvisorSignal.KEINE_BELASTBARE_BEWERTUNG -> 4
+        AdvisorSignal.KEINE_BELASTBARE_BEWERTUNG -> null
     }
 }
