@@ -53,6 +53,15 @@ if grep -q 'sha256sum "$RELEASE_APK"' "$WF"; then
   exit 1
 fi
 
+# Release notes must follow the current Android version instead of carrying stale 2.1 copy forever.
+if grep -Fq -- '--notes "Investment Radar 2.1:' "$WF"; then
+  echo 'Release-Notizen dürfen nicht mehr auf Investment Radar 2.1 fest verdrahtet sein'
+  exit 1
+fi
+grep -Fq 'RELEASE_NOTES=' "$WF" || { echo 'Dynamische RELEASE_NOTES fehlen'; exit 1; }
+grep -Fq 'Investment Radar $VERSION_NAME' "$WF" || { echo 'Release-Notizen müssen VERSION_NAME verwenden'; exit 1; }
+grep -Fq -- '--notes "$RELEASE_NOTES"' "$WF" || { echo 'gh release create muss die dynamischen RELEASE_NOTES verwenden'; exit 1; }
+
 gate_line=$(grep -n 'Verify live backend before Android publish' "$WF" | head -1 | cut -d: -f1)
 test -n "$gate_line"
 test -n "$publish_line"
@@ -62,3 +71,4 @@ echo "PASS Android candidate and main both validate live backend 2.1.0 and >=200
 echo "PASS Android in-app publishing remains restricted to main"
 echo "PASS Android app release is monotonic at 2.4.2 / code 62"
 echo "PASS existing releases are immutable by android/app tree"
+echo "PASS Android release notes follow VERSION_NAME instead of stale 2.1 copy"
