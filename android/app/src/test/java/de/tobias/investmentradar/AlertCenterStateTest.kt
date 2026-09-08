@@ -48,4 +48,18 @@ class AlertCenterStateTest {
         assertEquals(2222L, next.tombstones["b"])
         assertEquals(10L, next.tombstones["old"])
     }
+
+    @Test fun actionablePortfolioAlertsArePrioritizedAheadOfGenericBuyAlerts() {
+        val buy = StoredAlert(SignalAlert("buy", "new", "BUY", "Kauf", "", "2026-09-02T10:00:00Z"))
+        val reviewHeld = StoredAlert(SignalAlert("review", "held", "REVIEW", "Prüfen", "", "2026-09-02T09:00:00Z"))
+        val sellHeld = StoredAlert(SignalAlert("sell", "held", "SELL", "Verkaufen", "", "2026-09-02T08:00:00Z"))
+        val thresholdHeld = StoredAlert(SignalAlert("drop", "held", "THRESHOLD", "Tagesverlust", "", "2026-09-02T11:00:00Z"))
+
+        val sorted = AlertCenterState.prioritize(
+            items = listOf(buy, reviewHeld, sellHeld, thresholdHeld),
+            holdingIds = setOf("held")
+        )
+
+        assertEquals(listOf("sell", "drop", "review", "buy"), sorted.map { it.alert.id })
+    }
 }
