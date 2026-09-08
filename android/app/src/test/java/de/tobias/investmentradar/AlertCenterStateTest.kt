@@ -63,6 +63,19 @@ class AlertCenterStateTest {
         assertEquals(listOf("sell", "drop", "review", "buy"), sorted.map { it.alert.id })
     }
 
+    @Test fun everyPortfolioAlertStaysAheadOfOutsideSignals() {
+        val outsideSell = StoredAlert(SignalAlert("outside-sell", "outside", "SELL", "Verkauf", "", "2026-09-02T12:00:00Z"))
+        val heldBuy = StoredAlert(SignalAlert("held-buy", "held", "BUY", "Kauf", "", "2026-09-02T08:00:00Z"))
+        val heldReview = StoredAlert(SignalAlert("held-review", "held", "REVIEW", "Prüfen", "", "2026-09-02T09:00:00Z"))
+
+        val sorted = AlertCenterState.prioritize(
+            items = listOf(outsideSell, heldBuy, heldReview),
+            holdingIds = setOf("held")
+        )
+
+        assertEquals(listOf("held-review", "held-buy", "outside-sell"), sorted.map { it.alert.id })
+    }
+
     @Test fun portfolioOnlyFilterKeepsOnlyAlertsForCurrentHoldings() {
         val heldSell = StoredAlert(SignalAlert("held-sell", "held", "SELL", "Verkaufen", "", "2026-09-02T08:00:00Z"))
         val heldReview = StoredAlert(SignalAlert("held-review", "held", "REVIEW", "Prüfen", "", "2026-09-02T09:00:00Z"))
