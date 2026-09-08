@@ -30,7 +30,10 @@ object PortfolioAdvisorCandidateFactory {
             action = action,
             advisor = advisor,
             currentValueEur = currentValueEur?.takeIf { it.isFinite() && it >= 0.0 },
-            monthlySavingsEur = monthlySavingsEur.coerceAtLeast(0)
+            monthlySavingsEur = monthlySavingsEur.coerceAtLeast(0),
+            riskScore = item.risk.takeIf { it > 0 },
+            coveragePct = freshness.coverage ?: forecast.coveragePct,
+            forecastDirection = forecast.points.firstOrNull { it.horizon == ForecastHorizon.TWELVE_MONTHS }?.direction
         )
     }
 }
