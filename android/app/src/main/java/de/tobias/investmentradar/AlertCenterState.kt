@@ -72,8 +72,8 @@ object AlertCenterState {
             "BUY" -> 100
             else -> 0
         }
-        val portfolioBoost = if (alert.itemId.isNotBlank() && alert.itemId in holdingIds) 25 else 0
-        return severity + portfolioBoost
+        val portfolioBoost = if (alert.itemId.isNotBlank() && alert.itemId in holdingIds) 1_000 else 0
+        return portfolioBoost + severity
     }
 
     fun markAllRead(items: List<StoredAlert>): List<StoredAlert> =
