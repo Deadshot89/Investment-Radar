@@ -160,7 +160,8 @@ object ApiClient {
                 watch = countsObj?.optInt("watch", 0) ?: 0,
                 noBuy = countsObj?.optInt("noBuy", 0) ?: 0,
                 review = countsObj?.optInt("review", 0) ?: 0
-            )
+            ),
+            buyFallbackActive = obj.optBoolean("buyFallbackActive", false)
         )
     }
 
