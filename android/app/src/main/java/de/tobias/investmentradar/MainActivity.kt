@@ -328,7 +328,8 @@ fun InvestmentRadarUi(
                                 advisorPlan = advisorPlan,
                                 onEditBudget = { budgetDialog = true },
                                 onOpenRadar = { selectedDetailId = null; tab = 1 },
-                                onOpenPortfolio = { selectedDetailId = null; tab = 2 }
+                                onOpenPortfolio = { selectedDetailId = null; tab = 2 },
+                                onAddToPortfolio = { investmentDialogItem = it }
                             )
                             1 -> RadarScreenV2(
                                 items = s.data.items,
@@ -489,7 +490,8 @@ private fun DashboardScreen(
     advisorPlan: PortfolioAdvisorPlan,
     onEditBudget: () -> Unit,
     onOpenRadar: () -> Unit,
-    onOpenPortfolio: () -> Unit
+    onOpenPortfolio: () -> Unit,
+    onAddToPortfolio: (InvestmentItem) -> Unit
 ) {
     val context = LocalContext.current
     val cashAmount = advisorPlan.cashEur
@@ -563,7 +565,9 @@ private fun DashboardScreen(
             val label = RecommendationPresentation.label(top)
             val advisor = advisorById[top.id]
             val amount = allocations[top.id] ?: 0
-            val topDepotValue = positions[top.id]?.takeIf { it.isActiveHolding() }?.currentValue(top.price)
+            val topPosition = positions[top.id]
+            val topInDepot = topPosition?.isActiveHolding() == true
+            val topDepotValue = topPosition?.takeIf { it.isActiveHolding() }?.currentValue(top.price)
             Text("HEUTIGE EMPFEHLUNG", style = MaterialTheme.typography.labelLarge, color = RadarMuted, fontWeight = FontWeight.Bold)
             NeonPanel(accent = recommendationColor(label)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -593,6 +597,9 @@ private fun DashboardScreen(
                 Text(priceLine(top), color = RadarMuted)
                 LiveForecastSummary(top)
                 ScoreBreakdownCard(top)
+                FilledTonalButton(onClick = { onAddToPortfolio(top) }, modifier = Modifier.fillMaxWidth()) {
+                    Text(if (topInDepot) "Position erhöhen" else "Zum Depot hinzufügen", fontWeight = FontWeight.Black)
+                }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
                         onClick = { TradeRepublicNavigator.open(context, top) },
@@ -634,7 +641,13 @@ private fun DashboardScreen(
         }
 
         items(data.items.sortedByDescending { allocations[it.id] ?: 0 }) { item ->
-            RecommendationRow(item, null, positions[item.id]) { TradeRepublicNavigator.open(context, item) }
+            RecommendationRow(
+                item = item,
+                personal = null,
+                position = positions[item.id],
+                onOpen = { TradeRepublicNavigator.open(context, item) },
+                onAddToPortfolio = { onAddToPortfolio(item) }
+            )
         }
 
         item {
@@ -801,6 +814,12 @@ private fun PurchaseHistoryDialog(
             ) {
                 Text(item.name, fontWeight = FontWeight.Black)
                 Text("${item.ticker} · ${item.isin}", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
+                Text(
+                    "Aktueller Live-Kurs: ${euroComparablePrice(item)?.let(::formatMoney) ?: "–"} · nur Orientierung, kein automatischer Einstand",
+                    color = RadarCyan,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Bold
+                )
 
                 NeonPanel(accent = RadarPurple) {
                     PortfolioBadgeRow(
@@ -983,9 +1002,16 @@ private fun PurchaseHistoryDialog(
 }
 
 @Composable
-private fun RecommendationRow(item: InvestmentItem, personal: PersonalRecommendation?, position: PortfolioPosition?, onOpen: () -> Unit) {
+private fun RecommendationRow(
+    item: InvestmentItem,
+    personal: PersonalRecommendation?,
+    position: PortfolioPosition?,
+    onOpen: () -> Unit,
+    onAddToPortfolio: () -> Unit
+) {
     val label = RecommendationPresentation.label(item)
     val amount = personal?.allocationEur ?: 0
+    val isHolding = position?.isActiveHolding() == true
     val depotValue = position?.takeIf { it.isActiveHolding() }?.currentValue(item.price)
     NeonPanel(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen),
@@ -995,7 +1021,7 @@ private fun RecommendationRow(item: InvestmentItem, personal: PersonalRecommenda
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(item.name, fontWeight = FontWeight.Black)
                 Text("${item.ticker} · Score ${RecommendationPresentation.scoreText(item.scoreTotal)} · Risiko ${item.risk}/5", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
-                if (position?.isActiveHolding() == true) {
+                if (isHolding) {
                     Text(
                         if (depotValue != null) "IM DEPOT · ${formatMoney(depotValue)}" else "IM DEPOT · Kurs fehlt",
                         color = RadarPurple,
@@ -1016,6 +1042,9 @@ private fun RecommendationRow(item: InvestmentItem, personal: PersonalRecommenda
             }
         }
         LiveForecastSummary(item, compact = true)
+        FilledTonalButton(onClick = onAddToPortfolio, modifier = Modifier.fillMaxWidth()) {
+            Text(if (isHolding) "Position erhöhen" else "Zum Depot hinzufügen", fontWeight = FontWeight.Black)
+        }
     }
 }
 
