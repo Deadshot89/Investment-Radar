@@ -54,6 +54,7 @@ fun AlertsScreen(
     advisorById: Map<String, PortfolioAdvisorCandidate> = emptyMap(),
     itemsById: Map<String, InvestmentItem> = emptyMap(),
     positions: Map<String, PortfolioPosition> = emptyMap(),
+    onExecuteAction: (DepotActionCenterItem) -> Unit = {},
     onOpen: (StoredAlert) -> Unit,
     onMarkAllRead: () -> Unit,
     onDelete: (String) -> Unit,
@@ -74,6 +75,12 @@ fun AlertsScreen(
         else -> actionPlan
     }
     val resolvedPositions = if (positions.isNotEmpty()) positions else PortfolioStore.readPositions(context)
+    val depotActionCenter = DepotActionCenterMapper.build(
+        resolvedActionPlan,
+        resolvedAdvisorById,
+        itemsById,
+        resolvedPositions
+    )
     val holdingIds = resolvedPositions.keys
     val visible = AlertCenterState.visible(
         items = alerts,
@@ -114,6 +121,12 @@ fun AlertsScreen(
                 if (alerts.isNotEmpty()) TextButton(onClick = { confirmClear = true }, modifier = Modifier.fillMaxWidth()) { Text("Alarmverlauf leeren") }
             }
         }
+        item {
+            DepotActionCenterSection(
+                state = depotActionCenter,
+                onExecuteAction = onExecuteAction
+            )
+        }
         if (visible.isEmpty()) item { Text(if (portfolioOnly) "Keine passenden Alarme für dein Depot." else "Keine Alarme in diesem Filter.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
         items(visible, key = { it.alert.id }) { stored ->
             val itemId = stored.alert.itemId
@@ -132,6 +145,95 @@ fun AlertsScreen(
 
     if (confirmClear) AlertDialog(onDismissRequest = { confirmClear = false }, title = { Text("Alarmcenter leeren?") }, text = { Text("Die aktuell gespeicherten Alarme werden lokal gelöscht. Neue Signale können später wieder erscheinen.") }, confirmButton = { Button(onClick = { confirmClear = false; onClear() }) { Text("Alle löschen") } }, dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Abbrechen") } })
     if (showSettings) AlertDialog(onDismissRequest = { showSettings = false }, title = { Text("Alarmeinstellungen") }, text = { AlertPreferencesEditor(initial = preferences, onSave = { value -> onPreferencesChange(value); showSettings = false }) }, confirmButton = {}, dismissButton = { TextButton(onClick = { showSettings = false }) { Text("Abbrechen") } })
+}
+
+@Composable
+private fun DepotActionCenterSection(
+    state: DepotActionCenterState,
+    onExecuteAction: (DepotActionCenterItem) -> Unit
+) {
+    val accent = MaterialTheme.colorScheme.primary
+    Card(
+        modifier = Modifier.fillMaxWidth().border(1.dp, accent.copy(alpha = 0.45f), RoundedCornerShape(20.dp)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Das solltest du jetzt mit deinem Depot machen", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
+            Text("Eine gemeinsame Arbeitsliste aus deinem aktuellen Aktionsplan. Keine Order wird automatisch ausgeführt.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(Modifier.weight(1f)) {
+                    Text("Dringende Aktionen", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(state.summary.urgentActions.toString(), fontWeight = FontWeight.Black)
+                }
+                Column(Modifier.weight(1f)) {
+                    Text("Geplantes Kaufbudget", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(formatEur(state.summary.plannedBuyEur), fontWeight = FontWeight.Black)
+                }
+                Column(Modifier.weight(1f)) {
+                    Text("Cash halten", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(formatEur(state.summary.cashEur), fontWeight = FontWeight.Black)
+                }
+            }
+            HorizontalDivider(color = accent.copy(alpha = 0.18f))
+            if (state.isEmpty) {
+                Text("Noch kein belastbarer Depot-Aktionsplan verfügbar.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                state.items.forEach { item ->
+                    DepotActionCenterCard(item = item, onExecuteAction = onExecuteAction)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DepotActionCenterCard(
+    item: DepotActionCenterItem,
+    onExecuteAction: (DepotActionCenterItem) -> Unit
+) {
+    val accent = when (item.type) {
+        ActionType.SELL -> Color(0xFFFF6577)
+        ActionType.REDUCE, ActionType.REVIEW_SAVINGS_PLAN -> Color(0xFFFFC857)
+        ActionType.BUY_MORE, ActionType.OPEN_POSITION -> Color(0xFF2EE59D)
+        ActionType.KEEP_SAVINGS_PLAN -> Color(0xFF4C8DFF)
+        ActionType.HOLD_CASH -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    Column(
+        modifier = Modifier.fillMaxWidth().background(accent.copy(alpha = 0.07f), RoundedCornerShape(14.dp)).border(1.dp, accent.copy(alpha = 0.22f), RoundedCornerShape(14.dp)).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text(item.instrumentName, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Black, modifier = Modifier.weight(1f))
+            Text(if (item.isHolding) "IM DEPOT" else if (item.type == ActionType.OPEN_POSITION) "NEUE POSITION" else "", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = accent)
+        }
+        Text(item.actionText, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Black, color = if (item.buyBlocked) Color(0xFFFFC857) else MaterialTheme.colorScheme.onSurface)
+        if (item.buyBlocked) {
+            Text("WATCH · NICHT BESTÄTIGT", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = Color(0xFFFFC857))
+        }
+        if (item.reason.isNotBlank()) Text(item.reason, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(10.dp)).padding(9.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            MetricRow("Depotwert", item.depotValueEur?.let(::formatEur) ?: "–")
+            MetricRow("Einstand / G/V", if (item.costBasisEur != null) "${formatEur(item.costBasisEur)} / ${formatSignedEur(item.profitLossEur)}" else "–")
+            MetricRow("Score", item.score?.toString() ?: "–")
+            MetricRow("Risiko", item.riskScore?.let { "$it/5" } ?: "–")
+            MetricRow("Datenabdeckung", item.coveragePct?.let { "$it %" } ?: "–")
+            MetricRow("Prognose", item.forecastDirection ?: "–")
+            MetricRow("Datenqualität", item.dataQualityLabel)
+        }
+        if (item.executable) {
+            Button(onClick = { onExecuteAction(item) }, modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    when (item.type) {
+                        ActionType.BUY_MORE, ActionType.OPEN_POSITION -> "Buchung öffnen"
+                        ActionType.SELL, ActionType.REDUCE -> "Verkauf erfassen"
+                        ActionType.REVIEW_SAVINGS_PLAN, ActionType.KEEP_SAVINGS_PLAN -> "Sparplan öffnen"
+                        ActionType.HOLD_CASH -> ""
+                    }
+                )
+            }
+        }
+    }
 }
 
 private data class AlertActionGuidance(
