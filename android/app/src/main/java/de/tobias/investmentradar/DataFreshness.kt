@@ -16,7 +16,8 @@ data class DataFreshnessSummary(
     val quoteSource: String?,
     val historySource: String?,
     val fundamentalSource: String?,
-    val coverage: Int?
+    val coverage: Int?,
+    val issues: List<String> = emptyList()
 )
 
 object DataFreshness {
@@ -58,6 +59,15 @@ object DataFreshness {
             else -> FreshnessStatus.CURRENT
         }
 
+        val issues = buildList {
+            if (item.priceEur == null && item.price == null) add("Kurs fehlt")
+            if (historyExpected && (momentum?.source.isNullOrBlank() || historyTimestamp == null || momentum?.error?.isNotBlank() == true)) add("Historie fehlt")
+            if (fundamentalsExpected && (fundamentals?.source.isNullOrBlank() || fundamentalTimestamp == null || fundamentals?.error?.isNotBlank() == true)) add("Fundamentaldaten fehlen")
+            if (item.analysisAsOf.isNullOrBlank()) add("Analyse fehlt")
+            if (stale) add("Analyse veraltet")
+            if (item.coverage == null || item.coverage < 50) add("Datenabdeckung unzureichend")
+        }.distinct()
+
         return DataFreshnessSummary(
             status = status,
             label = status.displayLabel(),
@@ -65,7 +75,8 @@ object DataFreshness {
             quoteSource = item.dataSource.takeIf { it.isNotBlank() },
             historySource = momentum?.source?.takeIf { it.isNotBlank() },
             fundamentalSource = fundamentals?.source?.takeIf { it.isNotBlank() },
-            coverage = item.coverage
+            coverage = item.coverage,
+            issues = issues
         )
     }
 
