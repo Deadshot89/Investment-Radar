@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 
 sealed interface UiState {
     data object Loading : UiState
@@ -95,6 +96,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     val application = getApplication<Application>()
                     val relevantAlerts = it.alerts.filter { alert -> AlertPolicy.isRelevantForPortfolio(alert, _holdingIds.value) }
                     _alerts.value = AlertStore.mergeRemote(application, relevantAlerts)
+                    persistAdvisorPlan(application, it)
                     _state.value = UiState.Ready(it)
                 }
                 .onFailure { e ->
@@ -103,6 +105,26 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     }
                 }
         }
+    }
+
+    private fun persistAdvisorPlan(application: Application, dashboard: DashboardData) {
+        val budget = application.getSharedPreferences("investment_radar_settings", 0)
+            .getInt("monthly_budget", 100)
+            .coerceIn(10, 10000)
+        val portfolioValues = PortfolioAnalysis.values(dashboard.items, _positions.value, _customItems.value)
+        val monthlySavings = SavingsPlanBudget.monthlyAmounts(SavingsPlanStore.readPlans(application))
+        val candidates = dashboard.items.map { item ->
+            PortfolioAdvisorCandidateFactory.create(
+                item = item,
+                isHolding = item.id in _holdingIds.value,
+                currentValueEur = portfolioValues[item.id],
+                monthlySavingsEur = monthlySavings[item.id] ?: 0,
+                freshness = DataFreshness.summarize(item)
+            )
+        }
+        val plan = PortfolioAdvisorEngine.allocate(candidates, budget)
+        val analysisDay = dashboard.generatedAt.take(10).takeIf { it.length == 10 } ?: LocalDate.now().toString()
+        PortfolioAdvisorStore.save(application, analysisDay, plan)
     }
 
     private fun promoteCustomPortfolioAssets(application: Application, builtInItems: List<InvestmentItem>) {
