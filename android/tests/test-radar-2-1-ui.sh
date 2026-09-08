@@ -20,7 +20,7 @@ grep -q 'RadarCounts(' "$API"
 
 # BUY fallback and data-quality diagnostics are part of the Android contract.
 grep -q 'val buyFallbackActive: Boolean = false' "$MODELS"
-grep -q 'buyFallbackActive = root.optBoolean("buyFallbackActive", false)' "$API"
+grep -q 'buyFallbackActive = obj.optBoolean("buyFallbackActive", false)' "$API"
 grep -q 'Kaufkandidaten – noch nicht bestätigt' "$SCREEN"
 grep -q 'Starke WATCH-Werte' "$SCREEN"
 grep -q 'Daten fehlen' "$SCREEN"
