@@ -16,5 +16,8 @@ data class PortfolioAdvisorCandidate(
     val action: PortfolioAdvisorAction,
     val advisor: AdvisorResult,
     val currentValueEur: Double?,
-    val monthlySavingsEur: Int
+    val monthlySavingsEur: Int,
+    val riskScore: Int? = null,
+    val coveragePct: Int? = null,
+    val forecastDirection: String? = null
 )
