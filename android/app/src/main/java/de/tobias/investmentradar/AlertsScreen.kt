@@ -47,14 +47,34 @@ import java.util.Locale
 import java.util.TimeZone
 
 @Composable
-fun AlertsScreen(alerts: List<StoredAlert>, preferences: AlertPreferences, onOpen: (StoredAlert) -> Unit, onMarkAllRead: () -> Unit, onDelete: (String) -> Unit, onClear: () -> Unit, onPreferencesChange: (AlertPreferences) -> Unit) {
+fun AlertsScreen(
+    alerts: List<StoredAlert>,
+    preferences: AlertPreferences,
+    actionPlan: ActionPlan = ActionPlan("", "", 0.0, 0.0, emptyList()),
+    advisorById: Map<String, PortfolioAdvisorCandidate> = emptyMap(),
+    itemsById: Map<String, InvestmentItem> = emptyMap(),
+    positions: Map<String, PortfolioPosition> = emptyMap(),
+    onOpen: (StoredAlert) -> Unit,
+    onMarkAllRead: () -> Unit,
+    onDelete: (String) -> Unit,
+    onClear: () -> Unit,
+    onPreferencesChange: (AlertPreferences) -> Unit
+) {
     var filterName by rememberSaveable { mutableStateOf(AlertFilter.ALL.name) }
     var portfolioOnly by rememberSaveable { mutableStateOf(false) }
     var showSettings by rememberSaveable { mutableStateOf(false) }
     var confirmClear by rememberSaveable { mutableStateOf(false) }
     val filter = AlertFilter.entries.firstOrNull { it.name == filterName } ?: AlertFilter.ALL
     val context = LocalContext.current
-    val holdingIds = PortfolioStore.read(context)
+    val storedAdvisorPlan = PortfolioAdvisorStore.latest(context)
+    val resolvedAdvisorById = if (advisorById.isNotEmpty()) advisorById else storedAdvisorPlan?.plan?.candidates.orEmpty().associateBy { it.itemId }
+    val resolvedActionPlan = when {
+        actionPlan.actions.isNotEmpty() -> actionPlan
+        storedAdvisorPlan != null -> ActionPlanEngine.build(storedAdvisorPlan.analysisDay, storedAdvisorPlan.plan)
+        else -> actionPlan
+    }
+    val resolvedPositions = if (positions.isNotEmpty()) positions else PortfolioStore.readPositions(context)
+    val holdingIds = resolvedPositions.keys
     val visible = AlertCenterState.visible(
         items = alerts,
         filter = filter,
@@ -96,9 +116,14 @@ fun AlertsScreen(alerts: List<StoredAlert>, preferences: AlertPreferences, onOpe
         }
         if (visible.isEmpty()) item { Text(if (portfolioOnly) "Keine passenden Alarme für dein Depot." else "Keine Alarme in diesem Filter.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
         items(visible, key = { it.alert.id }) { stored ->
+            val itemId = stored.alert.itemId
             AlertCard(
                 stored = stored,
-                isHolding = stored.alert.itemId.isNotBlank() && stored.alert.itemId in holdingIds,
+                isHolding = itemId.isNotBlank() && itemId in holdingIds,
+                actionPlan = resolvedActionPlan,
+                advisorCandidate = resolvedAdvisorById[itemId],
+                item = itemsById[itemId],
+                position = resolvedPositions[itemId],
                 onOpen = onOpen,
                 onDelete = onDelete
             )
@@ -121,13 +146,23 @@ private data class AlertDataQuality(
 )
 
 @Composable
-private fun AlertCard(stored: StoredAlert, isHolding: Boolean, onOpen: (StoredAlert) -> Unit, onDelete: (String) -> Unit) {
+private fun AlertCard(
+    stored: StoredAlert,
+    isHolding: Boolean,
+    actionPlan: ActionPlan,
+    advisorCandidate: PortfolioAdvisorCandidate?,
+    item: InvestmentItem?,
+    position: PortfolioPosition?,
+    onOpen: (StoredAlert) -> Unit,
+    onDelete: (String) -> Unit
+) {
     val alert = stored.alert
     val accent = alertAccentColor(alert)
     val shape = RoundedCornerShape(18.dp)
     val isForecast = alertBadgeLabel(alert) == "PROGNOSE"
-    val guidance = alertActionGuidance(alert)
-    val dataQuality = alertDataQuality(alert)
+    val dataQuality = alertDataQuality(alert, advisorCandidate)
+    val guidance = alertActionGuidance(alert, advisorCandidate)
+    val concretePlan = plannedActionForAlert(alert, actionPlan, dataQuality)
     Card(modifier = Modifier.fillMaxWidth().border(1.dp, accent.copy(alpha = if (stored.isRead) 0.26f else 0.62f), shape).clickable { onOpen(stored) }, shape = shape, colors = CardDefaults.cardColors(containerColor = if (stored.isRead) MaterialTheme.colorScheme.surfaceContainer else MaterialTheme.colorScheme.surfaceContainerHigh)) {
         Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -148,6 +183,9 @@ private fun AlertCard(stored: StoredAlert, isHolding: Boolean, onOpen: (StoredAl
                 Text(guidance.status, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, color = accent)
                 Text(guidance.action, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
             }
+            Text("Konkreter Plan", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, color = accent)
+            Text(concretePlan ?: "Noch kein belastbarer Betrag aus dem aktuellen Aktionsplan.", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+            AlertDecisionMetrics(advisorCandidate, item, position)
             Text("Datenqualität", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = accent)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text(dataQuality.label, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, color = if (dataQuality.blocksBuyDecision) Color(0xFFFFC857) else MaterialTheme.colorScheme.primary)
@@ -160,9 +198,60 @@ private fun AlertCard(stored: StoredAlert, isHolding: Boolean, onOpen: (StoredAl
     }
 }
 
-private fun alertActionGuidance(alert: SignalAlert): AlertActionGuidance {
+@Composable
+private fun AlertDecisionMetrics(candidate: PortfolioAdvisorCandidate?, item: InvestmentItem?, position: PortfolioPosition?) {
+    val currentValue = candidate?.currentValueEur
+    val basis = position?.activeCostBasis?.takeIf { position.performanceCostBasisKnown }
+    val totalProfitLoss = if (basis != null && currentValue != null) currentValue - basis + position.realizedProfitLoss() else null
+    Column(modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f), RoundedCornerShape(12.dp)).padding(10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        MetricRow("Depotwert", currentValue?.let(::formatEur) ?: "–")
+        MetricRow("Einstand / G/V", if (basis != null) "${formatEur(basis)} / ${formatSignedEur(totalProfitLoss)}" else "–")
+        MetricRow("Score", candidate?.advisor?.score?.toString() ?: item?.scoreTotal?.toString() ?: "–")
+        MetricRow("Risiko", candidate?.riskScore?.let { "$it/5" } ?: item?.risk?.takeIf { it > 0 }?.let { "$it/5" } ?: "–")
+        MetricRow("Datenabdeckung", candidate?.coveragePct?.let { "$it %" } ?: item?.coverage?.let { "$it %" } ?: "–")
+        MetricRow("Prognose", candidate?.forecastDirection ?: "–")
+    }
+}
+
+@Composable
+private fun MetricRow(label: String, value: String) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+    }
+}
+
+private fun plannedActionForAlert(alert: SignalAlert, actionPlan: ActionPlan, dataQuality: AlertDataQuality): String? {
     val level = alert.level.trim().uppercase(Locale.GERMANY)
-    val quality = alertDataQuality(alert)
+    if (dataQuality.blocksBuyDecision && (level == "BUY" || isWatchCandidate(alert))) {
+        return "Nicht kaufen – Datenbasis unvollständig"
+    }
+    val matching = actionPlan.actions.filter { it.instrumentId == alert.itemId }
+    val preferred = when (level) {
+        "SELL" -> listOf(ActionType.SELL, ActionType.REDUCE)
+        "THRESHOLD" -> listOf(ActionType.REDUCE, ActionType.SELL)
+        "REVIEW" -> listOf(ActionType.REVIEW_SAVINGS_PLAN, ActionType.REDUCE, ActionType.SELL)
+        "BUY" -> listOf(ActionType.BUY_MORE, ActionType.OPEN_POSITION, ActionType.KEEP_SAVINGS_PLAN)
+        else -> listOf(ActionType.REVIEW_SAVINGS_PLAN, ActionType.BUY_MORE, ActionType.OPEN_POSITION, ActionType.REDUCE, ActionType.SELL, ActionType.KEEP_SAVINGS_PLAN)
+    }
+    val action = preferred.firstNotNullOfOrNull { type -> matching.firstOrNull { it.type == type } } ?: matching.firstOrNull()
+    return when (action?.type) {
+        ActionType.BUY_MORE -> "Position um ca. ${formatEur(action.amountEur)} erhöhen"
+        ActionType.OPEN_POSITION -> "Neue Position mit ca. ${formatEur(action.amountEur)} eröffnen"
+        ActionType.REDUCE -> "Position um ca. ${formatEur(action.amountEur)} reduzieren"
+        ActionType.SELL -> "Verkauf von ca. ${formatEur(action.amountEur)} prüfen"
+        ActionType.KEEP_SAVINGS_PLAN -> "Sparplan ${formatEur(action.amountEur)} beibehalten"
+        ActionType.REVIEW_SAVINGS_PLAN -> "Sparplan ${formatEur(action.amountEur)} prüfen"
+        ActionType.HOLD_CASH, null -> null
+    }
+}
+
+private fun formatEur(value: Double): String = String.format(Locale.GERMANY, "%.0f €", value)
+private fun formatSignedEur(value: Double?): String = value?.let { String.format(Locale.GERMANY, "%+.0f €", it) } ?: "–"
+
+private fun alertActionGuidance(alert: SignalAlert, candidate: PortfolioAdvisorCandidate? = null): AlertActionGuidance {
+    val level = alert.level.trim().uppercase(Locale.GERMANY)
+    val quality = alertDataQuality(alert, candidate)
     if (quality.blocksBuyDecision) {
         return AlertActionGuidance(
             status = "DATEN PRÜFEN",
@@ -181,7 +270,7 @@ private fun alertActionGuidance(alert: SignalAlert): AlertActionGuidance {
     }
 }
 
-private fun alertDataQuality(alert: SignalAlert): AlertDataQuality {
+private fun alertDataQuality(alert: SignalAlert, candidate: PortfolioAdvisorCandidate? = null): AlertDataQuality {
     val combined = "${alert.title} ${alert.message}".uppercase(Locale.GERMANY)
     val hasDataGap = listOf(
         "DATEN FEHLEN",
@@ -192,7 +281,7 @@ private fun alertDataQuality(alert: SignalAlert): AlertDataQuality {
         "KURS FEHLT",
         "HISTORIE FEHLT",
         "FUNDAMENTALDATEN FEHLEN"
-    ).any { it in combined }
+    ).any { it in combined } || candidate?.advisor?.reliable == false || (candidate?.coveragePct != null && candidate.coveragePct < 50)
     return if (hasDataGap) {
         AlertDataQuality(
             label = "UNVOLLSTÄNDIG",
