@@ -151,6 +151,7 @@ fun RadarScreenV2(
         noBuy = loaded.count { it.recommendation == "NO_BUY" },
         review = loaded.count { it.recommendation == "REVIEW" }
     )
+    val buyFallbackActive = radarPage?.buyFallbackActive == true
 
     val topOpportunities = loaded.filter { it.purchaseEligible }.sortedByDescending { it.scoreTotal ?: -1 }.take(5)
     val momentum = loaded.sortedByDescending { it.scoreMomentum ?: -1 }.take(5)
@@ -264,15 +265,30 @@ fun RadarScreenV2(
             }
         }
 
+        if (!loading && filters.recommendation == RadarRecommendationFilter.BUY && buyFallbackActive && clientVisible.isNotEmpty()) {
+            item {
+                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text("Kaufkandidaten – noch nicht bestätigt", fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
+                        Text(
+                            "Starke WATCH-Werte werden angezeigt, weil aktuell keine bestätigten BUY-Signale verfügbar sind. Sie erfüllen Mindestwerte für Score, Datenabdeckung und Risiko, sind aber noch keine Kaufempfehlung.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+
         if (loading && loaded.isEmpty()) item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) { CircularProgressIndicator() } }
 
         if (!loading && filters.recommendation == RadarRecommendationFilter.BUY && clientVisible.isEmpty()) {
             item {
                 Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("Aktuell keine echten Kaufkandidaten", fontWeight = FontWeight.Black)
+                        Text("Keine bestätigten Kauf- oder starken Beobachtungskandidaten", fontWeight = FontWeight.Black)
                         Text(
-                            "Der Filter zeigt ausschließlich Trade-Republic-geprüfte Werte, die alle Kaufregeln erfüllen.",
+                            "Der Radar zeigt hier nur bestätigte BUY-Signale oder ausreichend starke, Trade-Republic-geprüfte WATCH-Kandidaten. Sobald die Mindestregeln erfüllt sind, erscheinen sie automatisch.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -397,6 +413,7 @@ private fun RadarResultCardV2(
     onOpenDetail: () -> Unit,
     onOpenTradeRepublic: () -> Unit
 ) {
+    val dataGaps = radarDataGapReasons(summary)
     Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -415,6 +432,12 @@ private fun RadarResultCardV2(
             summary.percentChange?.let { Text("Tag ${formatRadarPercent(it)}", color = if (it >= 0.0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error) }
             RadarForecastPreview(summary)
             Text(summary.tradeRepublicStatusLabel(), style = MaterialTheme.typography.bodySmall, color = if (summary.tradeRepublicEligible == true) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+            if (dataGaps.isNotEmpty()) {
+                Text("Daten fehlen", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Black, style = MaterialTheme.typography.labelMedium)
+                dataGaps.take(4).forEach { gap ->
+                    Text("Datenhinweis: $gap", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                }
+            }
             advisorCandidate?.let {
                 Text("Berater: ${radarAdvisorActionLabel(it.action)} · Konfidenz ${it.advisor.confidencePct} %", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
                 Text("Sparplan ${it.monthlySavingsEur} € / Monat", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -465,6 +488,29 @@ private fun RadarForecastPreview(summary: RadarSummaryItem) {
             )
         }
     }
+}
+
+private fun radarDataGapReasons(summary: RadarSummaryItem): List<String> {
+    val known = setOf(
+        "Kurs fehlt",
+        "Historie fehlt",
+        "Fundamentaldaten fehlen",
+        "Analyse fehlt",
+        "Analyse veraltet",
+        "Datenabdeckung unzureichend"
+    )
+    val gaps = summary.recommendationReasons.filter { it in known }.toMutableList()
+    summary.dataError?.takeIf { it.isNotBlank() }?.let { error ->
+        if (error !in gaps) gaps += error
+    }
+    if (summary.price == null && summary.priceEur == null && "Kurs fehlt" !in gaps) gaps += "Kurs fehlt"
+    if (summary.scoreMomentum == null && "Historie fehlt" !in gaps) gaps += "Historie fehlt"
+    if (!summary.type.equals("ETF", ignoreCase = true) && summary.scoreQuality == null && summary.scoreValuation == null && summary.scoreGrowth == null && "Fundamentaldaten fehlen" !in gaps) {
+        gaps += "Fundamentaldaten fehlen"
+    }
+    if (summary.analysisAsOf.isNullOrBlank() && "Analyse fehlt" !in gaps) gaps += "Analyse fehlt"
+    if ((summary.coverage ?: 0) < 50 && "Datenabdeckung unzureichend" !in gaps) gaps += "Datenabdeckung unzureichend"
+    return gaps.distinct()
 }
 
 private fun RadarSummaryItem.tradeRepublicStatusLabel(): String = when {
@@ -544,7 +590,6 @@ private fun formatRadarForecastRange(point: ForecastPoint): String {
         String.format(Locale.GERMANY, "%+.1f bis %+.1f %%", point.bearChangePct, point.bullChangePct)
     }
 }
-
 
 private fun radarAdvisorActionLabel(action: PortfolioAdvisorAction): String = when (action) {
     PortfolioAdvisorAction.NACHKAUFEN -> "Nachkaufen"
