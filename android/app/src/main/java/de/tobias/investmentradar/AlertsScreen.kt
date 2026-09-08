@@ -114,6 +114,12 @@ private data class AlertActionGuidance(
     val action: String
 )
 
+private data class AlertDataQuality(
+    val label: String,
+    val detail: String,
+    val blocksBuyDecision: Boolean
+)
+
 @Composable
 private fun AlertCard(stored: StoredAlert, isHolding: Boolean, onOpen: (StoredAlert) -> Unit, onDelete: (String) -> Unit) {
     val alert = stored.alert
@@ -121,6 +127,7 @@ private fun AlertCard(stored: StoredAlert, isHolding: Boolean, onOpen: (StoredAl
     val shape = RoundedCornerShape(18.dp)
     val isForecast = alertBadgeLabel(alert) == "PROGNOSE"
     val guidance = alertActionGuidance(alert)
+    val dataQuality = alertDataQuality(alert)
     Card(modifier = Modifier.fillMaxWidth().border(1.dp, accent.copy(alpha = if (stored.isRead) 0.26f else 0.62f), shape).clickable { onOpen(stored) }, shape = shape, colors = CardDefaults.cardColors(containerColor = if (stored.isRead) MaterialTheme.colorScheme.surfaceContainer else MaterialTheme.colorScheme.surfaceContainerHigh)) {
         Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -141,6 +148,11 @@ private fun AlertCard(stored: StoredAlert, isHolding: Boolean, onOpen: (StoredAl
                 Text(guidance.status, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, color = accent)
                 Text(guidance.action, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
             }
+            Text("Datenqualität", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = accent)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text(dataQuality.label, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, color = if (dataQuality.blocksBuyDecision) Color(0xFFFFC857) else MaterialTheme.colorScheme.primary)
+                Text(dataQuality.detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f).padding(start = 10.dp))
+            }
             HorizontalDivider(color = accent.copy(alpha = 0.18f))
             Text("Warum der Radar reagiert", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = accent)
             Text(if (isForecast) forecastReason(alert.message) else alert.message, style = MaterialTheme.typography.bodyMedium)
@@ -150,22 +162,55 @@ private fun AlertCard(stored: StoredAlert, isHolding: Boolean, onOpen: (StoredAl
 
 private fun alertActionGuidance(alert: SignalAlert): AlertActionGuidance {
     val level = alert.level.trim().uppercase(Locale.GERMANY)
-    val combined = "${alert.title} ${alert.message}".uppercase(Locale.GERMANY)
-    val hasDataGap = listOf("DATEN FEHLEN", "DATEN FEHLT", "DATENBASIS UNVOLLSTÄNDIG", "DATENABDECKUNG UNZUREICHEND", "ANALYSE VERALTET", "KURS FEHLT", "HISTORIE FEHLT", "FUNDAMENTALDATEN FEHLEN").any { it in combined }
-
-    if (hasDataGap) {
+    val quality = alertDataQuality(alert)
+    if (quality.blocksBuyDecision) {
         return AlertActionGuidance(
             status = "DATEN PRÜFEN",
             action = "Datenbasis unvollständig – noch keine Entscheidung"
         )
     }
+    if (isWatchCandidate(alert)) {
+        return AlertActionGuidance("BEOBACHTEN", "Kaufchance beobachten")
+    }
     return when (level) {
         "SELL" -> AlertActionGuidance("JETZT HANDELN", "Verkauf jetzt prüfen")
         "THRESHOLD" -> AlertActionGuidance("JETZT HANDELN", "Position und Schwellenwert prüfen")
-        "BUY" -> AlertActionGuidance("BEOBACHTEN", "Kaufchance beobachten")
+        "BUY" -> AlertActionGuidance("BEOBACHTEN", "Bestätigte Kaufchance anhand Score, Risiko und Datenqualität prüfen")
         "REVIEW" -> AlertActionGuidance("BEOBACHTEN", "Analyse und Position prüfen")
         else -> AlertActionGuidance("BEOBACHTEN", "Entwicklung beobachten")
     }
+}
+
+private fun alertDataQuality(alert: SignalAlert): AlertDataQuality {
+    val combined = "${alert.title} ${alert.message}".uppercase(Locale.GERMANY)
+    val hasDataGap = listOf(
+        "DATEN FEHLEN",
+        "DATEN FEHLT",
+        "DATENBASIS UNVOLLSTÄNDIG",
+        "DATENABDECKUNG UNZUREICHEND",
+        "ANALYSE VERALTET",
+        "KURS FEHLT",
+        "HISTORIE FEHLT",
+        "FUNDAMENTALDATEN FEHLEN"
+    ).any { it in combined }
+    return if (hasDataGap) {
+        AlertDataQuality(
+            label = "UNVOLLSTÄNDIG",
+            detail = "Keine Kaufentscheidung bei unvollständigen Daten",
+            blocksBuyDecision = true
+        )
+    } else {
+        AlertDataQuality(
+            label = "AUSREICHEND",
+            detail = "Signal anhand der vorhandenen Daten prüfbar",
+            blocksBuyDecision = false
+        )
+    }
+}
+
+private fun isWatchCandidate(alert: SignalAlert): Boolean {
+    val combined = "${alert.title} ${alert.message}".uppercase(Locale.GERMANY)
+    return "WATCH" in combined || "KAUFKANDIDAT" in combined || "NOCH NICHT BESTÄTIGT" in combined || "NICHT BESTÄTIGT" in combined
 }
 
 @Composable
@@ -206,7 +251,14 @@ private fun forecastReason(message: String): String = message.substringAfter("Wa
 private fun alertBadgeLabel(alert: SignalAlert): String {
     val combined = "${alert.title} ${alert.message}".uppercase(Locale.GERMANY)
     if ("PROGNOSE" in combined || "FORECAST" in combined) return "PROGNOSE"
-    return when (alert.level.trim().uppercase(Locale.GERMANY)) { "BUY" -> "KAUFCHANCE"; "REVIEW" -> "PRÜFEN"; "SELL" -> "VERKAUF"; "THRESHOLD" -> "SCHWELLE"; else -> "INFO" }
+    if (isWatchCandidate(alert)) return "WATCH · NICHT BESTÄTIGT"
+    return when (alert.level.trim().uppercase(Locale.GERMANY)) {
+        "BUY" -> "KAUF BESTÄTIGT"
+        "REVIEW" -> "PRÜFEN"
+        "SELL" -> "VERKAUF"
+        "THRESHOLD" -> "SCHWELLE"
+        else -> "INFO"
+    }
 }
 
 private fun alertAccentColor(alert: SignalAlert): Color {
