@@ -95,25 +95,39 @@ fun AlertsScreen(alerts: List<StoredAlert>, preferences: AlertPreferences, onOpe
             }
         }
         if (visible.isEmpty()) item { Text(if (portfolioOnly) "Keine passenden Alarme für dein Depot." else "Keine Alarme in diesem Filter.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
-        items(visible, key = { it.alert.id }) { stored -> AlertCard(stored = stored, onOpen = onOpen, onDelete = onDelete) }
+        items(visible, key = { it.alert.id }) { stored ->
+            AlertCard(
+                stored = stored,
+                isHolding = stored.alert.itemId.isNotBlank() && stored.alert.itemId in holdingIds,
+                onOpen = onOpen,
+                onDelete = onDelete
+            )
+        }
     }
 
     if (confirmClear) AlertDialog(onDismissRequest = { confirmClear = false }, title = { Text("Alarmcenter leeren?") }, text = { Text("Die aktuell gespeicherten Alarme werden lokal gelöscht. Neue Signale können später wieder erscheinen.") }, confirmButton = { Button(onClick = { confirmClear = false; onClear() }) { Text("Alle löschen") } }, dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Abbrechen") } })
     if (showSettings) AlertDialog(onDismissRequest = { showSettings = false }, title = { Text("Alarmeinstellungen") }, text = { AlertPreferencesEditor(initial = preferences, onSave = { value -> onPreferencesChange(value); showSettings = false }) }, confirmButton = {}, dismissButton = { TextButton(onClick = { showSettings = false }) { Text("Abbrechen") } })
 }
 
+private data class AlertActionGuidance(
+    val status: String,
+    val action: String
+)
+
 @Composable
-private fun AlertCard(stored: StoredAlert, onOpen: (StoredAlert) -> Unit, onDelete: (String) -> Unit) {
+private fun AlertCard(stored: StoredAlert, isHolding: Boolean, onOpen: (StoredAlert) -> Unit, onDelete: (String) -> Unit) {
     val alert = stored.alert
     val accent = alertAccentColor(alert)
     val shape = RoundedCornerShape(18.dp)
     val isForecast = alertBadgeLabel(alert) == "PROGNOSE"
+    val guidance = alertActionGuidance(alert)
     Card(modifier = Modifier.fillMaxWidth().border(1.dp, accent.copy(alpha = if (stored.isRead) 0.26f else 0.62f), shape).clickable { onOpen(stored) }, shape = shape, colors = CardDefaults.cardColors(containerColor = if (stored.isRead) MaterialTheme.colorScheme.surfaceContainer else MaterialTheme.colorScheme.surfaceContainerHigh)) {
         Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(modifier = Modifier.background(accent.copy(alpha = 0.16f), RoundedCornerShape(9.dp)).border(1.dp, accent.copy(alpha = 0.45f), RoundedCornerShape(9.dp)).padding(horizontal = 9.dp, vertical = 5.dp)) {
                     Text(alertBadgeLabel(alert), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = accent)
                 }
+                if (isHolding) Text("IM DEPOT", color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
                 if (!stored.isRead) Text("NEU", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Black, style = MaterialTheme.typography.labelSmall)
                 Box(Modifier.weight(1f))
                 IconButton(onClick = { onDelete(alert.id) }) { Icon(Icons.Default.DeleteOutline, contentDescription = "Alarm löschen", tint = MaterialTheme.colorScheme.onSurfaceVariant) }
@@ -122,9 +136,35 @@ private fun AlertCard(stored: StoredAlert, onOpen: (StoredAlert) -> Unit, onDele
             Text(formatAlertTimestamp(alert.createdAt), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (isForecast) ForecastAlertSummary(alert, accent)
             HorizontalDivider(color = accent.copy(alpha = 0.18f))
+            Text("Was jetzt tun?", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, color = accent)
+            Column(modifier = Modifier.fillMaxWidth().background(accent.copy(alpha = 0.08f), RoundedCornerShape(12.dp)).padding(11.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(guidance.status, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, color = accent)
+                Text(guidance.action, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+            }
+            HorizontalDivider(color = accent.copy(alpha = 0.18f))
             Text("Warum der Radar reagiert", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = accent)
             Text(if (isForecast) forecastReason(alert.message) else alert.message, style = MaterialTheme.typography.bodyMedium)
         }
+    }
+}
+
+private fun alertActionGuidance(alert: SignalAlert): AlertActionGuidance {
+    val level = alert.level.trim().uppercase(Locale.GERMANY)
+    val combined = "${alert.title} ${alert.message}".uppercase(Locale.GERMANY)
+    val hasDataGap = listOf("DATEN FEHLEN", "DATEN FEHLT", "DATENBASIS UNVOLLSTÄNDIG", "DATENABDECKUNG UNZUREICHEND", "ANALYSE VERALTET", "KURS FEHLT", "HISTORIE FEHLT", "FUNDAMENTALDATEN FEHLEN").any { it in combined }
+
+    if (hasDataGap) {
+        return AlertActionGuidance(
+            status = "DATEN PRÜFEN",
+            action = "Datenbasis unvollständig – noch keine Entscheidung"
+        )
+    }
+    return when (level) {
+        "SELL" -> AlertActionGuidance("JETZT HANDELN", "Verkauf jetzt prüfen")
+        "THRESHOLD" -> AlertActionGuidance("JETZT HANDELN", "Position und Schwellenwert prüfen")
+        "BUY" -> AlertActionGuidance("BEOBACHTEN", "Kaufchance beobachten")
+        "REVIEW" -> AlertActionGuidance("BEOBACHTEN", "Analyse und Position prüfen")
+        else -> AlertActionGuidance("BEOBACHTEN", "Entwicklung beobachten")
     }
 }
 
