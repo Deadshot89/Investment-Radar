@@ -83,4 +83,16 @@ require_literal 'MetricRow("Risiko"' "$UI" 'Risiko-Kennzahl'
 require_literal 'MetricRow("Datenabdeckung"' "$UI" 'Datenabdeckung-Kennzahl'
 require_literal 'MetricRow("Prognose"' "$UI" 'Prognose-Kennzahl'
 
-echo 'PASS Alarmcenter mit Depotfilter, Prognose, Datenqualität und konkreten Handlungshinweisen'
+# 2.4.5: depotweite Arbeitsliste oberhalb der Einzelalarme.
+require_literal 'DepotActionCenterMapper.build(' "$UI" 'Depot-Aktionscenter-Mapping'
+require_literal 'Text("Das solltest du jetzt mit deinem Depot machen"' "$UI" 'Depot-Aktionscenter-Überschrift'
+require_literal 'Text("Dringende Aktionen"' "$UI" 'Aktionscenter-Zusammenfassung'
+require_literal 'Text("Geplantes Kaufbudget"' "$UI" 'Kaufbudget-Zusammenfassung'
+require_literal 'Text("Cash halten"' "$UI" 'Cash-Zusammenfassung'
+require_literal 'private fun DepotActionCenterSection' "$UI" 'Aktionscenter-Komponente'
+require_literal 'onExecuteAction: (DepotActionCenterItem) -> Unit' "$UI" 'Aktionscenter-Navigation'
+require_literal '"Noch kein belastbarer Depot-Aktionsplan verfügbar."' "$UI" 'Aktionscenter-Leerzustand'
+require_literal '"Nicht kaufen – Datenbasis unvollständig"' "$UI" 'Aktionscenter-Kaufsperre'
+require_literal '"WATCH · NICHT BESTÄTIGT"' "$UI" 'Aktionscenter-WATCH-Sperre'
+
+echo 'PASS Alarmcenter mit depotweitem 2.4.5-Aktionscenter, Depotfilter, Prognose und Datenqualität'
