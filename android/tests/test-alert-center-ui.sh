@@ -47,7 +47,7 @@ require_literal '"ABWÄRTS"' "$UI" 'Abwärtsrichtung'
 require_literal '"SEITWÄRTS"' "$UI" 'Seitwärtsrichtung'
 
 # Aktionscenter: jeder Alarm zeigt Handlungsstatus und konkrete nächste Aktion.
-require_literal 'Text("Was jetzt tun?")' "$UI" 'Aktionsüberschrift'
+require_literal 'Text("Was jetzt tun?"' "$UI" 'Aktionsüberschrift'
 require_literal 'private fun alertActionGuidance' "$UI" 'Aktionslogik'
 require_literal '"JETZT HANDELN"' "$UI" 'Sofort-Handlungsstatus'
 require_literal '"BEOBACHTEN"' "$UI" 'Beobachten-Status'
