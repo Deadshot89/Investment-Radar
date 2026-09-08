@@ -139,6 +139,7 @@ fun InvestmentRadarUi(
     var missingAlertItemMessage by rememberSaveable { mutableStateOf<String?>(null) }
     var budgetDialog by remember { mutableStateOf(false) }
     var investmentDialogItem by remember { mutableStateOf<InvestmentItem?>(null) }
+    var investmentDialogEntryType by remember { mutableStateOf("BUY") }
     var customAssetDialog by remember { mutableStateOf(false) }
     var editingCustomAsset by remember { mutableStateOf<CustomInvestment?>(null) }
     var notificationPermissionAsked by remember { mutableStateOf(false) }
@@ -173,7 +174,10 @@ fun InvestmentRadarUi(
                 if (navigationState.overlay != AppOverlay.NONE && next.overlay == AppOverlay.NONE) {
                     when (navigationState.overlay) {
                         AppOverlay.BUDGET -> budgetDialog = false
-                        AppOverlay.PURCHASE_HISTORY -> investmentDialogItem = null
+                        AppOverlay.PURCHASE_HISTORY -> {
+                            investmentDialogItem = null
+                            investmentDialogEntryType = "BUY"
+                        }
                         AppOverlay.CUSTOM_ASSET -> customAssetDialog = false
                         AppOverlay.EDIT_CUSTOM_ASSET -> editingCustomAsset = null
                         AppOverlay.MISSING_ALERT_ITEM -> missingAlertItemMessage = null
@@ -301,6 +305,7 @@ fun InvestmentRadarUi(
                         }
                         val advisorPlan = PortfolioAdvisorEngine.allocate(advisorCandidates, budget)
                         val advisorById = advisorPlan.candidates.associateBy { it.itemId }
+                        val itemsById = s.data.items.associateBy { it.id }
                         val detailId = selectedDetailId
                         if (detailId != null) {
                             val detailItem = s.data.items.firstOrNull { it.id == detailId }
@@ -364,6 +369,37 @@ fun InvestmentRadarUi(
                             else -> AlertsScreen(
                                 alerts = alerts,
                                 preferences = alertPreferences,
+                                advisorById = advisorById,
+                                itemsById = itemsById,
+                                positions = positions,
+                                onExecuteAction = { action ->
+                                    when (action.type) {
+                                        ActionType.BUY_MORE, ActionType.OPEN_POSITION -> {
+                                            val item = itemsById[action.instrumentId]
+                                            if (item != null) {
+                                                investmentDialogEntryType = "BUY"
+                                                investmentDialogItem = item
+                                            } else {
+                                                missingAlertItemMessage = "Das Wertpapier ist nicht im aktuellen Radar enthalten."
+                                            }
+                                        }
+                                        ActionType.SELL, ActionType.REDUCE -> {
+                                            val item = itemsById[action.instrumentId]
+                                            if (item != null) {
+                                                investmentDialogEntryType = "SELL"
+                                                investmentDialogItem = item
+                                            } else {
+                                                missingAlertItemMessage = "Das Wertpapier ist nicht im aktuellen Radar enthalten."
+                                            }
+                                        }
+                                        ActionType.REVIEW_SAVINGS_PLAN, ActionType.KEEP_SAVINGS_PLAN -> {
+                                            selectedDetailId = null
+                                            showSavingsPlans = true
+                                            tab = 2
+                                        }
+                                        ActionType.HOLD_CASH -> Unit
+                                    }
+                                },
                                 onOpen = { stored ->
                                     vm.markAlertRead(stored.alert.id)
                                     val id = stored.alert.itemId
@@ -407,7 +443,11 @@ fun InvestmentRadarUi(
         PurchaseHistoryDialog(
             item = item,
             current = positions[item.id] ?: PortfolioPosition(item.id),
-            onDismiss = { investmentDialogItem = null },
+            initialEntryType = investmentDialogEntryType,
+            onDismiss = {
+                investmentDialogItem = null
+                investmentDialogEntryType = "BUY"
+            },
             onUpsertPurchase = { purchase -> vm.upsertPurchase(item.id, purchase) },
             onDeletePurchase = { purchaseId -> vm.removePurchase(item.id, purchaseId) },
             onUpsertSale = { sale -> vm.upsertSale(item.id, sale) },
@@ -757,13 +797,14 @@ private fun PortfolioValueRow(label: String, value: String, valueColor: Color) {
 private fun PurchaseHistoryDialog(
     item: InvestmentItem,
     current: PortfolioPosition,
+    initialEntryType: String = "BUY",
     onDismiss: () -> Unit,
     onUpsertPurchase: (PortfolioPurchase) -> Boolean,
     onDeletePurchase: (String) -> Boolean,
     onUpsertSale: (PortfolioSale) -> Boolean,
     onDeleteSale: (String) -> Boolean
 ) {
-    var entryType by remember(item.id) { mutableStateOf("BUY") }
+    var entryType by remember(item.id, initialEntryType) { mutableStateOf(initialEntryType.takeIf { it == "SELL" } ?: "BUY") }
     var editingId by remember(item.id) { mutableStateOf<String?>(null) }
     var dateText by remember(item.id) { mutableStateOf(todayPurchaseDate()) }
     var amountText by remember(item.id) { mutableStateOf("") }
