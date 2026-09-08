@@ -48,6 +48,15 @@ object AlertCenterState {
         return prioritize(merged.values.toList(), emptySet())
     }
 
+    fun visible(
+        items: List<StoredAlert>,
+        filter: AlertFilter,
+        holdingIds: Set<String>,
+        portfolioOnly: Boolean
+    ): List<StoredAlert> = prioritize(items, holdingIds)
+        .filter { filter.matches(it.alert.level) }
+        .filter { !portfolioOnly || it.alert.itemId in holdingIds }
+
     fun prioritize(items: List<StoredAlert>, holdingIds: Set<String>): List<StoredAlert> =
         items.sortedWith(
             compareByDescending<StoredAlert> { priorityScore(it.alert, holdingIds) }
