@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Investment Radar 2.1.x release verification: backend compatibility, 2000-item radar and monotonic Android update.
+# This contract is also the trigger used to re-verify candidate release workflow changes end-to-end.
 set -euo pipefail
 
 WF=".github/workflows/android-build.yml"
