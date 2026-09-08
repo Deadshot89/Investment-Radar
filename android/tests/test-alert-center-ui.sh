@@ -2,6 +2,7 @@
 set -euo pipefail
 UI="android/app/src/main/java/de/tobias/investmentradar/AlertsScreen.kt"
 STATE="android/app/src/main/java/de/tobias/investmentradar/AlertCenterState.kt"
+MAIN="android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt"
 
 require_literal() {
   local needle="$1"
@@ -35,7 +36,6 @@ require_literal 'Text("Warum der Radar reagiert"' "$UI" 'Begründungsabschnitt'
 require_literal 'Text("NEU"' "$UI" 'Neu-Kennzeichnung'
 require_literal 'contentDescription = "Alarm löschen"' "$UI" 'Löschen-Icon'
 
-# Prognose-Alarme werden vollständig auf Deutsch strukturiert dargestellt.
 require_literal 'private fun ForecastAlertSummary' "$UI" 'Prognose-Zusammenfassung'
 require_literal '"PROGNOSE · 12 MONATE"' "$UI" 'Prognose-Zeitraum'
 require_literal 'Text("Vorher:' "$UI" 'Vorher-Wert'
@@ -46,7 +46,6 @@ require_literal '"AUFWÄRTS"' "$UI" 'Aufwärtsrichtung'
 require_literal '"ABWÄRTS"' "$UI" 'Abwärtsrichtung'
 require_literal '"SEITWÄRTS"' "$UI" 'Seitwärtsrichtung'
 
-# Aktionscenter: jeder Alarm zeigt Handlungsstatus und konkrete nächste Aktion.
 require_literal 'Text("Was jetzt tun?"' "$UI" 'Aktionsüberschrift'
 require_literal 'private fun alertActionGuidance' "$UI" 'Aktionslogik'
 require_literal '"JETZT HANDELN"' "$UI" 'Sofort-Handlungsstatus'
@@ -57,7 +56,6 @@ require_literal '"Position und Schwellenwert prüfen"' "$UI" 'Schwellenaktion'
 require_literal '"Kaufchance beobachten"' "$UI" 'Kaufaktion'
 require_literal '"Datenbasis unvollständig – noch keine Entscheidung"' "$UI" 'Datenlückenaktion'
 
-# 2.4.2: bestätigte Käufe, WATCH-Kandidaten und Datenqualität müssen sichtbar getrennt sein.
 require_literal '"KAUF BESTÄTIGT"' "$UI" 'Bestätigter Kauf-Badge'
 require_literal '"WATCH · NICHT BESTÄTIGT"' "$UI" 'WATCH-Badge'
 require_literal 'private fun alertDataQuality' "$UI" 'Datenqualitätslogik'
@@ -66,7 +64,6 @@ require_literal '"UNVOLLSTÄNDIG"' "$UI" 'Unvollständige Daten'
 require_literal '"AUSREICHEND"' "$UI" 'Ausreichende Daten'
 require_literal '"Keine Kaufentscheidung bei unvollständigen Daten"' "$UI" 'Datenqualitäts-Sperrhinweis'
 
-# 2.4.4: Alarmcenter wird mit dem echten Aktionsplan und Depotkennzahlen verknüpft.
 require_literal 'actionPlan: ActionPlan' "$UI" 'ActionPlan-Parameter'
 require_literal 'advisorById: Map<String, PortfolioAdvisorCandidate>' "$UI" 'Advisor-Parameter'
 require_literal 'itemsById: Map<String, InvestmentItem>' "$UI" 'Investmentdaten-Parameter'
@@ -83,7 +80,6 @@ require_literal 'MetricRow("Risiko"' "$UI" 'Risiko-Kennzahl'
 require_literal 'MetricRow("Datenabdeckung"' "$UI" 'Datenabdeckung-Kennzahl'
 require_literal 'MetricRow("Prognose"' "$UI" 'Prognose-Kennzahl'
 
-# 2.4.5: depotweite Arbeitsliste oberhalb der Einzelalarme.
 require_literal 'DepotActionCenterMapper.build(' "$UI" 'Depot-Aktionscenter-Mapping'
 require_literal 'Text("Das solltest du jetzt mit deinem Depot machen"' "$UI" 'Depot-Aktionscenter-Überschrift'
 require_literal 'Text("Dringende Aktionen"' "$UI" 'Aktionscenter-Zusammenfassung'
@@ -95,4 +91,13 @@ require_literal '"Noch kein belastbarer Depot-Aktionsplan verfügbar."' "$UI" 'A
 require_literal '"Nicht kaufen – Datenbasis unvollständig"' "$UI" 'Aktionscenter-Kaufsperre'
 require_literal '"WATCH · NICHT BESTÄTIGT"' "$UI" 'Aktionscenter-WATCH-Sperre'
 
-echo 'PASS Alarmcenter mit depotweitem 2.4.5-Aktionscenter, Depotfilter, Prognose und Datenqualität'
+# 2.4.5: Buttons müssen in die bestehenden manuellen Buchungsflüsse führen, niemals automatisch ausführen.
+require_literal 'onExecuteAction = { action ->' "$MAIN" 'Aktionscenter-Callback im Hauptfluss'
+require_literal 'investmentDialogEntryType = "BUY"' "$MAIN" 'Direkter Kaufmodus'
+require_literal 'investmentDialogEntryType = "SELL"' "$MAIN" 'Direkter Verkaufsmodus'
+require_literal 'showSavingsPlans = true' "$MAIN" 'Direkter Sparplanmodus'
+require_literal 'ActionType.HOLD_CASH -> Unit' "$MAIN" 'Cash ohne Ausführung'
+require_literal 'initialEntryType: String = "BUY"' "$MAIN" 'Transaktionsdialog-Startmodus'
+require_literal 'remember(item.id, initialEntryType)' "$MAIN" 'Startmodus im Transaktionsdialog'
+
+echo 'PASS Alarmcenter mit depotweitem 2.4.5-Aktionscenter, manueller Navigation, Depotfilter, Prognose und Datenqualität'
