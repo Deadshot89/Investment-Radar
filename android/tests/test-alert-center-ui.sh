@@ -3,47 +3,58 @@ set -euo pipefail
 UI="android/app/src/main/java/de/tobias/investmentradar/AlertsScreen.kt"
 STATE="android/app/src/main/java/de/tobias/investmentradar/AlertCenterState.kt"
 
-grep -q 'ALL("Alle")' "$STATE"
-grep -q 'BUY("Kauf")' "$STATE"
-grep -q 'REVIEW("Prüfen")' "$STATE"
-grep -q 'SELL("Verkauf")' "$STATE"
-grep -q 'level.equals("THRESHOLD"' "$STATE"
-grep -q 'fun visible(' "$STATE"
-grep -q 'AlertCenterState.visible(' "$UI"
-grep -q 'Text("Nur Depot")' "$UI"
-grep -q 'Keine passenden Alarme für dein Depot.' "$UI"
-grep -q 'Alle gelesen' "$UI"
-grep -q 'Alarmeinstellungen' "$UI"
-grep -q 'onDelete' "$UI"
-grep -q 'onClear' "$UI"
+require_literal() {
+  local needle="$1"
+  local file="$2"
+  local label="$3"
+  if ! grep -Fq "$needle" "$file"; then
+    echo "FAIL: $label fehlt: $needle" >&2
+    exit 1
+  fi
+}
 
-grep -q 'private fun alertBadgeLabel' "$UI"
-grep -q '"PROGNOSE"' "$UI"
-grep -q 'private fun alertAccentColor' "$UI"
-grep -q 'private fun formatAlertTimestamp' "$UI"
-grep -q 'HorizontalDivider' "$UI"
-grep -q 'Text("Warum der Radar reagiert"' "$UI"
-grep -q 'Text("NEU"' "$UI"
-grep -q 'contentDescription = "Alarm löschen"' "$UI"
+require_literal 'ALL("Alle")' "$STATE" 'Filter Alle'
+require_literal 'BUY("Kauf")' "$STATE" 'Filter Kauf'
+require_literal 'REVIEW("Prüfen")' "$STATE" 'Filter Prüfen'
+require_literal 'SELL("Verkauf")' "$STATE" 'Filter Verkauf'
+require_literal 'level.equals("THRESHOLD"' "$STATE" 'Threshold-Filter'
+require_literal 'fun visible(' "$STATE" 'Sichtbarkeitslogik'
+require_literal 'AlertCenterState.visible(' "$UI" 'State-Wiring'
+require_literal 'Text("Nur Depot")' "$UI" 'Depotfilter'
+require_literal 'Keine passenden Alarme für dein Depot.' "$UI" 'Depot-Leerzustand'
+require_literal 'Alle gelesen' "$UI" 'Gelesen-Aktion'
+require_literal 'Alarmeinstellungen' "$UI" 'Alarmeinstellungen'
+require_literal 'onDelete' "$UI" 'Löschen-Wiring'
+require_literal 'onClear' "$UI" 'Leeren-Wiring'
+require_literal 'private fun alertBadgeLabel' "$UI" 'Alarm-Badge'
+require_literal '"PROGNOSE"' "$UI" 'Prognose-Badge'
+require_literal 'private fun alertAccentColor' "$UI" 'Alarmfarbe'
+require_literal 'private fun formatAlertTimestamp' "$UI" 'Zeitformatierung'
+require_literal 'HorizontalDivider' "$UI" 'Kartentrenner'
+require_literal 'Text("Warum der Radar reagiert"' "$UI" 'Begründungsabschnitt'
+require_literal 'Text("NEU"' "$UI" 'Neu-Kennzeichnung'
+require_literal 'contentDescription = "Alarm löschen"' "$UI" 'Löschen-Icon'
 
 # Prognose-Alarme werden vollständig auf Deutsch strukturiert dargestellt.
-grep -q 'private fun ForecastAlertSummary' "$UI"
-grep -q '"PROGNOSE · 12 MONATE"' "$UI"
-grep -q 'Text("Vorher:' "$UI"
-grep -q '"Pessimistisch"' "$UI"
-grep -q '"Erwartet"' "$UI"
-grep -q '"Optimistisch"' "$UI"
-grep -q '"AUFWÄRTS"' "$UI"
-grep -q '"ABWÄRTS"' "$UI"
-grep -q '"SEITWÄRTS"' "$UI"
+require_literal 'private fun ForecastAlertSummary' "$UI" 'Prognose-Zusammenfassung'
+require_literal '"PROGNOSE · 12 MONATE"' "$UI" 'Prognose-Zeitraum'
+require_literal 'Text("Vorher:' "$UI" 'Vorher-Wert'
+require_literal '"Pessimistisch"' "$UI" 'Pessimistisches Szenario'
+require_literal '"Erwartet"' "$UI" 'Erwartetes Szenario'
+require_literal '"Optimistisch"' "$UI" 'Optimistisches Szenario'
+require_literal '"AUFWÄRTS"' "$UI" 'Aufwärtsrichtung'
+require_literal '"ABWÄRTS"' "$UI" 'Abwärtsrichtung'
+require_literal '"SEITWÄRTS"' "$UI" 'Seitwärtsrichtung'
 
 # Aktionscenter: jeder Alarm zeigt Handlungsstatus und konkrete nächste Aktion.
-grep -q 'Text("Was jetzt tun?")' "$UI"
-grep -q 'private fun alertActionGuidance' "$UI"
-grep -q '"JETZT HANDELN"' "$UI"
-grep -q '"BEOBACHTEN"' "$UI"
-grep -q '"DATEN PRÜFEN"' "$UI"
-grep -q '"Verkauf jetzt prüfen"' "$UI"
-grep -q '"Position und Schwellenwert prüfen"' "$UI"
-grep -q '"Kaufchance beobachten"' "$UI"
-grep -q '"Datenbasis unvollständig – noch keine Entscheidung"' "$UI"
+require_literal 'Text("Was jetzt tun?")' "$UI" 'Aktionsüberschrift'
+require_literal 'private fun alertActionGuidance' "$UI" 'Aktionslogik'
+require_literal '"JETZT HANDELN"' "$UI" 'Sofort-Handlungsstatus'
+require_literal '"BEOBACHTEN"' "$UI" 'Beobachten-Status'
+require_literal '"DATEN PRÜFEN"' "$UI" 'Datenstatus'
+require_literal '"Verkauf jetzt prüfen"' "$UI" 'Verkaufsaktion'
+require_literal '"Position und Schwellenwert prüfen"' "$UI" 'Schwellenaktion'
+require_literal '"Kaufchance beobachten"' "$UI" 'Kaufaktion'
+require_literal '"Datenbasis unvollständig – noch keine Entscheidung"' "$UI" 'Datenlückenaktion'
+
+echo 'PASS Alarmcenter mit Depotfilter, Prognose und konkreten Handlungshinweisen'
