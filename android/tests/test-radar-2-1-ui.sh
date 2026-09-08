@@ -18,7 +18,17 @@ grep -q 'add("includeCounts" to query.includeCounts.toString())' "$API"
 grep -q 'optJSONObject("counts")' "$API"
 grep -q 'RadarCounts(' "$API"
 
-# The UI identifies the new Radar and exposes the agreed five metrics.
+# BUY fallback and data-quality diagnostics are part of the Android contract.
+grep -q 'val buyFallbackActive: Boolean = false' "$MODELS"
+grep -q 'buyFallbackActive = root.optBoolean("buyFallbackActive", false)' "$API"
+grep -q 'Kaufkandidaten – noch nicht bestätigt' "$SCREEN"
+grep -q 'Starke WATCH-Werte' "$SCREEN"
+grep -q 'Daten fehlen' "$SCREEN"
+grep -q 'Datenhinweis:' "$SCREEN"
+grep -q 'summary.dataError' "$SCREEN"
+grep -q 'radarDataGapReasons(summary)' "$SCREEN"
+
+# The UI identifies the Radar and exposes the agreed five metrics.
 grep -q 'Text("RADAR 2.1"' "$SCREEN"
 grep -q '"Gesamt"' "$SCREEN"
 grep -q '"Aktien"' "$SCREEN"
@@ -26,8 +36,8 @@ grep -q '"ETFs"' "$SCREEN"
 grep -q '"Kaufen"' "$SCREEN"
 grep -q '"Beobachten"' "$SCREEN"
 
-# A failed BUY request must never fall back to generic local instruments.
+# A failed network request must not silently invent generic BUY results.
 grep -q 'filters.recommendation == RadarRecommendationFilter.ALL' "$SCREEN"
-grep -q 'Aktuell keine echten Kaufkandidaten' "$SCREEN"
+grep -q 'Keine bestätigten Kauf- oder starken Beobachtungskandidaten' "$SCREEN"
 
-echo "PASS Radar 2.1 counters and exact BUY UI"
+echo "PASS Radar 2.1 counters, BUY fallback and visible data-quality UI"
