@@ -1,6 +1,6 @@
 import { app } from "@azure/functions";
 import { queryRadar } from "../lib/radar.mjs";
-import { selectBuyFilterResults } from "../lib/radarBuyFallback.mjs";
+import { selectBuyFilterResults, withDataGapReasons } from "../lib/radarBuyFallback.mjs";
 
 app.http("radar", {
   methods: ["GET"],
@@ -26,7 +26,14 @@ app.http("radar", {
 
       const primary = await queryRadar(query);
       if (String(params.recommendation ?? "").toUpperCase() !== "BUY" || primary.total > 0) {
-        return { status: 200, jsonBody: { ...primary, buyFallbackActive: false } };
+        return {
+          status: 200,
+          jsonBody: {
+            ...primary,
+            items: primary.items.map(withDataGapReasons),
+            buyFallbackActive: false
+          }
+        };
       }
 
       const watchPage = await queryRadar({
