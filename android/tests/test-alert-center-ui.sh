@@ -57,4 +57,13 @@ require_literal '"Position und Schwellenwert prüfen"' "$UI" 'Schwellenaktion'
 require_literal '"Kaufchance beobachten"' "$UI" 'Kaufaktion'
 require_literal '"Datenbasis unvollständig – noch keine Entscheidung"' "$UI" 'Datenlückenaktion'
 
-echo 'PASS Alarmcenter mit Depotfilter, Prognose und konkreten Handlungshinweisen'
+# 2.4.2: bestätigte Käufe, WATCH-Kandidaten und Datenqualität müssen sichtbar getrennt sein.
+require_literal '"KAUF BESTÄTIGT"' "$UI" 'Bestätigter Kauf-Badge'
+require_literal '"WATCH · NICHT BESTÄTIGT"' "$UI" 'WATCH-Badge'
+require_literal 'private fun alertDataQuality' "$UI" 'Datenqualitätslogik'
+require_literal 'Text("Datenqualität"' "$UI" 'Datenqualitätsüberschrift'
+require_literal '"UNVOLLSTÄNDIG"' "$UI" 'Unvollständige Daten'
+require_literal '"AUSREICHEND"' "$UI" 'Ausreichende Daten'
+require_literal '"Keine Kaufentscheidung bei unvollständigen Daten"' "$UI" 'Datenqualitäts-Sperrhinweis'
+
+echo 'PASS Alarmcenter mit Depotfilter, Prognose, Datenqualität und konkreten Handlungshinweisen'
