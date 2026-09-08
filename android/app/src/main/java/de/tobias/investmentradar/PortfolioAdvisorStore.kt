@@ -118,6 +118,9 @@ object PortfolioAdvisorStore {
         put("action", action.name)
         currentValueEur?.let { put("currentValueEur", it) }
         put("monthlySavingsEur", monthlySavingsEur)
+        riskScore?.let { put("riskScore", it) }
+        coveragePct?.let { put("coveragePct", it) }
+        forecastDirection?.takeIf { it.isNotBlank() }?.let { put("forecastDirection", it) }
         put("advisor", JSONObject().apply {
             put("instrumentId", advisor.instrumentId)
             put("signal", advisor.signal.name)
@@ -153,7 +156,10 @@ object PortfolioAdvisorStore {
                 timingFactor = advisorObject.optDouble("timingFactor", 1.0)
             ),
             currentValueEur = if (has("currentValueEur")) optDouble("currentValueEur") else null,
-            monthlySavingsEur = optInt("monthlySavingsEur").coerceAtLeast(0)
+            monthlySavingsEur = optInt("monthlySavingsEur").coerceAtLeast(0),
+            riskScore = if (has("riskScore")) optInt("riskScore") else null,
+            coveragePct = if (has("coveragePct")) optInt("coveragePct") else null,
+            forecastDirection = optString("forecastDirection").takeIf { it.isNotBlank() }
         )
     }
 
