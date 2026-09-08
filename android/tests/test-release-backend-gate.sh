@@ -54,6 +54,7 @@ if grep -q 'sha256sum "$RELEASE_APK"' "$WF"; then
 fi
 
 # Release notes must follow the current Android version instead of carrying stale 2.1 copy forever.
+# Final contract for the workflow-level fix; android/app intentionally remains unchanged at 2.4.2/code62.
 if grep -Fq -- '--notes "Investment Radar 2.1:' "$WF"; then
   echo 'Release-Notizen dürfen nicht mehr auf Investment Radar 2.1 fest verdrahtet sein'
   exit 1
