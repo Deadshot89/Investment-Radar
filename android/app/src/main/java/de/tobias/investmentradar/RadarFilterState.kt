@@ -24,6 +24,11 @@ data class RadarFilterResult(
 )
 
 object RadarFilterEngine {
+    private const val BUY_FALLBACK_MIN_SCORE = 75
+    private const val BUY_FALLBACK_MIN_COVERAGE = 70
+    private const val BUY_FALLBACK_MAX_RISK = 3
+    private const val BUY_FALLBACK_LIMIT = 3
+
     fun apply(
         items: List<InvestmentItem>,
         state: RadarFilterState,
@@ -39,11 +44,30 @@ object RadarFilterEngine {
         watchlistIds: Set<String>,
         allocationById: Map<String, Int>
     ): RadarFilterResult {
-        val exact = filterBase(items, state, holdingIds, watchlistIds)
+        val base = filterBase(items, state, holdingIds, watchlistIds)
+        val exact = base
             .filter { matchesRecommendation(it, state.recommendation) }
             .let { sort(it, state.sort, allocationById) }
 
-        return RadarFilterResult(items = exact)
+        if (state.recommendation != RadarRecommendationFilter.BUY || exact.isNotEmpty()) {
+            return RadarFilterResult(items = exact)
+        }
+
+        val fallback = base.asSequence()
+            .filter { RecommendationPresentation.effectiveRecommendation(it) == "WATCH" }
+            .filter { (it.scoreTotal ?: Int.MIN_VALUE) >= BUY_FALLBACK_MIN_SCORE }
+            .filter { (it.coverage ?: 0) >= BUY_FALLBACK_MIN_COVERAGE }
+            .filter { it.risk in 1..BUY_FALLBACK_MAX_RISK }
+            .sortedWith(
+                compareByDescending<InvestmentItem> { it.scoreTotal ?: Int.MIN_VALUE }
+                    .thenByDescending { it.coverage ?: 0 }
+                    .thenBy { it.risk }
+                    .thenBy { it.name.lowercase() }
+            )
+            .take(BUY_FALLBACK_LIMIT)
+            .toList()
+
+        return RadarFilterResult(items = fallback, buyFallbackActive = fallback.isNotEmpty())
     }
 
     private fun filterBase(

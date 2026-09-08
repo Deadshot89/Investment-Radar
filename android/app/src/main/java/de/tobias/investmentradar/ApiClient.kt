@@ -35,6 +35,10 @@ object ApiClient {
         NetworkRetryPolicy.execute { loadRadarDetailOnce(id) }
     }
 
+    suspend fun loadMarketEvents(ids: List<String>): MarketEventsResponse = withContext(Dispatchers.IO) {
+        NetworkRetryPolicy.execute { loadMarketEventsOnce(ids) }
+    }
+
     private fun loadCustomQuoteOnce(item: CustomInvestment): InvestmentItem {
         val baseUrl = checkedBaseUrl()
         val query = listOf(
@@ -73,6 +77,25 @@ object ApiClient {
         val baseUrl = checkedBaseUrl()
         val encoded = URLEncoder.encode(id, "UTF-8").replace("+", "%20")
         return getJson("$baseUrl/api/instrument/$encoded", ::parseRadarSummary)
+    }
+
+    private fun loadMarketEventsOnce(ids: List<String>): MarketEventsResponse {
+        val normalized = ids
+            .asSequence()
+            .map(String::trim)
+            .filter(String::isNotBlank)
+            .map(String::lowercase)
+            .distinct()
+            .toList()
+        require(normalized.size <= 40) {
+            "Market Events unterstützen höchstens 40 Instrumente pro Abruf"
+        }
+        if (normalized.isEmpty()) {
+            return MarketEventsResponse(generatedAt = "", items = emptyList(), errors = emptyList())
+        }
+        val baseUrl = checkedBaseUrl()
+        val encoded = URLEncoder.encode(normalized.joinToString(","), "UTF-8").replace("+", "%20")
+        return getJson("$baseUrl/api/market-events?ids=$encoded", MarketEventsJsonParser::parse)
     }
 
     private fun checkedBaseUrl(): String {
@@ -137,7 +160,8 @@ object ApiClient {
                 watch = countsObj?.optInt("watch", 0) ?: 0,
                 noBuy = countsObj?.optInt("noBuy", 0) ?: 0,
                 review = countsObj?.optInt("review", 0) ?: 0
-            )
+            ),
+            buyFallbackActive = obj.optBoolean("buyFallbackActive", false)
         )
     }
 

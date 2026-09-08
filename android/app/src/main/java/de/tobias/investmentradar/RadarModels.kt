@@ -126,5 +126,6 @@ data class RadarPage(
     val facets: RadarFacets,
     val tradeRepublicVerifiedCount: Int,
     val tradeRepublicUnverifiedCount: Int,
-    val counts: RadarCounts = RadarCounts()
+    val counts: RadarCounts = RadarCounts(),
+    val buyFallbackActive: Boolean = false
 )

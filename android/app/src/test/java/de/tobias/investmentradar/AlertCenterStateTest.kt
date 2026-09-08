@@ -48,4 +48,33 @@ class AlertCenterStateTest {
         assertEquals(2222L, next.tombstones["b"])
         assertEquals(10L, next.tombstones["old"])
     }
+
+    @Test fun actionablePortfolioAlertsArePrioritizedAheadOfGenericBuyAlerts() {
+        val buy = StoredAlert(SignalAlert("buy", "new", "BUY", "Kauf", "", "2026-09-02T10:00:00Z"))
+        val reviewHeld = StoredAlert(SignalAlert("review", "held", "REVIEW", "Prüfen", "", "2026-09-02T09:00:00Z"))
+        val sellHeld = StoredAlert(SignalAlert("sell", "held", "SELL", "Verkaufen", "", "2026-09-02T08:00:00Z"))
+        val thresholdHeld = StoredAlert(SignalAlert("drop", "held", "THRESHOLD", "Tagesverlust", "", "2026-09-02T11:00:00Z"))
+
+        val sorted = AlertCenterState.prioritize(
+            items = listOf(buy, reviewHeld, sellHeld, thresholdHeld),
+            holdingIds = setOf("held")
+        )
+
+        assertEquals(listOf("sell", "drop", "review", "buy"), sorted.map { it.alert.id })
+    }
+
+    @Test fun portfolioOnlyFilterKeepsOnlyAlertsForCurrentHoldings() {
+        val heldSell = StoredAlert(SignalAlert("held-sell", "held", "SELL", "Verkaufen", "", "2026-09-02T08:00:00Z"))
+        val heldReview = StoredAlert(SignalAlert("held-review", "held", "REVIEW", "Prüfen", "", "2026-09-02T09:00:00Z"))
+        val outsideBuy = StoredAlert(SignalAlert("outside-buy", "outside", "BUY", "Kauf", "", "2026-09-02T10:00:00Z"))
+
+        val visible = AlertCenterState.visible(
+            items = listOf(outsideBuy, heldReview, heldSell),
+            filter = AlertFilter.ALL,
+            holdingIds = setOf("held"),
+            portfolioOnly = true
+        )
+
+        assertEquals(listOf("held-sell", "held-review"), visible.map { it.alert.id })
+    }
 }

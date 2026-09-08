@@ -4,7 +4,8 @@ object AdvisorStabilityPolicy {
     fun resolve(
         previous: AdvisorSnapshot,
         proposed: AdvisorResult,
-        analysisDay: String? = null
+        analysisDay: String? = null,
+        criticalEvent: Boolean = false
     ): AdvisorResult {
         val cleanProposed = proposed.clearPending()
         if (!proposed.reliable) return cleanProposed
@@ -14,6 +15,8 @@ object AdvisorStabilityPolicy {
         if (current.instrumentId != proposed.instrumentId) return cleanProposed
         if (!current.reliable) return cleanProposed
         if (!isWorse(proposed.signal, current.signal)) return cleanProposed
+
+        if (criticalEvent) return cleanProposed
 
         val proposedScore = proposed.score
         val lastReliable = previous.lastReliable?.result

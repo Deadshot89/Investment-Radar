@@ -51,3 +51,9 @@ data class AdvisorResult(
     val pendingWorseSignal: AdvisorSignal? = null,
     val pendingWorseCount: Int = 0
 )
+
+data class AdvisorEventContext(
+    val impacts: List<MarketEventImpact>,
+    val fingerprint: String,
+    val criticalThesisBreak: Boolean
+)

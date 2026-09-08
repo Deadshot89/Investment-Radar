@@ -2,6 +2,7 @@ package de.tobias.investmentradar
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RadarFilterStateTest {
@@ -32,22 +33,36 @@ class RadarFilterStateTest {
     }
 
     @Test
-    fun buyFilterNeverShowsWatchCandidatesWhenNoBuySignalExists() {
+    fun buyFilterFallsBackToStrongWatchCandidatesWhenNoBuySignalExists() {
         val best = radarItem("best", recommendation = "WATCH", scoreTotal = 84, coverage = 90, risk = 2)
         val second = radarItem("second", recommendation = "WATCH", scoreTotal = 79, coverage = 80, risk = 3)
+        val third = radarItem("third", recommendation = "WATCH", scoreTotal = 76, coverage = 75, risk = 2)
         val weak = radarItem("weak", recommendation = "WATCH", scoreTotal = 61, coverage = 70, risk = 2)
         val noBuy = radarItem("blocked", recommendation = "NO_BUY", scoreTotal = 95, coverage = 100, risk = 2)
 
         val result = RadarFilterEngine.evaluate(
-            items = listOf(weak, noBuy, second, best),
+            items = listOf(weak, noBuy, second, third, best),
             state = RadarFilterState(recommendation = RadarRecommendationFilter.BUY),
             holdingIds = emptySet(),
             watchlistIds = emptySet(),
             allocationById = emptyMap()
         )
 
+        assertTrue(result.buyFallbackActive)
+        assertEquals(listOf("best", "second", "third"), result.items.map { it.id })
+    }
+
+    @Test
+    fun buyFilterPrefersRealBuySignalsAndDoesNotMixFallback() {
+        val buy = radarItem("buy", recommendation = "BUY", scoreTotal = 72, coverage = 75, risk = 3)
+        val watch = radarItem("watch", recommendation = "WATCH", scoreTotal = 95, coverage = 95, risk = 1)
+        val result = RadarFilterEngine.evaluate(
+            listOf(watch, buy),
+            RadarFilterState(recommendation = RadarRecommendationFilter.BUY),
+            emptySet(), emptySet(), emptyMap()
+        )
         assertFalse(result.buyFallbackActive)
-        assertEquals(emptyList<String>(), result.items.map { it.id })
+        assertEquals(listOf("buy"), result.items.map { it.id })
     }
 
     @Test

@@ -45,7 +45,35 @@ object AlertCenterState {
             merged[alert.id] = StoredAlert(alert = alert, isRead = existing?.isRead ?: false)
         }
 
-        return merged.values.sortedByDescending { it.alert.createdAt }
+        return prioritize(merged.values.toList(), emptySet())
+    }
+
+    fun visible(
+        items: List<StoredAlert>,
+        filter: AlertFilter,
+        holdingIds: Set<String>,
+        portfolioOnly: Boolean
+    ): List<StoredAlert> = prioritize(items, holdingIds)
+        .filter { filter.matches(it.alert.level) }
+        .filter { !portfolioOnly || it.alert.itemId in holdingIds }
+
+    fun prioritize(items: List<StoredAlert>, holdingIds: Set<String>): List<StoredAlert> =
+        items.sortedWith(
+            compareByDescending<StoredAlert> { priorityScore(it.alert, holdingIds) }
+                .thenByDescending { it.alert.createdAt }
+                .thenBy { it.alert.id }
+        )
+
+    private fun priorityScore(alert: SignalAlert, holdingIds: Set<String>): Int {
+        val severity = when (alert.level.trim().uppercase()) {
+            "SELL" -> 400
+            "THRESHOLD" -> 300
+            "REVIEW" -> 200
+            "BUY" -> 100
+            else -> 0
+        }
+        val portfolioBoost = if (alert.itemId.isNotBlank() && alert.itemId in holdingIds) 25 else 0
+        return severity + portfolioBoost
     }
 
     fun markAllRead(items: List<StoredAlert>): List<StoredAlert> =

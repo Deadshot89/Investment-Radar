@@ -179,7 +179,7 @@ jobs:
           echo "✅ APK-Signatur erfolgreich geprüft." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Verify live backend before Android publish
-        if: success() && github.ref == 'refs/heads/main'
+        if: success() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/investment-radar-2.4')
         env:
           BASE_URL: ${{ vars.INVESTMENT_API_BASE_URL }}
           EXPECTED_BACKEND_VERSION: "2.1.0"

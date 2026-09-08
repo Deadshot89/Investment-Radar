@@ -2,6 +2,7 @@ package de.tobias.investmentradar
 
 import java.time.Instant
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DataFreshnessTest {
@@ -71,5 +72,25 @@ class DataFreshnessTest {
             fundamentals = FundamentalSnapshot(source = "ETF-Konfiguration", asOf = null)
         )
         assertEquals(FreshnessStatus.CURRENT, DataFreshness.summarize(item, now).status)
+    }
+
+    @Test
+    fun partialSummaryExplainsExactlyWhichDataIsMissing() {
+        val now = Instant.parse("2026-09-02T10:00:00Z").toEpochMilli()
+        val item = freshnessItem(coverage = 45).copy(
+            price = null,
+            priceEur = null,
+            dataSource = "",
+            dataError = "quote unavailable",
+            momentum = MomentumSnapshot(source = "", asOf = null, error = "history unavailable"),
+            fundamentals = FundamentalSnapshot(source = "", asOf = null, error = "fundamentals unavailable"),
+            analysisAsOf = null
+        )
+        val summary = DataFreshness.summarize(item, now)
+        assertEquals(FreshnessStatus.PARTIAL, summary.status)
+        assertTrue("Kurs fehlt" in summary.issues)
+        assertTrue("Historie fehlt" in summary.issues)
+        assertTrue("Fundamentaldaten fehlen" in summary.issues)
+        assertTrue("Analyse fehlt" in summary.issues)
     }
 }
