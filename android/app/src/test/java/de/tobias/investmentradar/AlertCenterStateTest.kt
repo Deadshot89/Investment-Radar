@@ -62,4 +62,19 @@ class AlertCenterStateTest {
 
         assertEquals(listOf("sell", "drop", "review", "buy"), sorted.map { it.alert.id })
     }
+
+    @Test fun portfolioOnlyFilterKeepsOnlyAlertsForCurrentHoldings() {
+        val heldSell = StoredAlert(SignalAlert("held-sell", "held", "SELL", "Verkaufen", "", "2026-09-02T08:00:00Z"))
+        val heldReview = StoredAlert(SignalAlert("held-review", "held", "REVIEW", "Prüfen", "", "2026-09-02T09:00:00Z"))
+        val outsideBuy = StoredAlert(SignalAlert("outside-buy", "outside", "BUY", "Kauf", "", "2026-09-02T10:00:00Z"))
+
+        val visible = AlertCenterState.visible(
+            items = listOf(outsideBuy, heldReview, heldSell),
+            filter = AlertFilter.ALL,
+            holdingIds = setOf("held"),
+            portfolioOnly = true
+        )
+
+        assertEquals(listOf("held-sell", "held-review"), visible.map { it.alert.id })
+    }
 }
