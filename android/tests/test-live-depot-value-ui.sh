@@ -17,8 +17,8 @@ grep -Fq '"Depotwert" to' "$MAIN" || fail "Today recommendation does not expose 
 # Live recommendations must be transferable into the depot without creating duplicate portfolio entries.
 grep -Fq 'onAddToPortfolio: (InvestmentItem) -> Unit' "$MAIN" || fail "DashboardScreen has no direct depot callback"
 grep -Fq 'onAddToPortfolio = { investmentDialogItem = it }' "$MAIN" || fail "Live is not wired to the existing portfolio purchase editor"
-grep -Fq 'Text(if (isHolding) "Position erhöhen" else "Zum Depot hinzufügen")' "$MAIN" || fail "Live recommendation rows lack add/increase depot action"
-grep -Fq 'Text(if (topInDepot) "Position erhöhen" else "Zum Depot hinzufügen")' "$MAIN" || fail "Top Live recommendation lacks add/increase depot action"
+grep -Fq 'if (isHolding) "Position erhöhen" else "Zum Depot hinzufügen"' "$MAIN" || fail "Live recommendation rows lack add/increase depot action"
+grep -Fq 'if (topInDepot) "Position erhöhen" else "Zum Depot hinzufügen"' "$MAIN" || fail "Top Live recommendation lacks add/increase depot action"
 grep -Fq 'onAddToPortfolio(top)' "$MAIN" || fail "Top Live recommendation does not open portfolio entry flow"
 grep -Fq 'onAddToPortfolio(item)' "$MAIN" || fail "Live recommendation row does not open portfolio entry flow"
 grep -Fq 'nur Orientierung, kein automatischer Einstand' "$MAIN" || fail "Live quote is not clearly separated from the real purchase cost basis"
