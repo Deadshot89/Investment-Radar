@@ -39,6 +39,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import java.text.SimpleDateFormat
@@ -48,10 +49,18 @@ import java.util.TimeZone
 @Composable
 fun AlertsScreen(alerts: List<StoredAlert>, preferences: AlertPreferences, onOpen: (StoredAlert) -> Unit, onMarkAllRead: () -> Unit, onDelete: (String) -> Unit, onClear: () -> Unit, onPreferencesChange: (AlertPreferences) -> Unit) {
     var filterName by rememberSaveable { mutableStateOf(AlertFilter.ALL.name) }
+    var portfolioOnly by rememberSaveable { mutableStateOf(false) }
     var showSettings by rememberSaveable { mutableStateOf(false) }
     var confirmClear by rememberSaveable { mutableStateOf(false) }
     val filter = AlertFilter.entries.firstOrNull { it.name == filterName } ?: AlertFilter.ALL
-    val visible = alerts.filter { stored -> filter.matches(stored.alert.level) }
+    val context = LocalContext.current
+    val holdingIds = PortfolioStore.read(context)
+    val visible = AlertCenterState.visible(
+        items = alerts,
+        filter = filter,
+        holdingIds = holdingIds,
+        portfolioOnly = portfolioOnly
+    )
     val unread = alerts.count { !it.isRead }
 
     LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp), contentPadding = PaddingValues(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -62,6 +71,20 @@ fun AlertsScreen(alerts: List<StoredAlert>, preferences: AlertPreferences, onOpe
                 Text(if (unread == 1) "1 neuer Alarm" else "$unread neue Alarme", color = if (unread > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = if (unread > 0) FontWeight.Bold else FontWeight.Normal)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     items(AlertFilter.entries) { candidate -> FilterChip(selected = filter == candidate, onClick = { filterName = candidate.name }, label = { Text(candidate.label) }) }
+                    item {
+                        FilterChip(
+                            selected = portfolioOnly,
+                            onClick = { portfolioOnly = !portfolioOnly },
+                            label = { Text("Nur Depot") }
+                        )
+                    }
+                }
+                if (portfolioOnly) {
+                    Text(
+                        "Depot-Alarme zuerst: Verkauf, Schwellenwert und Prüfsignale werden nach Handlungsbedarf priorisiert.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(onClick = onMarkAllRead, enabled = unread > 0, modifier = Modifier.weight(1f)) { Text("Alle gelesen") }
@@ -71,7 +94,7 @@ fun AlertsScreen(alerts: List<StoredAlert>, preferences: AlertPreferences, onOpe
                 if (alerts.isNotEmpty()) TextButton(onClick = { confirmClear = true }, modifier = Modifier.fillMaxWidth()) { Text("Alarmverlauf leeren") }
             }
         }
-        if (visible.isEmpty()) item { Text("Keine Alarme in diesem Filter.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        if (visible.isEmpty()) item { Text(if (portfolioOnly) "Keine passenden Alarme für dein Depot." else "Keine Alarme in diesem Filter.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
         items(visible, key = { it.alert.id }) { stored -> AlertCard(stored = stored, onOpen = onOpen, onDelete = onDelete) }
     }
 
