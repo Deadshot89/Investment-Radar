@@ -2,7 +2,8 @@ package de.tobias.investmentradar
 
 data class StoredAlert(
     val alert: SignalAlert,
-    val isRead: Boolean = false
+    val isRead: Boolean = false,
+    val isConfirmed: Boolean = false
 )
 
 data class AlertCenterSnapshot(
@@ -42,7 +43,11 @@ object AlertCenterState {
         remote.forEach { alert ->
             if (alert.id.isBlank() || alert.id in activeTombstones) return@forEach
             val existing = localById[alert.id]
-            merged[alert.id] = StoredAlert(alert = alert, isRead = existing?.isRead ?: false)
+            merged[alert.id] = StoredAlert(
+                alert = alert,
+                isRead = existing?.isRead ?: false,
+                isConfirmed = existing?.isConfirmed ?: false
+            )
         }
 
         return prioritize(merged.values.toList(), emptySet())
@@ -52,14 +57,17 @@ object AlertCenterState {
         items: List<StoredAlert>,
         filter: AlertFilter,
         holdingIds: Set<String>,
-        portfolioOnly: Boolean
+        portfolioOnly: Boolean,
+        includeConfirmed: Boolean = false
     ): List<StoredAlert> = prioritize(items, holdingIds)
+        .filter { includeConfirmed || !it.isConfirmed }
         .filter { filter.matches(it.alert.level) }
         .filter { !portfolioOnly || it.alert.itemId in holdingIds }
 
     fun prioritize(items: List<StoredAlert>, holdingIds: Set<String>): List<StoredAlert> =
         items.sortedWith(
-            compareByDescending<StoredAlert> { priorityScore(it.alert, holdingIds) }
+            compareBy<StoredAlert> { it.isConfirmed }
+                .thenByDescending { priorityScore(it.alert, holdingIds) }
                 .thenByDescending { it.alert.createdAt }
                 .thenBy { it.alert.id }
         )
@@ -78,6 +86,13 @@ object AlertCenterState {
 
     fun markAllRead(items: List<StoredAlert>): List<StoredAlert> =
         items.map { stored -> if (stored.isRead) stored else stored.copy(isRead = true) }
+
+    fun confirm(items: List<StoredAlert>, alertId: String): List<StoredAlert> {
+        if (alertId.isBlank()) return items
+        return items.map { stored ->
+            if (stored.alert.id == alertId) stored.copy(isRead = true, isConfirmed = true) else stored
+        }
+    }
 
     fun delete(
         items: List<StoredAlert>,
