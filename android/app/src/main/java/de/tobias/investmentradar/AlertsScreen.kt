@@ -63,10 +63,15 @@ fun AlertsScreen(
 ) {
     var filterName by rememberSaveable { mutableStateOf(AlertFilter.ALL.name) }
     var portfolioOnly by rememberSaveable { mutableStateOf(false) }
+    var showConfirmed by rememberSaveable { mutableStateOf(false) }
     var showSettings by rememberSaveable { mutableStateOf(false) }
     var confirmClear by rememberSaveable { mutableStateOf(false) }
+    var locallyConfirmedIds by remember { mutableStateOf(emptySet<String>()) }
     val filter = AlertFilter.entries.firstOrNull { it.name == filterName } ?: AlertFilter.ALL
     val context = LocalContext.current
+    val effectiveAlerts = alerts.map { stored ->
+        if (stored.alert.id in locallyConfirmedIds) stored.copy(isRead = true, isConfirmed = true) else stored
+    }
     val storedAdvisorPlan = PortfolioAdvisorStore.latest(context)
     val resolvedAdvisorById = if (advisorById.isNotEmpty()) advisorById else storedAdvisorPlan?.plan?.candidates.orEmpty().associateBy { it.itemId }
     val resolvedActionPlan = when {
@@ -82,20 +87,33 @@ fun AlertsScreen(
         resolvedPositions
     )
     val holdingIds = resolvedPositions.keys
-    val visible = AlertCenterState.visible(
-        items = alerts,
+    val filtered = AlertCenterState.visible(
+        items = effectiveAlerts,
         filter = filter,
         holdingIds = holdingIds,
-        portfolioOnly = portfolioOnly
+        portfolioOnly = portfolioOnly,
+        includeConfirmed = showConfirmed
     )
-    val unread = alerts.count { !it.isRead }
+    val visible = if (showConfirmed) filtered.filter { it.isConfirmed } else filtered
+    val unread = effectiveAlerts.count { !it.isRead && !it.isConfirmed }
+    val open = effectiveAlerts.count { !it.isConfirmed }
+    val confirmed = effectiveAlerts.count { it.isConfirmed }
 
     LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp), contentPadding = PaddingValues(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("ALARME", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold)
                 Text("Alarmcenter", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
-                Text(if (unread == 1) "1 neuer Alarm" else "$unread neue Alarme", color = if (unread > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = if (unread > 0) FontWeight.Bold else FontWeight.Normal)
+                Text(
+                    "$open offen · $confirmed bestätigt${if (unread > 0) " · $unread neu" else ""}",
+                    color = if (open > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = if (open > 0) FontWeight.Bold else FontWeight.Normal
+                )
+                Text(
+                    "Jeder Alarm erklärt dir jetzt den Grund, die Bedeutung und den konkreten nächsten Schritt. Bestätigte Alarme bleiben im Verlauf erhalten.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     items(AlertFilter.entries) { candidate -> FilterChip(selected = filter == candidate, onClick = { filterName = candidate.name }, label = { Text(candidate.label) }) }
                     item {
@@ -103,6 +121,13 @@ fun AlertsScreen(
                             selected = portfolioOnly,
                             onClick = { portfolioOnly = !portfolioOnly },
                             label = { Text("Nur Depot") }
+                        )
+                    }
+                    item {
+                        FilterChip(
+                            selected = showConfirmed,
+                            onClick = { showConfirmed = !showConfirmed },
+                            label = { Text(if (showConfirmed) "Bestätigt" else "Offen") }
                         )
                     }
                 }
@@ -118,16 +143,27 @@ fun AlertsScreen(
                     TextButton(onClick = { showSettings = true }, modifier = Modifier.weight(1f)) { Text("Alarmeinstellungen") }
                 }
                 PushDiagnosticsPanel()
-                if (alerts.isNotEmpty()) TextButton(onClick = { confirmClear = true }, modifier = Modifier.fillMaxWidth()) { Text("Alarmverlauf leeren") }
+                if (effectiveAlerts.isNotEmpty()) TextButton(onClick = { confirmClear = true }, modifier = Modifier.fillMaxWidth()) { Text("Alarmverlauf leeren") }
             }
         }
-        item {
-            DepotActionCenterSection(
-                state = depotActionCenter,
-                onExecuteAction = onExecuteAction
+        if (!showConfirmed) {
+            item {
+                DepotActionCenterSection(
+                    state = depotActionCenter,
+                    onExecuteAction = onExecuteAction
+                )
+            }
+        }
+        if (visible.isEmpty()) item {
+            Text(
+                when {
+                    showConfirmed -> "Keine bestätigten Alarme in diesem Filter."
+                    portfolioOnly -> "Keine passenden offenen Alarme für dein Depot."
+                    else -> "Keine offenen Alarme in diesem Filter."
+                },
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        if (visible.isEmpty()) item { Text(if (portfolioOnly) "Keine passenden Alarme für dein Depot." else "Keine Alarme in diesem Filter.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
         items(visible, key = { it.alert.id }) { stored ->
             val itemId = stored.alert.itemId
             AlertCard(
@@ -138,6 +174,10 @@ fun AlertsScreen(
                 item = itemsById[itemId],
                 position = resolvedPositions[itemId],
                 onOpen = onOpen,
+                onConfirm = { alertId ->
+                    AlertStore.confirm(context, alertId)
+                    locallyConfirmedIds = locallyConfirmedIds + alertId
+                },
                 onDelete = onDelete
             )
         }
@@ -256,6 +296,7 @@ private fun AlertCard(
     item: InvestmentItem?,
     position: PortfolioPosition?,
     onOpen: (StoredAlert) -> Unit,
+    onConfirm: (String) -> Unit,
     onDelete: (String) -> Unit
 ) {
     val alert = stored.alert
@@ -265,14 +306,18 @@ private fun AlertCard(
     val dataQuality = alertDataQuality(alert, advisorCandidate)
     val guidance = alertActionGuidance(alert, advisorCandidate)
     val concretePlan = plannedActionForAlert(alert, actionPlan, dataQuality)
-    Card(modifier = Modifier.fillMaxWidth().border(1.dp, accent.copy(alpha = if (stored.isRead) 0.26f else 0.62f), shape).clickable { onOpen(stored) }, shape = shape, colors = CardDefaults.cardColors(containerColor = if (stored.isRead) MaterialTheme.colorScheme.surfaceContainer else MaterialTheme.colorScheme.surfaceContainerHigh)) {
+    val nextStep = concretePlan ?: guidance.action
+    val importance = alertImportance(alert, isHolding, dataQuality)
+    val reviewCondition = alertReviewCondition(alert, dataQuality)
+    Card(modifier = Modifier.fillMaxWidth().border(1.dp, accent.copy(alpha = if (stored.isConfirmed) 0.18f else if (stored.isRead) 0.26f else 0.62f), shape).clickable { onOpen(stored) }, shape = shape, colors = CardDefaults.cardColors(containerColor = if (stored.isConfirmed || stored.isRead) MaterialTheme.colorScheme.surfaceContainer else MaterialTheme.colorScheme.surfaceContainerHigh)) {
         Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(modifier = Modifier.background(accent.copy(alpha = 0.16f), RoundedCornerShape(9.dp)).border(1.dp, accent.copy(alpha = 0.45f), RoundedCornerShape(9.dp)).padding(horizontal = 9.dp, vertical = 5.dp)) {
                     Text(alertBadgeLabel(alert), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = accent)
                 }
                 if (isHolding) Text("IM DEPOT", color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
-                if (!stored.isRead) Text("NEU", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Black, style = MaterialTheme.typography.labelSmall)
+                if (stored.isConfirmed) Text("BESTÄTIGT", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Black, style = MaterialTheme.typography.labelSmall)
+                else if (!stored.isRead) Text("NEU", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Black, style = MaterialTheme.typography.labelSmall)
                 Box(Modifier.weight(1f))
                 IconButton(onClick = { onDelete(alert.id) }) { Icon(Icons.Default.DeleteOutline, contentDescription = "Alarm löschen", tint = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
@@ -280,13 +325,22 @@ private fun AlertCard(
             Text(formatAlertTimestamp(alert.createdAt), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (isForecast) ForecastAlertSummary(alert, accent)
             HorizontalDivider(color = accent.copy(alpha = 0.18f))
-            Text("Was jetzt tun?", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, color = accent)
+
+            Text("1. Was ist passiert?", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, color = accent)
+            Text(if (isForecast) forecastReason(alert.message) else alert.message.ifBlank { "Der Radar hat eine relevante Veränderung erkannt." }, style = MaterialTheme.typography.bodyMedium)
+
+            Text("2. Warum ist das wichtig?", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, color = accent)
+            Text(importance, style = MaterialTheme.typography.bodyMedium)
+
+            Text("3. Was sollst du jetzt tun?", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, color = accent)
             Column(modifier = Modifier.fillMaxWidth().background(accent.copy(alpha = 0.08f), RoundedCornerShape(12.dp)).padding(11.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(guidance.status, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, color = accent)
-                Text(guidance.action, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                Text(nextStep, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
             }
-            Text("Konkreter Plan", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, color = accent)
-            Text(concretePlan ?: "Noch kein belastbarer Betrag aus dem aktuellen Aktionsplan.", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+
+            Text("4. Wann wieder prüfen?", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black, color = accent)
+            Text(reviewCondition, style = MaterialTheme.typography.bodyMedium)
+
             AlertDecisionMetrics(advisorCandidate, item, position)
             Text("Datenqualität", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = accent)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -294,8 +348,13 @@ private fun AlertCard(
                 Text(dataQuality.detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f).padding(start = 10.dp))
             }
             HorizontalDivider(color = accent.copy(alpha = 0.18f))
-            Text("Warum der Radar reagiert", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = accent)
-            Text(if (isForecast) forecastReason(alert.message) else alert.message, style = MaterialTheme.typography.bodyMedium)
+            if (stored.isConfirmed) {
+                Text("Dieser Alarm wurde von dir bestätigt und ist erledigt. Er bleibt zur Nachverfolgung im Verlauf sichtbar.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                Button(onClick = { onConfirm(alert.id) }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Verstanden · als erledigt bestätigen")
+                }
+            }
         }
     }
 }
@@ -348,6 +407,29 @@ private fun plannedActionForAlert(alert: SignalAlert, actionPlan: ActionPlan, da
     }
 }
 
+private fun alertImportance(alert: SignalAlert, isHolding: Boolean, dataQuality: AlertDataQuality): String {
+    if (dataQuality.blocksBuyDecision) return "Die Daten reichen noch nicht für eine belastbare Kaufentscheidung. Eine vorschnelle Aktion soll vermieden werden."
+    val holdingText = if (isHolding) "Diese Position liegt bereits in deinem Depot. " else ""
+    return holdingText + when (alert.level.trim().uppercase(Locale.GERMANY)) {
+        "SELL" -> "Das Signal kann dein Verlustrisiko oder die weitere Depotentwicklung direkt beeinflussen und sollte zeitnah geprüft werden."
+        "THRESHOLD" -> "Ein definierter Schwellenwert wurde erreicht. Damit hat sich die Lage gegenüber deiner bisherigen Planung messbar verändert."
+        "BUY" -> "Der Wert erfüllt aktuell wichtige Kaufkriterien. Vor einer Order müssen Score, Risiko, Datenqualität und dein verfügbares Budget zusammenpassen."
+        "REVIEW" -> "Die Ausgangslage hat sich verändert, aber das Signal reicht noch nicht für eine automatische Kauf- oder Verkaufsaussage."
+        else -> "Die Veränderung ist relevant für deine weitere Beobachtung, erfordert aber nicht zwingend eine sofortige Transaktion."
+    }
+}
+
+private fun alertReviewCondition(alert: SignalAlert, dataQuality: AlertDataQuality): String {
+    if (dataQuality.blocksBuyDecision) return "Erneut prüfen, sobald Kurs-, Historien- und Analysedaten wieder vollständig und aktuell sind."
+    return when (alert.level.trim().uppercase(Locale.GERMANY)) {
+        "SELL" -> "Nach deiner Entscheidung erneut prüfen, spätestens wenn sich Score, Risiko, Prognose oder Verkaufssignal sichtbar ändern."
+        "THRESHOLD" -> "Erneut prüfen, wenn der Kurs den Schwellenwert zurückerobert oder ein neues Kauf-/Verkaufssignal entsteht."
+        "BUY" -> "Vor dem Kauf noch einmal den aktuellen Kurs und das verfügbare Monatsbudget prüfen; danach bei einer deutlichen Signaländerung neu bewerten."
+        "REVIEW" -> "Bei der nächsten Analyse oder sobald sich Score, Prognose, Risiko oder Datenlage deutlich ändern."
+        else -> "Bei der nächsten Radar-Aktualisierung oder wenn ein konkretes Kauf-, Prüf- oder Verkaufssignal entsteht."
+    }
+}
+
 private fun formatEur(value: Double): String = String.format(Locale.GERMANY, "%.0f €", value)
 private fun formatSignedEur(value: Double?): String = value?.let { String.format(Locale.GERMANY, "%+.0f €", it) } ?: "–"
 
@@ -366,7 +448,7 @@ private fun alertActionGuidance(alert: SignalAlert, candidate: PortfolioAdvisorC
     return when (level) {
         "SELL" -> AlertActionGuidance("JETZT HANDELN", "Verkauf jetzt prüfen")
         "THRESHOLD" -> AlertActionGuidance("JETZT HANDELN", "Position und Schwellenwert prüfen")
-        "BUY" -> AlertActionGuidance("BEOBACHTEN", "Bestätigte Kaufchance anhand Score, Risiko und Datenqualität prüfen")
+        "BUY" -> AlertActionGuidance("KAUF PRÜFEN", "Bestätigte Kaufchance anhand Score, Risiko, Budget und Datenqualität prüfen")
         "REVIEW" -> AlertActionGuidance("BEOBACHTEN", "Analyse und Position prüfen")
         else -> AlertActionGuidance("BEOBACHTEN", "Entwicklung beobachten")
     }
