@@ -1,6 +1,7 @@
 package de.tobias.investmentradar
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -24,12 +25,58 @@ class AlertCenterStateTest {
         assertEquals(true, merged.single().isRead)
     }
 
-    @Test fun markAllReadPreservesAlertsAndMarksEveryItem() {
-        val a = StoredAlert(SignalAlert("a", "msft", "BUY", "A", "", "2026-09-02T08:00:00Z"), false)
-        val b = StoredAlert(SignalAlert("b", "googl", "REVIEW", "B", "", "2026-09-02T09:00:00Z"), true)
+    @Test fun confirmedStateWinsWhenSameRemoteAlertRepeats() {
+        val alert = SignalAlert("same", "msft", "SELL", "Verkauf prüfen", "Text", "2026-09-02T08:00:00Z")
+        val merged = AlertCenterState.merge(
+            local = listOf(StoredAlert(alert = alert, isRead = true, isConfirmed = true)),
+            remote = listOf(alert),
+            tombstones = emptyMap(),
+            nowEpochMs = 1_788_336_100_000L
+        )
+
+        assertTrue(merged.single().isConfirmed)
+    }
+
+    @Test fun confirmMarksAlertReadAndConfirmed() {
+        val alert = StoredAlert(SignalAlert("a", "msft", "REVIEW", "Prüfen", "Text", "2026-09-02T08:00:00Z"))
+
+        val next = AlertCenterState.confirm(listOf(alert), "a")
+
+        assertTrue(next.single().isRead)
+        assertTrue(next.single().isConfirmed)
+    }
+
+    @Test fun openItemsExcludeConfirmedAlertsButHistoryCanStillShowThem() {
+        val open = StoredAlert(SignalAlert("open", "msft", "SELL", "Verkauf", "", "2026-09-02T09:00:00Z"))
+        val done = StoredAlert(SignalAlert("done", "msft", "REVIEW", "Prüfen", "", "2026-09-02T08:00:00Z"), isRead = true, isConfirmed = true)
+
+        val openOnly = AlertCenterState.visible(
+            items = listOf(done, open),
+            filter = AlertFilter.ALL,
+            holdingIds = setOf("msft"),
+            portfolioOnly = false,
+            includeConfirmed = false
+        )
+        val history = AlertCenterState.visible(
+            items = listOf(done, open),
+            filter = AlertFilter.ALL,
+            holdingIds = setOf("msft"),
+            portfolioOnly = false,
+            includeConfirmed = true
+        )
+
+        assertEquals(listOf("open"), openOnly.map { it.alert.id })
+        assertEquals(setOf("open", "done"), history.map { it.alert.id }.toSet())
+    }
+
+    @Test fun markAllReadPreservesConfirmationState() {
+        val a = StoredAlert(SignalAlert("a", "msft", "BUY", "A", "", "2026-09-02T08:00:00Z"), false, false)
+        val b = StoredAlert(SignalAlert("b", "googl", "REVIEW", "B", "", "2026-09-02T09:00:00Z"), true, true)
         val next = AlertCenterState.markAllRead(listOf(a, b))
         assertEquals(2, next.size)
         assertTrue(next.all { it.isRead })
+        assertFalse(next.first { it.alert.id == "a" }.isConfirmed)
+        assertTrue(next.first { it.alert.id == "b" }.isConfirmed)
     }
 
     @Test fun deleteRemovesAlertAndCreatesTombstone() {
@@ -85,7 +132,8 @@ class AlertCenterStateTest {
             items = listOf(outsideBuy, heldReview, heldSell),
             filter = AlertFilter.ALL,
             holdingIds = setOf("held"),
-            portfolioOnly = true
+            portfolioOnly = true,
+            includeConfirmed = false
         )
 
         assertEquals(listOf("held-sell", "held-review"), visible.map { it.alert.id })

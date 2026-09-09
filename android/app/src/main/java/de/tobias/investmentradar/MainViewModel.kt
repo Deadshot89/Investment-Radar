@@ -257,6 +257,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _alerts.value = AlertStore.readStored(app)
     }
 
+    fun confirmAlert(alertId: String) {
+        val app = getApplication<Application>()
+        AlertStore.confirm(app, alertId)
+        _alerts.value = AlertStore.readStored(app)
+    }
+
     fun markAllAlertsRead() {
         val app = getApplication<Application>()
         AlertStore.markAllRead(app)
