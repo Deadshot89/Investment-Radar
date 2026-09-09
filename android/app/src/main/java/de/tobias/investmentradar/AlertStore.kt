@@ -38,7 +38,11 @@ object AlertStore {
                         message = o.optString("message"),
                         createdAt = o.optString("createdAt")
                     )
-                    if (alert.id.isBlank()) null else StoredAlert(alert, o.optBoolean("isRead", false))
+                    if (alert.id.isBlank()) null else StoredAlert(
+                        alert = alert,
+                        isRead = o.optBoolean("isRead", false),
+                        isConfirmed = o.optBoolean("isConfirmed", false)
+                    )
                 }
             }
         }.getOrDefault(emptyList())
@@ -54,6 +58,11 @@ object AlertStore {
 
     fun markAllRead(context: Context) {
         write(context, AlertCenterState.markAllRead(readStored(context)), readTombstones(context))
+    }
+
+    fun confirm(context: Context, alertId: String) {
+        if (alertId.isBlank()) return
+        write(context, AlertCenterState.confirm(readStored(context), alertId), readTombstones(context))
     }
 
     fun delete(context: Context, alertId: String) {
@@ -95,6 +104,7 @@ object AlertStore {
                 put("message", a.message)
                 put("createdAt", a.createdAt)
                 put("isRead", stored.isRead)
+                put("isConfirmed", stored.isConfirmed)
             })
         }
         val tombstoneJson = JSONObject()
