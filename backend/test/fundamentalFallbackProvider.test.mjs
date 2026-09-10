@@ -113,14 +113,14 @@ test('SEC supplements partial Yahoo data for safely matched US companies', async
   assert.match(out.source, /SEC Companyfacts/);
 });
 
-test('Yahoo explicit null values remain missing instead of becoming zero', async () => {
+test('Yahoo direct null values remain missing instead of becoming zero', async () => {
   const fetchImpl = async () => jsonResponse({
     quoteSummary: { result: [{
-      summaryDetail: { trailingPE: { raw: null }, priceToSalesTrailing12Months: { raw: null }, marketCap: { raw: null } },
-      defaultKeyStatistics: { forwardPE: { raw: null }, enterpriseToEbitda: { raw: null } },
+      summaryDetail: { trailingPE: null, priceToSalesTrailing12Months: null, marketCap: null },
+      defaultKeyStatistics: { forwardPE: null, enterpriseToEbitda: null },
       financialData: {
-        revenueGrowth: { raw: null }, earningsGrowth: { raw: null }, operatingMargins: { raw: null },
-        profitMargins: { raw: null }, returnOnEquity: { raw: null }, debtToEquity: { raw: null }, freeCashflow: { raw: null }
+        revenueGrowth: null, earningsGrowth: null, operatingMargins: null,
+        profitMargins: null, returnOnEquity: null, debtToEquity: null, freeCashflow: null
       }
     }] }
   });
