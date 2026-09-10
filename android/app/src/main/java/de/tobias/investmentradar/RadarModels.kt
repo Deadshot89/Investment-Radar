@@ -164,7 +164,11 @@ data class RadarSummaryItem(
         momentum = momentum,
         fundamentals = fundamentals,
         analysisAsOf = analysisAsOf,
-        portfolioOnly = false
+        portfolioOnly = false,
+        dataQuality = dataQuality,
+        scoreBreakdown = scoreBreakdown,
+        forecast = forecast,
+        diagnostics = diagnostics
     )
 }
 
