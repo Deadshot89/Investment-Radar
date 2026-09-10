@@ -8,6 +8,13 @@ object AdvisorInputFactory {
     ): AdvisorInput {
         val type = instrumentType(item.type)
         val forecastRanges = AdvisorForecastPolicy.from(forecast, freshness)
+        val backendForecastBlocked = item.forecast?.quality.equals("NICHT_BELASTBAR", ignoreCase = true) ||
+            item.dataQuality?.missingBlocks.orEmpty().any { it.equals("forecast", ignoreCase = true) }
+        val effectiveCoverage = if (backendForecastBlocked) {
+            item.dataQuality?.forecastInputCoverage ?: 0
+        } else {
+            freshness.coverage ?: item.coverage ?: forecast.coveragePct ?: 0
+        }
 
         return AdvisorInput(
             instrumentId = item.id,
@@ -22,8 +29,8 @@ object AdvisorInputFactory {
             momentum = item.scoreMomentum,
             riskScore = item.scoreRisk,
             forecastRanges = forecastRanges,
-            coveragePct = freshness.coverage ?: item.coverage ?: forecast.coveragePct ?: 0,
-            isFresh = freshness.status != FreshnessStatus.STALE
+            coveragePct = effectiveCoverage.coerceIn(0, 100),
+            isFresh = freshness.status != FreshnessStatus.STALE && !backendForecastBlocked
         )
     }
 
