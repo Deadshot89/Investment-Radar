@@ -336,8 +336,13 @@ fun RadarScreenV2(
                 else if (detail == null) Text("Detailanalyse konnte noch nicht geladen werden.")
                 else Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("${detail.ticker} · ${detail.type} · ${detail.country.ifBlank { detail.region }}", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("Score ${detail.scoreTotal ?: "–"} · Daten ${detail.coverage ?: 0} % · Risiko ${detail.risk}/5", fontWeight = FontWeight.Bold)
+                    Text("Score ${detail.scoreTotal ?: "–"} · Datenabdeckung ${detail.coverage?.let { "$it %" } ?: "Nicht verfügbar"} · Risiko ${detail.risk}/5", fontWeight = FontWeight.Bold)
                     Text("Signal: ${detail.recommendation}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Black)
+                    detail.dataQuality?.let { quality ->
+                        Text("Kurs ${quality.quoteCoverage?.let { "$it %" } ?: "Nicht verfügbar"} · Historie ${quality.historyCoverage?.let { "$it %" } ?: "Nicht verfügbar"}", style = MaterialTheme.typography.bodySmall)
+                        Text("Fundamentals ${quality.fundamentalCoverage?.let { "$it %" } ?: "Nicht verfügbar"} · Prognosequalität ${detail.forecast?.quality ?: "Nicht verfügbar"}", style = MaterialTheme.typography.bodySmall)
+                    }
+                    RadarForecastDetail(detail)
                     Text(detail.tradeRepublicStatusLabel(), style = MaterialTheme.typography.bodySmall)
                     detail.recommendationReasons.take(4).forEach { Text("• $it", style = MaterialTheme.typography.bodySmall) }
                     detail.dataError?.takeIf { it.isNotBlank() }?.let { Text("Datenhinweis: $it", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
@@ -426,7 +431,7 @@ private fun RadarResultCardV2(
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("Score ${summary.scoreTotal ?: "–"}")
-                Text("Coverage ${summary.coverage?.let { "$it %" } ?: "–"}")
+                Text("Datenabdeckung ${summary.coverage?.let { "$it %" } ?: "Nicht verfügbar"}")
                 Text("Risiko ${summary.risk}/5")
             }
             summary.percentChange?.let { Text("Tag ${formatRadarPercent(it)}", color = if (it >= 0.0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error) }
@@ -456,6 +461,23 @@ private fun RadarResultCardV2(
 
 @Composable
 private fun RadarForecastPreview(summary: RadarSummaryItem) {
+    val forecast = summary.forecast
+    if (forecast != null) {
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text("12M Prognose · ${forecast.direction} · Prognosequalität ${forecast.quality}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Black, style = MaterialTheme.typography.bodySmall)
+            if (forecast.quality == "NICHT_BELASTBAR") {
+                Text("Basis/Bull/Bear: Nicht verfügbar", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall)
+                forecast.reasons.firstOrNull()?.let { Text("Warum: $it", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
+                return@Column
+            }
+            Text("Basis ${formatNullableRadarPercent(forecast.expectedChangePct)} · Bull ${formatNullableRadarPercent(forecast.bullChangePct)} · Bear ${formatNullableRadarPercent(forecast.bearChangePct)}", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall)
+            Text("Konfidenz ${forecast.confidencePct?.let { "$it %" } ?: "Nicht verfügbar"}", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+            forecast.reasons.firstOrNull()?.let { Text("Treiber: $it", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
+            forecast.risks.firstOrNull()?.let { Text("Risiken: $it", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
+        }
+        return
+    }
+
     if (summary.type.equals("ETF", ignoreCase = true)) return
     val point = remember(summary) {
         ForecastEngine.forecast(summary.asInvestmentItem()).points.firstOrNull {
@@ -464,50 +486,45 @@ private fun RadarForecastPreview(summary: RadarSummaryItem) {
     } ?: return
 
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(
-            "12M Prognose · ${point.direction}",
-            color = MaterialTheme.colorScheme.primary,
-            fontWeight = FontWeight.Black,
-            style = MaterialTheme.typography.bodySmall
-        )
-        Text(
-            "Basisziel ${formatRadarForecastTarget(point.targetPriceEur, point.expectedChangePct)}",
-            fontWeight = FontWeight.Bold,
-            style = MaterialTheme.typography.bodySmall
-        )
-        Text(
-            "Prognose-Spanne ${formatRadarForecastRange(point)}",
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.bodySmall
-        )
-        point.reasons.firstOrNull()?.let { reason ->
-            Text(
-                "Warum: $reason",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodySmall
-            )
+        Text("12M Prognose · ${point.direction}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Black, style = MaterialTheme.typography.bodySmall)
+        Text("Basisziel ${formatRadarForecastTarget(point.targetPriceEur, point.expectedChangePct)}", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall)
+        Text("Prognose-Spanne ${formatRadarForecastRange(point)}", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+        point.reasons.firstOrNull()?.let { reason -> Text("Warum: $reason", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
+    }
+}
+
+@Composable
+private fun RadarForecastDetail(summary: RadarSummaryItem) {
+    val forecast = summary.forecast ?: return
+    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Text("Prognosequalität: ${forecast.quality} · Konfidenz ${forecast.confidencePct?.let { "$it %" } ?: "Nicht verfügbar"}", fontWeight = FontWeight.Bold)
+        if (forecast.quality == "NICHT_BELASTBAR") {
+            Text("Basis: Nicht verfügbar · Bull: Nicht verfügbar · Bear: Nicht verfügbar", style = MaterialTheme.typography.bodySmall)
+        } else {
+            Text("Basis ${formatNullableRadarPercent(forecast.expectedChangePct)} · Bull ${formatNullableRadarPercent(forecast.bullChangePct)} · Bear ${formatNullableRadarPercent(forecast.bearChangePct)}", style = MaterialTheme.typography.bodySmall)
         }
+        forecast.reasons.take(2).forEach { Text("Treiber: $it", style = MaterialTheme.typography.bodySmall) }
+        forecast.risks.take(2).forEach { Text("Risiken: $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
     }
 }
 
 private fun radarDataGapReasons(summary: RadarSummaryItem): List<String> {
-    val known = setOf(
-        "Kurs fehlt",
-        "Historie fehlt",
-        "Fundamentaldaten fehlen",
-        "Analyse fehlt",
-        "Analyse veraltet",
-        "Datenabdeckung unzureichend"
-    )
+    val known = setOf("Kurs fehlt", "Historie fehlt", "Fundamentaldaten fehlen", "Analyse fehlt", "Analyse veraltet", "Datenabdeckung unzureichend")
     val gaps = summary.recommendationReasons.filter { it in known }.toMutableList()
-    summary.dataError?.takeIf { it.isNotBlank() }?.let { error ->
-        if (error !in gaps) gaps += error
+    summary.dataQuality?.missingBlocks.orEmpty().forEach { block ->
+        val label = when (block) {
+            "quote" -> "Kurs fehlt"
+            "history" -> "Historie fehlt"
+            "fundamentals" -> "Fundamentaldaten fehlen"
+            "forecast" -> "Prognosedaten unvollständig"
+            else -> block
+        }
+        if (label !in gaps) gaps += label
     }
+    summary.dataError?.takeIf { it.isNotBlank() }?.let { error -> if (error !in gaps) gaps += error }
     if (summary.price == null && summary.priceEur == null && "Kurs fehlt" !in gaps) gaps += "Kurs fehlt"
     if (summary.scoreMomentum == null && "Historie fehlt" !in gaps) gaps += "Historie fehlt"
-    if (!summary.type.equals("ETF", ignoreCase = true) && summary.scoreQuality == null && summary.scoreValuation == null && summary.scoreGrowth == null && "Fundamentaldaten fehlen" !in gaps) {
-        gaps += "Fundamentaldaten fehlen"
-    }
+    if (!summary.type.equals("ETF", ignoreCase = true) && summary.scoreQuality == null && summary.scoreValuation == null && summary.scoreGrowth == null && "Fundamentaldaten fehlen" !in gaps) gaps += "Fundamentaldaten fehlen"
     if (summary.analysisAsOf.isNullOrBlank() && "Analyse fehlt" !in gaps) gaps += "Analyse fehlt"
     if ((summary.coverage ?: 0) < 50 && "Datenabdeckung unzureichend" !in gaps) gaps += "Datenabdeckung unzureichend"
     return gaps.distinct()
@@ -576,19 +593,16 @@ private fun RadarRiskFilter.riskLabel(): String = when (this) {
 }
 
 private fun formatRadarPercent(value: Double): String = String.format(Locale.GERMANY, "%+.1f %%", value)
+private fun formatNullableRadarPercent(value: Double?): String = value?.let(::formatRadarPercent) ?: "Nicht verfügbar"
 
 private fun formatRadarForecastTarget(targetPriceEur: Double?, changePct: Double): String =
-    targetPriceEur?.let { String.format(Locale.GERMANY, "%.2f € (%+.1f %%)", it, changePct) }
-        ?: formatRadarPercent(changePct)
+    targetPriceEur?.let { String.format(Locale.GERMANY, "%.2f € (%+.1f %%)", it, changePct) } ?: formatRadarPercent(changePct)
 
 private fun formatRadarForecastRange(point: ForecastPoint): String {
     val low = point.bearTargetPriceEur
     val high = point.bullTargetPriceEur
-    return if (low != null && high != null) {
-        String.format(Locale.GERMANY, "%.2f–%.2f €", low, high)
-    } else {
-        String.format(Locale.GERMANY, "%+.1f bis %+.1f %%", point.bearChangePct, point.bullChangePct)
-    }
+    return if (low != null && high != null) String.format(Locale.GERMANY, "%.2f–%.2f €", low, high)
+    else String.format(Locale.GERMANY, "%+.1f bis %+.1f %%", point.bearChangePct, point.bullChangePct)
 }
 
 private fun radarAdvisorActionLabel(action: PortfolioAdvisorAction): String = when (action) {
