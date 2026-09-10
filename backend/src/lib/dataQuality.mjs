@@ -28,8 +28,8 @@ export function evaluateDataQuality({ item, quote, history, fundamentals }) {
     : [];
 
   const overallCoverage = isEtf
-    ? round(quoteCoverage * 0.30 + historyCoverage * 0.45 + etfMetadataCoverage(item) * 0.25)
-    : round(quoteCoverage * 0.20 + historyCoverage * 0.30 + fundamentalCoverage * 0.35 + forecastInputCoverage * 0.15);
+    ? round(quoteCoverage * 0.35 + historyCoverage * 0.45 + etfMetadataCoverage(item) * 0.20)
+    : round(quoteCoverage * 0.20 + historyCoverage * 0.30 + fundamentalCoverage * 0.50);
 
   const hasCriticalFailure = quoteCritical || historyCritical || stockFundamentalsCritical || criticalConflicts.length > 0;
   const qualityTier = hasCriticalFailure
