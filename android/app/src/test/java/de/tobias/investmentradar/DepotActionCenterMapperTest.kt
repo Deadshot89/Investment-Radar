@@ -86,6 +86,34 @@ class DepotActionCenterMapperTest {
     }
 
     @Test
+    fun backendQualityGateDowngradesSavingsPlanEvenWhenLegacyAdvisorSaysReliable() {
+        val plan = ActionPlan("plan", "2026-09-08", 100.0, 0.0, listOf(action("saving", ActionType.KEEP_SAVINGS_PLAN, 20.0)))
+        val candidate = candidate("saving", reliable = true, coverage = 75)
+        val investment = testInvestmentItem(id = "saving", type = "AKTIE", recommendation = "WATCH", coverage = 75).copy(
+            dataQuality = RadarDataQuality(
+                quoteCoverage = 100,
+                historyCoverage = 80,
+                fundamentalCoverage = 55,
+                forecastInputCoverage = 75,
+                overallCoverage = 75,
+                qualityTier = "GUT"
+            ),
+            forecast = RadarForecast(quality = "MITTEL", confidencePct = 75)
+        )
+
+        val item = DepotActionCenterMapper.build(
+            plan,
+            mapOf("saving" to candidate),
+            mapOf("saving" to investment),
+            emptyMap()
+        ).items.single()
+
+        assertEquals(ActionType.REVIEW_SAVINGS_PLAN, item.type)
+        assertEquals("Sparplan 20 € prüfen – Datenbasis unvollständig", item.actionText)
+        assertEquals("UNVOLLSTÄNDIG", item.dataQualityLabel)
+    }
+
+    @Test
     fun reliableAmountComesUnchangedFromActionPlan() {
         val plan = ActionPlan("plan", "2026-09-08", 100.0, 0.0, listOf(action("buy", ActionType.BUY_MORE, 37.0)))
         val candidate = candidate("buy", reliable = true, coverage = 90)
