@@ -6,7 +6,11 @@ import { cacheFromQuotes, loadQuoteCache as defaultLoadQuoteCache, mergeQuotesWi
 import { cacheFromFxRates, loadFxCache as defaultLoadFxCache, mergeFxRatesWithCache, saveFxCache as defaultSaveFxCache } from "./fxCache.mjs";
 import { loadHistory as defaultLoadHistory } from "./history.mjs";
 import { loadFundamentals as defaultLoadFundamentals } from "./fundamentals.mjs";
+import { normalizeAnalysisInput } from "./analysisDataNormalizer.mjs";
+import { evaluateDataQuality } from "./dataQuality.mjs";
 import { scoreInvestment } from "./scoring.mjs";
+import { forecast12m } from "./forecast12m.mjs";
+import { applyPurchaseQualityGate } from "./radar.mjs";
 import { buildCompatibilityAllocations, legacyStatus } from "./compatibility.mjs";
 
 export async function buildAnalysisSnapshot(overrides = {}) {
@@ -42,15 +46,30 @@ export async function buildAnalysisSnapshot(overrides = {}) {
     const quote = quotes.get(item.id) ?? null;
     const momentum = history.get(item.id) ?? null;
     const fundamental = fundamentals.get(item.id) ?? null;
-    const analysis = scoreInvestment({ item, fundamentals: fundamental, momentum, quote });
-    return { item, quote, momentum, fundamental, analysis };
+    const normalized = normalizeAnalysisInput({ item, quote, history: momentum, fundamentals: fundamental });
+    const dataQuality = evaluateDataQuality({ item, quote, history: momentum, fundamentals: fundamental });
+    const scored = scoreInvestment({ item, fundamentals: fundamental, momentum, quote });
+    const gated = applyPurchaseQualityGate({ item, analysis: scored, dataQuality });
+    const analysis = { ...scored, recommendation: gated.recommendation };
+    const forecast = forecast12m({
+      ...item,
+      scoreQuality: analysis.scoreQuality,
+      scoreValuation: analysis.scoreValuation,
+      scoreGrowth: analysis.scoreGrowth,
+      scoreRisk: analysis.scoreRisk,
+      momentum,
+      fundamentals: fundamental?.metrics ?? normalized?.fundamentals ?? {},
+      coverage: dataQuality.overallCoverage,
+      dataQuality
+    });
+    return { item, quote, momentum, fundamental, analysis, dataQuality, forecast, purchaseEligible: gated.purchaseEligible };
   });
   const compatibility = buildCompatibilityAllocations(
     analyzed.map(({ item, analysis }) => ({ id: item.id, ...analysis })),
     config.budget
   );
 
-  const items = analyzed.map(({ item, quote, momentum, fundamental, analysis }) => {
+  const items = analyzed.map(({ item, quote, momentum, fundamental, analysis, dataQuality, forecast, purchaseEligible }) => {
     const currency = String(quote?.currency ?? "").trim().toUpperCase();
     const fxDetail = currency && currency !== "EUR" ? fxDetails.get(currency) : null;
     const fxRateToEur = currency && currency !== "EUR" ? fxDetail?.rate ?? null : currency === "EUR" ? 1 : null;
@@ -82,9 +101,22 @@ export async function buildAnalysisSnapshot(overrides = {}) {
       scoreGrowth: analysis.scoreGrowth,
       scoreMomentum: analysis.scoreMomentum,
       scoreRisk: analysis.scoreRisk,
-      coverage: analysis.coverage,
+      scoreBreakdown: analysis.scoreBreakdown,
+      coverage: dataQuality.overallCoverage,
+      dataQuality,
+      forecast,
       recommendation: analysis.recommendation,
       recommendationReasons: analysis.recommendationReasons,
+      purchaseEligible,
+      diagnostics: {
+        quoteSource: quote?.source ?? "",
+        historySource: momentum?.source ?? "",
+        fundamentalSource: fundamental?.source ?? "",
+        missingBlocks: dataQuality.missingBlocks,
+        criticalConflicts: dataQuality.criticalConflicts,
+        historyStale: Boolean(momentum?.stale),
+        fundamentalsStale: Boolean(fundamental?.stale)
+      },
       momentum: momentum ? {
         d1: momentum.d1 ?? null,
         m1: momentum.m1 ?? null,
@@ -107,6 +139,7 @@ export async function buildAnalysisSnapshot(overrides = {}) {
         error: fundamental.error ?? null
       } : null,
       analysisAsOf: new Date().toISOString(),
+      portfolioOnly: Boolean(item.portfolioOnly),
       reviewDrop1dPct: item.reviewDrop1dPct,
       hardReviewBelow: item.hardReviewBelow ?? null,
       alertStatus: item.alertStatus ?? "",
