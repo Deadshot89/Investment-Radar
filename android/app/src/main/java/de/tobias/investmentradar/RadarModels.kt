@@ -36,6 +36,55 @@ data class RadarCounts(
     val review: Int = 0
 )
 
+data class RadarDataQuality(
+    val quoteCoverage: Int? = null,
+    val historyCoverage: Int? = null,
+    val fundamentalCoverage: Int? = null,
+    val forecastInputCoverage: Int? = null,
+    val overallCoverage: Int? = null,
+    val qualityTier: String = "",
+    val missingBlocks: List<String> = emptyList(),
+    val criticalConflicts: List<String> = emptyList()
+)
+
+data class RadarScorePillar(
+    val score: Int? = null,
+    val coverage: Int? = null,
+    val reasons: List<String> = emptyList(),
+    val inputs: Map<String, Double> = emptyMap()
+)
+
+data class RadarScoreBreakdown(
+    val quality: RadarScorePillar? = null,
+    val valuation: RadarScorePillar? = null,
+    val growth: RadarScorePillar? = null,
+    val momentum: RadarScorePillar? = null,
+    val risk: RadarScorePillar? = null
+)
+
+data class RadarForecast(
+    val expectedChangePct: Double? = null,
+    val bearChangePct: Double? = null,
+    val bullChangePct: Double? = null,
+    val direction: String = "UNKNOWN",
+    val quality: String = "NICHT_BELASTBAR",
+    val confidencePct: Int? = null,
+    val reasons: List<String> = emptyList(),
+    val risks: List<String> = emptyList(),
+    val usedInputs: List<String> = emptyList(),
+    val asOf: String? = null
+)
+
+data class RadarDiagnostics(
+    val quoteSource: String = "",
+    val historySource: String = "",
+    val fundamentalSource: String = "",
+    val missingBlocks: List<String> = emptyList(),
+    val criticalConflicts: List<String> = emptyList(),
+    val historyStale: Boolean = false,
+    val fundamentalsStale: Boolean = false
+)
+
 data class RadarSummaryItem(
     val id: String,
     val type: String,
@@ -69,6 +118,10 @@ data class RadarSummaryItem(
     val dataDelayed: Boolean,
     val dataError: String?,
     val analysisAsOf: String?,
+    val dataQuality: RadarDataQuality? = null,
+    val scoreBreakdown: RadarScoreBreakdown? = null,
+    val forecast: RadarForecast? = null,
+    val diagnostics: RadarDiagnostics? = null,
     val momentum: MomentumSnapshot? = null,
     val fundamentals: FundamentalSnapshot? = null
 ) {
