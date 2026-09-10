@@ -2,6 +2,7 @@ package de.tobias.investmentradar
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -30,6 +31,15 @@ class RadarFilterStateTest {
         )
         val result = RadarFilterEngine.apply(listOf(buyHeld, buyNotHeld), state, setOf("a"), emptySet(), emptyMap())
         assertEquals(listOf("a"), result.map { it.id })
+    }
+
+    @Test
+    fun serverQualityTierQueryUsesCurrentBackendContract() {
+        assertNull(radarQualityTierQuery(RadarDataQualityFilter.ALL))
+        assertEquals("HOCH", radarQualityTierQuery(RadarDataQualityFilter.HIGH))
+        assertEquals("GUT", radarQualityTierQuery(RadarDataQualityFilter.GOOD))
+        assertEquals("EINGESCHRÄNKT", radarQualityTierQuery(RadarDataQualityFilter.LIMITED))
+        assertEquals("UNVOLLSTÄNDIG", radarQualityTierQuery(RadarDataQualityFilter.INCOMPLETE))
     }
 
     @Test
