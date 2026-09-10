@@ -28,8 +28,9 @@ data class InvestmentForecast(
 )
 
 /**
- * Transparentes Szenario-Modell auf Basis der bereits vorhandenen Radar-Daten.
- * Es ist kein Analystenkursziel und keine Garantie für zukünftige Kurse.
+ * Transparentes Szenario-Modell auf Basis der vorhandenen Radar-Daten.
+ * Für 12 Monate hat die serverseitige Multi-Source-Prognose Vorrang.
+ * Eine vom Backend als nicht belastbar markierte 12M-Prognose wird nicht lokal ersetzt.
  */
 object ForecastEngine {
     fun forecast(item: InvestmentItem): InvestmentForecast {
@@ -37,7 +38,7 @@ object ForecastEngine {
             ?: item.price?.takeIf { item.currency.isBlank() || item.currency.equals("EUR", ignoreCase = true) }
         val fundamentalAnnual = fundamentalAnnualDrift(item)
 
-        val points = ForecastHorizon.entries.map { horizon ->
+        val localPoints = ForecastHorizon.entries.map { horizon ->
             val momentum = momentumFor(item.momentum, horizon)
             val horizonScale = horizon.months / 12.0
             val momentumWeight = when (horizon) {
@@ -71,7 +72,35 @@ object ForecastEngine {
             )
         }
 
-        return InvestmentForecast(points = points, coveragePct = item.coverage)
+        val backend = item.forecast
+        val points = when {
+            backend == null -> localPoints
+            backend.quality.equals("NICHT_BELASTBAR", ignoreCase = true) ->
+                localPoints.filterNot { it.horizon == ForecastHorizon.TWELVE_MONTHS }
+            backend.expectedChangePct != null && backend.bearChangePct != null && backend.bullChangePct != null -> {
+                val serverPoint = ForecastPoint(
+                    horizon = ForecastHorizon.TWELVE_MONTHS,
+                    expectedChangePct = backend.expectedChangePct,
+                    bearChangePct = backend.bearChangePct,
+                    bullChangePct = backend.bullChangePct,
+                    targetPriceEur = basePrice?.targetFrom(backend.expectedChangePct),
+                    bearTargetPriceEur = basePrice?.targetFrom(backend.bearChangePct),
+                    bullTargetPriceEur = basePrice?.targetFrom(backend.bullChangePct),
+                    direction = backendDirection(backend.direction, backend.expectedChangePct),
+                    reasons = backend.reasons.ifEmpty { listOf("Serverseitige Multi-Source-Analyse") }.take(4)
+                )
+                localPoints.filterNot { it.horizon == ForecastHorizon.TWELVE_MONTHS } + serverPoint
+            }
+            else -> localPoints.filterNot { it.horizon == ForecastHorizon.TWELVE_MONTHS }
+        }
+
+        val coverage = item.dataQuality?.forecastInputCoverage ?: item.coverage
+        val modelLabel = when {
+            backend == null -> "Modellbasierte Einschätzung"
+            backend.quality.equals("NICHT_BELASTBAR", ignoreCase = true) -> "12M-Prognose nicht belastbar"
+            else -> "Multi-Source-12M-Prognose"
+        }
+        return InvestmentForecast(points = points, coveragePct = coverage, modelLabel = modelLabel)
     }
 
     private fun fundamentalAnnualDrift(item: InvestmentItem): Double {
@@ -116,6 +145,13 @@ object ForecastEngine {
         changePct >= 2.5 -> "↗ Aufwärts"
         changePct <= -2.5 -> "↘ Abwärts"
         else -> "→ Seitwärts"
+    }
+
+    private fun backendDirection(raw: String, fallbackChangePct: Double): String = when (raw.trim().uppercase()) {
+        "UP" -> "↗ Aufwärts"
+        "DOWN" -> "↘ Abwärts"
+        "SIDEWAYS" -> "→ Seitwärts"
+        else -> direction(fallbackChangePct)
     }
 
     private fun reasons(item: InvestmentItem, horizon: ForecastHorizon, momentum: Double?): List<String> {
