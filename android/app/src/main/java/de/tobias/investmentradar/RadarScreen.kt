@@ -86,12 +86,7 @@ fun RadarScreenV2(
                 RadarRecommendationFilter.REVIEW -> "REVIEW"
                 else -> null
             },
-            qualityTier = when (filters.dataQuality) {
-                RadarDataQualityFilter.FULL -> "A"
-                RadarDataQualityFilter.REDUCED -> "B"
-                RadarDataQualityFilter.INSUFFICIENT -> "C"
-                else -> null
-            },
+            qualityTier = radarQualityTierQuery(filters.dataQuality),
             riskMax = when (filters.risk) {
                 RadarRiskFilter.LOW -> 2
                 RadarRiskFilter.MEDIUM -> 3
@@ -540,13 +535,22 @@ private fun RadarSummaryItem.tradeRepublicStatusLabel(): String = when {
 private fun InvestmentItem.toRadarFallback(): RadarSummaryItem = RadarSummaryItem(
     id = id, type = type, name = name, ticker = ticker, isin = isin, tradeRepublicName = tradeRepublicName,
     region = "", country = "", sector = "", industry = "", marketCapBucket = "",
-    tradeRepublicEligible = true, dataQualityTier = if ((coverage ?: 0) >= 70) "A" else "B", risk = risk,
+    tradeRepublicEligible = true,
+    dataQualityTier = when (coverage) {
+        null -> "UNVOLLSTÄNDIG"
+        in 85..Int.MAX_VALUE -> "HOCH"
+        in 70..84 -> "GUT"
+        in 50..69 -> "EINGESCHRÄNKT"
+        else -> "UNVOLLSTÄNDIG"
+    },
+    risk = risk,
     price = price, priceEur = priceEur, currency = currency, percentChange = percentChange,
     scoreTotal = scoreTotal, scoreQuality = scoreQuality, scoreValuation = scoreValuation, scoreGrowth = scoreGrowth,
     scoreMomentum = scoreMomentum, scoreRisk = scoreRisk, coverage = coverage, recommendation = recommendation,
     recommendationReasons = recommendationReasons, purchaseEligible = recommendation == "BUY" && !portfolioOnly,
     dataSource = dataSource, dataDelayed = dataDelayed, dataError = dataError, analysisAsOf = analysisAsOf,
-    momentum = momentum, fundamentals = fundamentals
+    momentum = momentum, fundamentals = fundamentals,
+    dataQuality = dataQuality, scoreBreakdown = scoreBreakdown, forecast = forecast, diagnostics = diagnostics
 )
 
 private fun RadarSortMode.sortLabel(): String = when (this) {
@@ -580,9 +584,10 @@ private fun RadarHoldingFilter.holdingLabel(): String = when (this) {
 
 private fun RadarDataQualityFilter.dataLabel(): String = when (this) {
     RadarDataQualityFilter.ALL -> "Alle"
-    RadarDataQualityFilter.FULL -> "A"
-    RadarDataQualityFilter.REDUCED -> "B"
-    RadarDataQualityFilter.INSUFFICIENT -> "C"
+    RadarDataQualityFilter.HIGH -> "Hoch"
+    RadarDataQualityFilter.GOOD -> "Gut"
+    RadarDataQualityFilter.LIMITED -> "Eingeschränkt"
+    RadarDataQualityFilter.INCOMPLETE -> "Unvollständig"
 }
 
 private fun RadarRiskFilter.riskLabel(): String = when (this) {
