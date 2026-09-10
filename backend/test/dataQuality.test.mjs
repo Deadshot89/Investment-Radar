@@ -32,6 +32,41 @@ test('stock with quote, full history and fundamentals gets high coverage', () =>
   assert.deepEqual(q.criticalConflicts, []);
 });
 
+test('stock overall coverage follows approved 20/30/50 weights and excludes forecast coverage', () => {
+  const q = evaluateDataQuality({
+    item: { type: 'STOCK', risk: 2 },
+    quote: { price: 100, currency: 'EUR', percentChange: 1 },
+    history: { m1: 1, m3: 2, m6: 4, m12: 10, pointsCount: 250, coveragePct: 100 },
+    fundamentals: {
+      metrics: {
+        pe: 20,
+        revenueGrowth: 0.1,
+        epsGrowth: 0.12,
+        operatingMargin: 0.2,
+        roe: 0.3,
+        debtToEquity: 1
+      }
+    }
+  });
+
+  assert.equal(q.fundamentalCoverage, 55);
+  assert.equal(q.forecastInputCoverage, 100);
+  assert.equal(q.overallCoverage, 78);
+});
+
+test('ETF overall coverage follows approved 35/45/20 weights', () => {
+  const q = evaluateDataQuality({
+    item: { type: 'ETF' },
+    quote: { price: 120, currency: 'EUR', percentChange: 0.3 },
+    history: { m1: 1, m3: 2, m6: 5, m12: null, pointsCount: 150, coveragePct: 50 },
+    fundamentals: null
+  });
+
+  assert.equal(q.quoteCoverage, 100);
+  assert.equal(q.historyCoverage, 50);
+  assert.equal(q.overallCoverage, 58);
+});
+
 test('missing quote forces incomplete quality tier', () => {
   const q = evaluateDataQuality({
     item: { type: 'STOCK', risk: 2 },
