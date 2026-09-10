@@ -160,4 +160,24 @@ class AlertCenterStateTest {
         assertEquals("BUY", done.alert.level)
         assertTrue(done.isConfirmed)
     }
+
+    @Test fun openBuyIsDowngradedWhenStockFundamentalsAreBelowBuyThreshold() {
+        val openBuy = StoredAlert(SignalAlert("open-buy", "apple", "BUY", "Kaufchance", "", "2026-09-10T18:00:00Z"))
+        val current = testInvestmentItem(id = "apple", type = "AKTIE", recommendation = "BUY", coverage = 75).copy(
+            forecast = RadarForecast(quality = "MITTEL", confidencePct = 75),
+            dataQuality = RadarDataQuality(
+                quoteCoverage = 100,
+                historyCoverage = 80,
+                fundamentalCoverage = 55,
+                forecastInputCoverage = 75,
+                overallCoverage = 75,
+                qualityTier = "GUT"
+            )
+        )
+
+        val reconciled = AlertCenterState.reconcileCurrentAnalysis(listOf(openBuy), mapOf("apple" to current))
+
+        assertEquals("REVIEW", reconciled.single().alert.level)
+        assertTrue(reconciled.single().alert.message.contains("aktuelle Datenbasis", ignoreCase = true))
+    }
 }
