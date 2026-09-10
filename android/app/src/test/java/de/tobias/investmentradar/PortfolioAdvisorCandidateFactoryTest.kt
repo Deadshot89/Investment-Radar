@@ -86,6 +86,39 @@ class PortfolioAdvisorCandidateFactoryTest {
         assertEquals(PortfolioAdvisorAction.KEINE_BELASTBARE_BEWERTUNG, newCandidate.action)
     }
 
+    @Test
+    fun backendNonActionableForecastBlocksLocalBuyAdviceEvenWithStrongScores() {
+        val item = advisorReadyItem("blocked", quality = 95, valuation = 95, growth = 95, momentum = 95, riskScore = 95).copy(
+            forecast = RadarForecast(
+                expectedChangePct = null,
+                bearChangePct = null,
+                bullChangePct = null,
+                direction = "UNKNOWN",
+                quality = "NICHT_BELASTBAR",
+                confidencePct = 30,
+                reasons = listOf("Historie fehlt"),
+                risks = listOf("Datenbasis unvollständig")
+            ),
+            dataQuality = RadarDataQuality(
+                overallCoverage = 85,
+                forecastInputCoverage = 30,
+                qualityTier = "UNVOLLSTÄNDIG",
+                missingBlocks = listOf("history", "forecast")
+            )
+        )
+
+        val candidate = PortfolioAdvisorCandidateFactory.create(
+            item = item,
+            isHolding = true,
+            currentValueEur = 1000.0,
+            monthlySavingsEur = 20,
+            freshness = currentFreshness(85)
+        )
+
+        assertFalse(candidate.advisor.reliable)
+        assertEquals(PortfolioAdvisorAction.KEINE_BELASTBARE_BEWERTUNG, candidate.action)
+    }
+
     private fun advisorReadyItem(
         id: String,
         quality: Int,
