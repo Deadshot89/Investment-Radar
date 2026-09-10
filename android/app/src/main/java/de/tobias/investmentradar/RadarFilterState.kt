@@ -3,9 +3,17 @@ package de.tobias.investmentradar
 enum class RadarRecommendationFilter { ALL, BUY, WATCH, NO_BUY, REVIEW }
 enum class RadarTypeFilter { ALL, STOCK, ETF }
 enum class RadarHoldingFilter { ALL, HELD, NOT_HELD }
-enum class RadarDataQualityFilter { ALL, FULL, REDUCED, INSUFFICIENT }
+enum class RadarDataQualityFilter { ALL, HIGH, GOOD, LIMITED, INCOMPLETE }
 enum class RadarRiskFilter { ALL, LOW, MEDIUM, HIGH }
 enum class RadarSortMode { SCORE, ALLOCATION, MOMENTUM_6M, DAY_ASC, DAY_DESC, NAME }
+
+fun radarQualityTierQuery(filter: RadarDataQualityFilter): String? = when (filter) {
+    RadarDataQualityFilter.ALL -> null
+    RadarDataQualityFilter.HIGH -> "HOCH"
+    RadarDataQualityFilter.GOOD -> "GUT"
+    RadarDataQualityFilter.LIMITED -> "EINGESCHRÄNKT"
+    RadarDataQualityFilter.INCOMPLETE -> "UNVOLLSTÄNDIG"
+}
 
 data class RadarFilterState(
     val query: String = "",
@@ -164,9 +172,10 @@ object RadarFilterEngine {
     private fun matchesCoverage(coverage: Int?, filter: RadarDataQualityFilter): Boolean =
         when (filter) {
             RadarDataQualityFilter.ALL -> true
-            RadarDataQualityFilter.FULL -> coverage != null && coverage >= 70
-            RadarDataQualityFilter.REDUCED -> coverage != null && coverage in 50..69
-            RadarDataQualityFilter.INSUFFICIENT -> coverage == null || coverage < 50
+            RadarDataQualityFilter.HIGH -> coverage != null && coverage >= 85
+            RadarDataQualityFilter.GOOD -> coverage != null && coverage in 70..84
+            RadarDataQualityFilter.LIMITED -> coverage != null && coverage in 50..69
+            RadarDataQualityFilter.INCOMPLETE -> coverage == null || coverage < 50
         }
 
     private fun matchesRisk(risk: Int, filter: RadarRiskFilter): Boolean =
