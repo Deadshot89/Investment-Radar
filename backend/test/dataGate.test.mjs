@@ -23,6 +23,9 @@ test('complete verified BUY remains purchase eligible', () => {
 });
 
 for (const [name, qualityPatch] of [
+  ['quote coverage below 100', { quoteCoverage: 99 }],
+  ['history coverage below 70', { historyCoverage: 69 }],
+  ['stock fundamental coverage below 60', { fundamentalCoverage: 59 }],
   ['overall coverage below 70', { overallCoverage: 69 }],
   ['forecast input coverage below 70', { forecastInputCoverage: 69 }],
   ['missing quote', { missingBlocks: ['quote'] }],
