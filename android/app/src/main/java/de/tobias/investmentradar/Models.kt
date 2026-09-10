@@ -76,7 +76,11 @@ data class InvestmentItem(
     val momentum: MomentumSnapshot? = null,
     val fundamentals: FundamentalSnapshot? = null,
     val analysisAsOf: String? = null,
-    val portfolioOnly: Boolean = false
+    val portfolioOnly: Boolean = false,
+    val dataQuality: RadarDataQuality? = null,
+    val scoreBreakdown: RadarScoreBreakdown? = null,
+    val forecast: RadarForecast? = null,
+    val diagnostics: RadarDiagnostics? = null
 )
 
 data class SignalAlert(
