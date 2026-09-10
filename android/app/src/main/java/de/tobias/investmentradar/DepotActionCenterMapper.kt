@@ -59,7 +59,9 @@ object DepotActionCenterMapper {
             val item = itemsById[action.instrumentId]
             val position = positions[action.instrumentId]
             val isHolding = position != null || candidate?.isHolding == true
-            val backendBlocked = item?.forecast?.quality.equals("NICHT_BELASTBAR", ignoreCase = true) ||
+            val currentQualityBlocked = currentAnalysisInsufficient(item)
+            val backendBlocked = currentQualityBlocked ||
+                item?.forecast?.quality.equals("NICHT_BELASTBAR", ignoreCase = true) ||
                 item?.dataQuality?.missingBlocks.orEmpty().any { it.equals("forecast", ignoreCase = true) }
             val analysisIncomplete = candidate?.advisor?.reliable == false ||
                 backendBlocked ||
@@ -102,8 +104,8 @@ object DepotActionCenterMapper {
                 profitLossEur = profitLoss,
                 score = candidate?.advisor?.score ?: item?.scoreTotal,
                 riskScore = candidate?.riskScore ?: item?.risk?.takeIf { it > 0 },
-                coveragePct = candidate?.coveragePct ?: item?.coverage,
-                forecastDirection = if (backendBlocked) "Nicht belastbar" else candidate?.forecastDirection,
+                coveragePct = item?.dataQuality?.overallCoverage ?: candidate?.coveragePct ?: item?.coverage,
+                forecastDirection = if (backendBlocked) "Nicht belastbar" else candidate?.forecastDirection ?: item?.forecast?.direction,
                 dataQualityLabel = if (analysisIncomplete || buyBlocked) "UNVOLLSTÄNDIG" else "AUSREICHEND"
             )
         }.sortedWith(
@@ -129,6 +131,24 @@ object DepotActionCenterMapper {
             ),
             items = mapped
         )
+    }
+
+    private fun currentAnalysisInsufficient(item: InvestmentItem?): Boolean {
+        val quality = item?.dataQuality ?: return false
+        val isEtf = item.type.equals("ETF", ignoreCase = true)
+        val missing = quality.missingBlocks.map { it.lowercase() }.toSet()
+        val criticalMissing = "quote" in missing ||
+            "history" in missing ||
+            "forecast" in missing ||
+            (!isEtf && "fundamentals" in missing)
+
+        return (quality.quoteCoverage ?: 0) < 100 ||
+            (quality.historyCoverage ?: 0) < 70 ||
+            (!isEtf && (quality.fundamentalCoverage ?: 0) < 60) ||
+            (quality.forecastInputCoverage ?: 0) < 70 ||
+            (quality.overallCoverage ?: 0) < 70 ||
+            quality.criticalConflicts.isNotEmpty() ||
+            criticalMissing
     }
 
     private fun actionText(action: ActionPlanAction, effectiveType: ActionType, buyBlocked: Boolean, analysisIncomplete: Boolean): String {
