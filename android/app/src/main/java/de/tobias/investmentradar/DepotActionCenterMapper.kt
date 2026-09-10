@@ -59,8 +59,18 @@ object DepotActionCenterMapper {
             val item = itemsById[action.instrumentId]
             val position = positions[action.instrumentId]
             val isHolding = position != null || candidate?.isHolding == true
-            val buyBlocked = action.type in setOf(ActionType.BUY_MORE, ActionType.OPEN_POSITION) &&
-                (candidate == null || candidate.advisor.reliable.not() || (candidate.coveragePct ?: 0) < 50)
+            val backendBlocked = item?.forecast?.quality.equals("NICHT_BELASTBAR", ignoreCase = true) ||
+                item?.dataQuality?.missingBlocks.orEmpty().any { it.equals("forecast", ignoreCase = true) }
+            val analysisIncomplete = candidate?.advisor?.reliable == false ||
+                backendBlocked ||
+                (candidate?.coveragePct != null && candidate.coveragePct < 60)
+            val effectiveType = if (action.type == ActionType.KEEP_SAVINGS_PLAN && analysisIncomplete) {
+                ActionType.REVIEW_SAVINGS_PLAN
+            } else {
+                action.type
+            }
+            val buyBlocked = effectiveType in setOf(ActionType.BUY_MORE, ActionType.OPEN_POSITION) &&
+                (candidate == null || candidate.advisor.reliable.not() || (candidate.coveragePct ?: 0) < 60 || backendBlocked)
             val currentValue = candidate?.currentValueEur
             val basis = position?.activeCostBasis?.takeIf { position.performanceCostBasisKnown }
             val profitLoss = if (basis != null && currentValue != null) {
@@ -68,7 +78,7 @@ object DepotActionCenterMapper {
             } else {
                 null
             }
-            val executable = when (action.type) {
+            val executable = when (effectiveType) {
                 ActionType.HOLD_CASH -> false
                 ActionType.BUY_MORE, ActionType.OPEN_POSITION -> !buyBlocked
                 else -> true
@@ -77,10 +87,10 @@ object DepotActionCenterMapper {
 
             DepotActionCenterItem(
                 actionId = action.actionId,
-                type = action.type,
+                type = effectiveType,
                 instrumentId = action.instrumentId,
                 instrumentName = item?.name ?: if (action.instrumentId == "cash") "Cash" else action.instrumentId,
-                actionText = actionText(action, buyBlocked),
+                actionText = actionText(action, effectiveType, buyBlocked, analysisIncomplete),
                 reason = action.reason,
                 priority = action.priority,
                 isHolding = isHolding,
@@ -93,8 +103,8 @@ object DepotActionCenterMapper {
                 score = candidate?.advisor?.score ?: item?.scoreTotal,
                 riskScore = candidate?.riskScore ?: item?.risk?.takeIf { it > 0 },
                 coveragePct = candidate?.coveragePct ?: item?.coverage,
-                forecastDirection = candidate?.forecastDirection,
-                dataQualityLabel = if (buyBlocked) "UNVOLLSTÄNDIG" else "AUSREICHEND"
+                forecastDirection = if (backendBlocked) "Nicht belastbar" else candidate?.forecastDirection,
+                dataQualityLabel = if (analysisIncomplete || buyBlocked) "UNVOLLSTÄNDIG" else "AUSREICHEND"
             )
         }.sortedWith(
             compareBy<DepotActionCenterItem> { typeRank[it.type] ?: Int.MAX_VALUE }
@@ -121,13 +131,17 @@ object DepotActionCenterMapper {
         )
     }
 
-    private fun actionText(action: ActionPlanAction, buyBlocked: Boolean): String {
+    private fun actionText(action: ActionPlanAction, effectiveType: ActionType, buyBlocked: Boolean, analysisIncomplete: Boolean): String {
         if (buyBlocked) return "Nicht kaufen – Datenbasis unvollständig"
         val amount = formatEur(action.amountEur)
-        return when (action.type) {
+        return when (effectiveType) {
             ActionType.SELL -> "Verkauf von ca. $amount prüfen"
             ActionType.REDUCE -> "Reduzierung um ca. $amount prüfen"
-            ActionType.REVIEW_SAVINGS_PLAN -> "Sparplan $amount prüfen"
+            ActionType.REVIEW_SAVINGS_PLAN -> if (analysisIncomplete && action.type == ActionType.KEEP_SAVINGS_PLAN) {
+                "Sparplan $amount prüfen – Datenbasis unvollständig"
+            } else {
+                "Sparplan $amount prüfen"
+            }
             ActionType.BUY_MORE -> "Position um ca. $amount erhöhen"
             ActionType.OPEN_POSITION -> "Neue Position mit ca. $amount eröffnen"
             ActionType.KEEP_SAVINGS_PLAN -> "Sparplan $amount beibehalten"
