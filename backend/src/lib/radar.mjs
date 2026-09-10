@@ -163,8 +163,11 @@ export function applyPurchaseQualityGate({ item, analysis, dataQuality }) {
   const missing = new Set(Array.isArray(dataQuality?.missingBlocks) ? dataQuality.missingBlocks : []);
   const conflicts = Array.isArray(dataQuality?.criticalConflicts) ? dataQuality.criticalConflicts : [];
   const identityEligible = item?.tradeRepublicEligible === true && item?.universeActive !== false && !item?.portfolioOnly;
-  const qualityEligible = Number(dataQuality?.overallCoverage ?? 0) >= 70
+  const qualityEligible = Number(dataQuality?.quoteCoverage ?? 0) === 100
+    && Number(dataQuality?.historyCoverage ?? 0) >= 70
+    && (isEtf || Number(dataQuality?.fundamentalCoverage ?? 0) >= 60)
     && Number(dataQuality?.forecastInputCoverage ?? 0) >= 70
+    && Number(dataQuality?.overallCoverage ?? 0) >= 70
     && !missing.has("quote")
     && !missing.has("history")
     && (isEtf || !missing.has("fundamentals"))
