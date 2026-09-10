@@ -113,6 +113,23 @@ test('SEC supplements partial Yahoo data for safely matched US companies', async
   assert.match(out.source, /SEC Companyfacts/);
 });
 
+test('Yahoo explicit null values remain missing instead of becoming zero', async () => {
+  const fetchImpl = async () => jsonResponse({
+    quoteSummary: { result: [{
+      summaryDetail: { trailingPE: { raw: null }, priceToSalesTrailing12Months: { raw: null }, marketCap: { raw: null } },
+      defaultKeyStatistics: { forwardPE: { raw: null }, enterpriseToEbitda: { raw: null } },
+      financialData: {
+        revenueGrowth: { raw: null }, earningsGrowth: { raw: null }, operatingMargins: { raw: null },
+        profitMargins: { raw: null }, returnOnEquity: { raw: null }, debtToEquity: { raw: null }, freeCashflow: { raw: null }
+      }
+    }] }
+  });
+
+  const out = await loadFundamentalFallback({ yahooSymbol: 'NULLS', type: 'STOCK' }, { fetchImpl });
+  assert.equal(out.raw, null);
+  assert.deepEqual(out.fieldSources, {});
+});
+
 test('SEC is skipped when CIK is absent instead of guessing identity', async () => {
   let calls = 0;
   const fetchImpl = async () => { calls += 1; return jsonResponse({}, 404); };
