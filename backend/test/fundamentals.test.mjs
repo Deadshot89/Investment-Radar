@@ -48,3 +48,33 @@ test('merge keeps primary value and records material provider conflict', () => {
   assert.equal(merged.fieldSources.pe, 'Twelve Data');
   assert.equal(merged.fieldSources.revenueGrowth, 'Yahoo Finance');
 });
+
+test('ratio and growth fields conflict above 20 percent relative deviation', () => {
+  const merged = mergeFundamentalSources(
+    { raw: { pe: 20, revenueGrowth: 0.10 }, source: 'Twelve Data' },
+    { raw: { pe: 26, revenueGrowth: 0.13 }, source: 'Yahoo Finance' }
+  );
+
+  assert.ok(merged.conflicts.includes('pe'));
+  assert.ok(merged.conflicts.includes('revenueGrowth'));
+});
+
+test('margin and return fields conflict above five percentage points', () => {
+  const merged = mergeFundamentalSources(
+    { raw: { operatingMargin: 0.20, roe: 0.18, roic: 0.14 }, source: 'Twelve Data' },
+    { raw: { operatingMargin: 0.26, roe: 0.24, roic: 0.20 }, source: 'Yahoo Finance' }
+  );
+
+  assert.ok(merged.conflicts.includes('operatingMargin'));
+  assert.ok(merged.conflicts.includes('roe'));
+  assert.ok(merged.conflicts.includes('roic'));
+});
+
+test('exactly five percentage points is not yet a margin conflict', () => {
+  const merged = mergeFundamentalSources(
+    { raw: { netMargin: 0.20 }, source: 'Twelve Data' },
+    { raw: { netMargin: 0.25 }, source: 'Yahoo Finance' }
+  );
+
+  assert.ok(!merged.conflicts.includes('netMargin'));
+});
