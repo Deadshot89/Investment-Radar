@@ -54,10 +54,7 @@ test('SEC Companyfacts fills explicit US facts when Yahoo is unavailable', async
         StockholdersEquity: { units: { USD: [
           { fy: 2025, fp: 'FY', form: '10-K', filed: '2025-11-01', val: 200 }
         ] } },
-        Assets: { units: { USD: [
-          { fy: 2025, fp: 'FY', form: '10-K', filed: '2025-11-01', val: 500 }
-        ] } },
-        Liabilities: { units: { USD: [
+        LongTermDebtAndFinanceLeaseObligations: { units: { USD: [
           { fy: 2025, fp: 'FY', form: '10-K', filed: '2025-11-01', val: 300 }
         ] } }
       } }
