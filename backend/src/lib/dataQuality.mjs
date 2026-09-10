@@ -13,8 +13,9 @@ export function evaluateDataQuality({ item, quote, history, fundamentals }) {
   const forecastInputCoverage = forecastCoverage({ item, quote, history, fundamentals, isEtf });
   const missingBlocks = [];
 
-  const quoteCritical = !(finite(quote?.price) != null) || !String(quote?.currency ?? '').trim();
-  const historyCritical = Number(history?.pointsCount ?? 0) < 120 || finite(history?.m6) == null;
+  const quoteCritical = finite(quote?.price) == null || !String(quote?.currency ?? '').trim();
+  const explicitPoints = finite(history?.pointsCount);
+  const historyCritical = (explicitPoints != null ? explicitPoints < 120 : historyCoverage < 70) || finite(history?.m6) == null;
   const stockFundamentalsCritical = !isEtf && fundamentalCoverage < 50;
 
   if (quoteCritical) missingBlocks.push('quote');
@@ -76,6 +77,8 @@ function historyScore(history) {
 }
 
 function coverageForFundamentals(fundamentals) {
+  const explicit = finite(fundamentals?.coveragePct);
+  if (explicit != null) return clamp(round(explicit), 0, 100);
   const metrics = fundamentals?.metrics ?? fundamentals ?? {};
   const present = STOCK_FUNDAMENTAL_FIELDS.filter((field) => finite(metrics?.[field]) != null).length;
   return round((present / STOCK_FUNDAMENTAL_FIELDS.length) * 100);
@@ -98,6 +101,10 @@ function forecastCoverage({ item, quote, history, fundamentals, isEtf }) {
       finite(metrics?.pe) != null || finite(metrics?.evToEbitda) != null,
       finite(metrics?.roe) != null || finite(metrics?.roic) != null
     );
+    const explicitFundamentals = finite(fundamentals?.coveragePct);
+    if (explicitFundamentals != null && explicitFundamentals >= 70 && Object.keys(metrics).length === 0) {
+      return round((inputs.slice(0, 5).filter(Boolean).length / 5) * 100);
+    }
   }
 
   return round((inputs.filter(Boolean).length / inputs.length) * 100);
