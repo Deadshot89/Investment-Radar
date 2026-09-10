@@ -8,7 +8,7 @@ test("dashboard keeps legacy fields and adds analysis v2", async () => {
       marketLight: "GELB", budget: 100, topPickId: "x",
       items: [{
         id: "x", type: "AKTIE", name: "Example", ticker: "EX", isin: "US0378331005",
-        tradeRepublicName: "Example", marketSymbol: "EX:NYSE", risk: 2,
+        tradeRepublicName: "Example", tradeRepublicEligible: true, marketSymbol: "EX:NYSE", risk: 2,
         reviewDrop1dPct: 7, hardReviewBelow: 10
       }]
     }),
