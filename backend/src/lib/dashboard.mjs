@@ -171,7 +171,13 @@ export async function buildDashboard(overrides = {}) {
     previousRecommendations: snapshot.state.previousRecommendations,
     heldIds: new Set()
   });
+  const currentById = new Map(snapshot.items.map((item) => [item.id, item]));
   const recent = [...liveAlerts, ...(snapshot.state.recent ?? [])]
+    .filter((alert) => {
+      if (String(alert?.level ?? "").trim().toUpperCase() !== "BUY") return true;
+      const current = currentById.get(alert?.itemId);
+      return current?.recommendation === "BUY" && current?.purchaseEligible === true && current?.forecast?.quality !== "NICHT_BELASTBAR";
+    })
     .filter((alert, index, all) => all.findIndex((candidate) => candidate.id === alert.id) === index)
     .slice(0, 20);
   return {
