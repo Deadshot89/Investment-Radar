@@ -7,17 +7,47 @@ const PROVIDER_FIELDS = [
 
 export async function loadFundamentalFallback(item, { fetchImpl = fetch } = {}) {
   const yahoo = await loadYahooFundamentals(item, fetchImpl);
-  if (hasAny(yahoo.raw)) return yahoo;
-
   const sec = await loadSecFundamentals(item, fetchImpl);
-  if (hasAny(sec.raw)) return sec;
+  const merged = mergeFallbackResults(yahoo, sec);
+
+  if (hasAny(merged.raw)) return merged;
 
   return {
     raw: null,
-    source: yahoo.source || sec.source || '',
+    source: merged.source,
     asOf: null,
     error: [yahoo.error, sec.error].filter(Boolean).join(' · ') || 'Keine Fundamental-Fallbackdaten verfügbar',
     fieldSources: {}
+  };
+}
+
+function mergeFallbackResults(yahoo, sec) {
+  const y = yahoo?.raw ?? {};
+  const s = sec?.raw ?? {};
+  const raw = {};
+  const fieldSources = {};
+
+  for (const key of PROVIDER_FIELDS) {
+    const yv = finite(y[key]) ? Number(y[key]) : null;
+    const sv = finite(s[key]) ? Number(s[key]) : null;
+    if (yv != null) {
+      raw[key] = yv;
+      fieldSources[key] = yahoo?.fieldSources?.[key] || yahoo?.source || 'Yahoo Finance';
+    } else if (sv != null) {
+      raw[key] = sv;
+      fieldSources[key] = sec?.fieldSources?.[key] || sec?.source || 'SEC Companyfacts';
+    } else {
+      raw[key] = null;
+    }
+  }
+
+  const sources = [...new Set(Object.values(fieldSources).filter(Boolean))];
+  return {
+    raw: hasAny(raw) ? raw : null,
+    source: sources.join(' + ') || yahoo?.source || sec?.source || '',
+    asOf: newestDate(yahoo?.asOf, sec?.asOf),
+    error: null,
+    fieldSources
   };
 }
 
@@ -159,6 +189,10 @@ function finite(value) { return Number.isFinite(Number(value)); }
 function ratio(a, b) { return finite(a) && finite(b) && Number(b) !== 0 ? Number(a) / Number(b) : null; }
 function growth(current, previous) { return finite(current) && finite(previous) && Number(previous) !== 0 ? (Number(current) - Number(previous)) / Math.abs(Number(previous)) : null; }
 function hasAny(raw) { return raw && PROVIDER_FIELDS.some((key) => finite(raw[key])); }
+function newestDate(a, b) {
+  const dates = [a, b].filter(Boolean).map(String).sort();
+  return dates.at(-1) ?? null;
+}
 function empty(source, error) { return { raw: null, source, asOf: null, error, fieldSources: {} }; }
 function result(source, raw, asOf) {
   const fieldSources = Object.fromEntries(PROVIDER_FIELDS.filter((key) => finite(raw?.[key])).map((key) => [key, source]));
