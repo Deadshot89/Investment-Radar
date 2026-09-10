@@ -185,7 +185,10 @@ function rawNumber(value) {
 }
 
 function firstFinite(...values) { return values.find((v) => finite(v)) ?? null; }
-function finite(value) { return Number.isFinite(Number(value)); }
+function finite(value) {
+  if (value == null || (typeof value === 'string' && value.trim() === '')) return false;
+  return Number.isFinite(Number(value));
+}
 function ratio(a, b) { return finite(a) && finite(b) && Number(b) !== 0 ? Number(a) / Number(b) : null; }
 function growth(current, previous) { return finite(current) && finite(previous) && Number(previous) !== 0 ? (Number(current) - Number(previous)) / Math.abs(Number(previous)) : null; }
 function hasAny(raw) { return raw && PROVIDER_FIELDS.some((key) => finite(raw[key])); }
