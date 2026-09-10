@@ -42,5 +42,5 @@ fun main() {
 }
 KOTLIN
 
-kotlinc "$SRC/Models.kt" "$ENGINE" "$TMP/ForecastEngineSpec.kt" -include-runtime -d "$TMP/forecast-test.jar"
+kotlinc "$SRC/Models.kt" "$SRC/RadarModels.kt" "$ENGINE" "$TMP/ForecastEngineSpec.kt" -include-runtime -d "$TMP/forecast-test.jar"
 java -jar "$TMP/forecast-test.jar"
