@@ -302,7 +302,11 @@ object ApiClient {
             momentum = o.optJSONObject("momentum")?.let(::parseMomentum),
             fundamentals = o.optJSONObject("fundamentals")?.let(::parseFundamentals),
             analysisAsOf = o.nullableString("analysisAsOf"),
-            portfolioOnly = o.optBoolean("portfolioOnly", false)
+            portfolioOnly = o.optBoolean("portfolioOnly", false),
+            dataQuality = o.optJSONObject("dataQuality")?.let(::parseRadarDataQuality),
+            scoreBreakdown = o.optJSONObject("scoreBreakdown")?.let(::parseRadarScoreBreakdown),
+            forecast = o.optJSONObject("forecast")?.let(::parseRadarForecast),
+            diagnostics = o.optJSONObject("diagnostics")?.let(::parseRadarDiagnostics)
         )
     }
 
