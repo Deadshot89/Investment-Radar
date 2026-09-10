@@ -74,6 +74,18 @@ class DepotActionCenterMapperTest {
     }
 
     @Test
+    fun unreliableSavingsPlanIsDowngradedToReviewInsteadOfKeep() {
+        val plan = ActionPlan("plan", "2026-09-08", 100.0, 0.0, listOf(action("saving", ActionType.KEEP_SAVINGS_PLAN, 20.0)))
+        val candidate = candidate("saving", reliable = false, coverage = 35)
+
+        val item = DepotActionCenterMapper.build(plan, mapOf("saving" to candidate), emptyMap(), emptyMap()).items.single()
+
+        assertEquals(ActionType.REVIEW_SAVINGS_PLAN, item.type)
+        assertEquals("Sparplan 20 € prüfen – Datenbasis unvollständig", item.actionText)
+        assertEquals("UNVOLLSTÄNDIG", item.dataQualityLabel)
+    }
+
+    @Test
     fun reliableAmountComesUnchangedFromActionPlan() {
         val plan = ActionPlan("plan", "2026-09-08", 100.0, 0.0, listOf(action("buy", ActionType.BUY_MORE, 37.0)))
         val candidate = candidate("buy", reliable = true, coverage = 90)
