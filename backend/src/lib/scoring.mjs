@@ -66,36 +66,35 @@ function buildScoreBreakdown({ components, fundamentals, momentum, quote, item, 
   const metrics = fundamentals?.metrics ?? {};
   const fundamentalCoverage = Number.isFinite(Number(fundamentals?.coveragePct)) ? clamp(Number(fundamentals.coveragePct), 0, 100) : 0;
   const momentumCoverage = Number.isFinite(Number(momentum?.coveragePct)) ? clamp(Number(momentum.coveragePct), 0, 100) : 0;
-  const riskAvailable = components.risk != null;
 
   return {
     quality: pillar(
       components.quality,
-      isEtf ? (components.quality == null ? 0 : 100) : fundamentalCoverage,
+      components.quality == null ? 0 : (isEtf ? 100 : fundamentalCoverage),
       components.quality == null ? [] : [scoreReason(components.quality, "Qualität stark", "Qualität solide", "Qualität schwach")],
       isEtf ? compactInputs({ etfStructureScore: item?.etfStructureScore }) : compactInputs({ operatingMargin: metrics.operatingMargin, netMargin: metrics.netMargin, roe: metrics.roe, roic: metrics.roic, debtToEquity: metrics.debtToEquity })
     ),
     valuation: pillar(
       components.valuation,
-      isEtf ? (components.valuation == null ? 0 : 100) : fundamentalCoverage,
+      components.valuation == null ? 0 : (isEtf ? 100 : fundamentalCoverage),
       components.valuation == null ? [] : [scoreReason(components.valuation, "Bewertung attraktiv", "Bewertung fair", "Bewertung anspruchsvoll")],
       isEtf ? compactInputs({ etfValuationProxyScore: item?.etfValuationProxyScore }) : compactInputs({ pe: metrics.pe, priceToSales: metrics.priceToSales, evToEbitda: metrics.evToEbitda, freeCashFlowYield: metrics.freeCashFlowYield })
     ),
     growth: pillar(
       components.growth,
-      isEtf ? (components.growth == null ? 0 : 100) : fundamentalCoverage,
+      components.growth == null ? 0 : (isEtf ? 100 : fundamentalCoverage),
       components.growth == null ? [] : [scoreReason(components.growth, "Wachstum stark", "Wachstum solide", "Wachstum schwach")],
       isEtf ? compactInputs({ etfGrowthProxyScore: item?.etfGrowthProxyScore }) : compactInputs({ revenueGrowth: metrics.revenueGrowth, epsGrowth: metrics.epsGrowth })
     ),
     momentum: pillar(
       components.momentum,
-      momentumCoverage,
+      components.momentum == null ? 0 : momentumCoverage,
       components.momentum == null ? [] : [finite(momentum?.m6) != null && Number(momentum.m6) >= 10 ? "6M-Momentum positiv" : scoreReason(components.momentum, "Momentum stark", "Momentum neutral", "Momentum schwach")],
       compactInputs({ m1: momentum?.m1, m3: momentum?.m3, m6: momentum?.m6, m12: momentum?.m12 })
     ),
     risk: pillar(
       components.risk,
-      riskAvailable ? 100 : 0,
+      components.risk == null ? 0 : 100,
       components.risk == null ? [] : [scoreReason(components.risk, "Risiko günstig", "Risiko moderat", "Risiko erhöht")],
       compactInputs({ riskLevel: item?.risk, dailyChange: quote?.percentChange, m3: momentum?.m3, m6: momentum?.m6 })
     )
