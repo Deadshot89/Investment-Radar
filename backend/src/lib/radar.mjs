@@ -13,7 +13,8 @@ const MAX_PAGE_SIZE = 100;
 
 export async function queryRadar(query = {}, overrides = {}) {
   const loadUniverse = overrides.loadUniverse ?? defaultLoadUniverse;
-  const universe = await loadUniverse({ refresh: Boolean(query.refresh), ...(overrides.universeOptions ?? {}) });
+  const refreshRequested = Boolean(query.refresh) || String(query.refresh) === "true";
+  const universe = await loadUniverse({ refresh: refreshRequested, ...(overrides.universeOptions ?? {}) });
   const active = universe.filter((item) => item.universeActive !== false && !item.portfolioOnly);
   const filtered = applyFilters(active, query);
   const recommendation = upper(query.recommendation);
@@ -29,12 +30,12 @@ export async function queryRadar(query = {}, overrides = {}) {
     const verifiedActive = active.filter((item) => item.tradeRepublicEligible === true);
     const now = Number.isFinite(Number(overrides.now)) ? Number(overrides.now) : Date.now();
     const baseKey = radarAnalysisKey(verifiedActive);
-    const cacheKey = query.refresh ? `${baseKey}|refresh:${now}` : baseKey;
     const snapshot = await getRadarAnalysisSnapshot({
-      key: cacheKey,
+      key: baseKey,
       now,
       ttlMs: overrides.analysisTtlMs,
-      load: () => analyzeSummaries(verifiedActive, overrides)
+      forceReload: refreshRequested,
+      load: () => analyzeSummaries(verifiedActive, overrides, { refreshSlowData: refreshRequested })
     });
     const filteredIds = new Set(filtered.map((item) => item.id));
     analyzedFiltered = snapshot.items.filter((item) => filteredIds.has(item.id));
@@ -68,7 +69,7 @@ export async function queryRadar(query = {}, overrides = {}) {
   const page = clampInt(query.page ?? 1, 1, Math.max(1, Math.ceil(sorted.length / pageSize)));
   const start = (page - 1) * pageSize;
   const pageItems = sorted.slice(start, start + pageSize);
-  const analyzed = await analyzeSummaries(pageItems, overrides);
+  const analyzed = await analyzeSummaries(pageItems, overrides, { refreshSlowData: refreshRequested });
 
   return buildResponse({
     active,
@@ -102,7 +103,7 @@ export async function getInstrumentDetail(id, overrides = {}) {
   const universe = await loadUniverse(overrides.universeOptions ?? {});
   const instrument = universe.find((item) => item.id === id);
   if (!instrument) return null;
-  const [summary] = await analyzeSummaries([instrument], overrides, { includeDetails: true });
+  const [summary] = await analyzeSummaries([instrument], overrides, { includeDetails: true, refreshSlowData: true });
   return summary ?? compactFallback(instrument, "Analyse nicht verfügbar");
 }
 
@@ -180,11 +181,12 @@ async function analyzeSummaries(items, overrides, options = {}) {
   const loadHistory = overrides.loadHistory ?? defaultLoadHistory;
   const loadFundamentals = overrides.loadFundamentals ?? defaultLoadFundamentals;
   const loadEurRateDetails = overrides.loadEurRateDetails ?? defaultLoadEurRateDetails;
+  const refreshSlowData = Boolean(options.refreshSlowData ?? overrides.refreshSlowData ?? false);
   try {
     const [quotes, history, fundamentals] = await Promise.all([
       loadQuotes(items),
-      loadHistory(items, { refresh: false }),
-      loadFundamentals(items, { refresh: false })
+      loadHistory(items, { refresh: refreshSlowData }),
+      loadFundamentals(items, { refresh: refreshSlowData })
     ]);
     let fxDetails = new Map();
     try { fxDetails = await loadEurRateDetails(quotes); } catch { fxDetails = new Map(); }
