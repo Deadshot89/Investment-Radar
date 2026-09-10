@@ -4,6 +4,7 @@ import { loadHistory as defaultLoadHistory } from "./history.mjs";
 import { loadFundamentals as defaultLoadFundamentals } from "./fundamentals.mjs";
 import { normalizeAnalysisInput } from "./analysisDataNormalizer.mjs";
 import { evaluateDataQuality } from "./dataQuality.mjs";
+import { buildAnalysisDiagnostics } from "./analysisDiagnostics.mjs";
 import { scoreInvestment } from "./scoring.mjs";
 import { forecast12m } from "./forecast12m.mjs";
 import { getRadarAnalysisSnapshot, radarAnalysisKey } from "./radarAnalysisCache.mjs";
@@ -214,6 +215,13 @@ async function analyzeSummaries(items, overrides, options = {}) {
           coverage: dataQuality.overallCoverage,
           dataQuality
         });
+        const diagnosticFields = buildAnalysisDiagnostics({
+          item,
+          quote,
+          history: momentum,
+          fundamentals: fundamental,
+          dataQuality
+        });
         return {
           id: item.id,
           type: item.type,
@@ -243,6 +251,10 @@ async function analyzeSummaries(items, overrides, options = {}) {
           scoreBreakdown: analysis.scoreBreakdown,
           coverage: dataQuality.overallCoverage,
           dataQuality,
+          coverageBreakdown: diagnosticFields.coverageBreakdown,
+          missingData: diagnosticFields.missingData,
+          providerStatus: diagnosticFields.providerStatus,
+          analysisWarnings: diagnosticFields.analysisWarnings,
           forecast,
           recommendation: gated.recommendation,
           recommendationReasons: analysis.recommendationReasons,
@@ -258,7 +270,8 @@ async function analyzeSummaries(items, overrides, options = {}) {
             missingBlocks: dataQuality.missingBlocks,
             criticalConflicts: dataQuality.criticalConflicts,
             historyStale: Boolean(momentum?.stale),
-            fundamentalsStale: Boolean(fundamental?.stale)
+            fundamentalsStale: Boolean(fundamental?.stale),
+            providerStatus: diagnosticFields.providerStatus
           },
           ...(options.includeDetails ? {
             momentum,
@@ -293,6 +306,18 @@ function unverifiedSummary(item) {
 }
 
 function compactFallback(item, error) {
+  const isEtf = upper(item.type) === "ETF";
+  const dataQuality = {
+    quoteCoverage: 0,
+    historyCoverage: 0,
+    fundamentalCoverage: isEtf ? 100 : 0,
+    forecastInputCoverage: 0,
+    overallCoverage: 0,
+    qualityTier: "UNVOLLSTÄNDIG",
+    missingBlocks: ["quote", "history", ...(isEtf ? [] : ["fundamentals"]), "forecast"],
+    criticalConflicts: []
+  };
+  const diagnosticFields = buildAnalysisDiagnostics({ item, quote: null, history: null, fundamentals: null, dataQuality });
   return {
     id: item.id,
     type: item.type,
@@ -321,16 +346,11 @@ function compactFallback(item, error) {
     scoreRisk: null,
     scoreBreakdown: null,
     coverage: 0,
-    dataQuality: {
-      quoteCoverage: 0,
-      historyCoverage: 0,
-      fundamentalCoverage: upper(item.type) === "ETF" ? 100 : 0,
-      forecastInputCoverage: 0,
-      overallCoverage: 0,
-      qualityTier: "UNVOLLSTÄNDIG",
-      missingBlocks: ["quote", "history", ...(upper(item.type) === "ETF" ? [] : ["fundamentals"]), "forecast"],
-      criticalConflicts: []
-    },
+    dataQuality,
+    coverageBreakdown: diagnosticFields.coverageBreakdown,
+    missingData: diagnosticFields.missingData,
+    providerStatus: diagnosticFields.providerStatus,
+    analysisWarnings: [...diagnosticFields.analysisWarnings, ...(error ? [String(error)] : [])],
     forecast: null,
     recommendation: "REVIEW",
     recommendationReasons: ["Datenqualität reicht noch nicht für eine Kaufempfehlung"],
@@ -339,7 +359,14 @@ function compactFallback(item, error) {
     dataDelayed: false,
     dataError: error,
     analysisAsOf: new Date().toISOString(),
-    diagnostics: { quoteSource: "", historySource: "", fundamentalSource: "", missingBlocks: ["quote", "history"], criticalConflicts: [] }
+    diagnostics: {
+      quoteSource: "",
+      historySource: "",
+      fundamentalSource: "",
+      missingBlocks: dataQuality.missingBlocks,
+      criticalConflicts: [],
+      providerStatus: diagnosticFields.providerStatus
+    }
   };
 }
 
