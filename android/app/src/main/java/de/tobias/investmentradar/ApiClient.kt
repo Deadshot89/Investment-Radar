@@ -220,10 +220,63 @@ object ApiClient {
             dataDelayed = o.optBoolean("dataDelayed", false),
             dataError = o.nullableString("dataError"),
             analysisAsOf = o.nullableString("analysisAsOf"),
+            dataQuality = o.optJSONObject("dataQuality")?.let(::parseRadarDataQuality),
+            scoreBreakdown = o.optJSONObject("scoreBreakdown")?.let(::parseRadarScoreBreakdown),
+            forecast = o.optJSONObject("forecast")?.let(::parseRadarForecast),
+            diagnostics = o.optJSONObject("diagnostics")?.let(::parseRadarDiagnostics),
             momentum = o.optJSONObject("momentum")?.let(::parseMomentum),
             fundamentals = o.optJSONObject("fundamentals")?.let(::parseFundamentals)
         )
     }
+
+    private fun parseRadarDataQuality(o: JSONObject): RadarDataQuality = RadarDataQuality(
+        quoteCoverage = o.nullableInt("quoteCoverage"),
+        historyCoverage = o.nullableInt("historyCoverage"),
+        fundamentalCoverage = o.nullableInt("fundamentalCoverage"),
+        forecastInputCoverage = o.nullableInt("forecastInputCoverage"),
+        overallCoverage = o.nullableInt("overallCoverage"),
+        qualityTier = o.optString("qualityTier", ""),
+        missingBlocks = o.optJSONArray("missingBlocks").toStrings(),
+        criticalConflicts = o.optJSONArray("criticalConflicts").toStrings()
+    )
+
+    private fun parseRadarScoreBreakdown(o: JSONObject): RadarScoreBreakdown = RadarScoreBreakdown(
+        quality = o.optJSONObject("quality")?.let(::parseRadarScorePillar),
+        valuation = o.optJSONObject("valuation")?.let(::parseRadarScorePillar),
+        growth = o.optJSONObject("growth")?.let(::parseRadarScorePillar),
+        momentum = o.optJSONObject("momentum")?.let(::parseRadarScorePillar),
+        risk = o.optJSONObject("risk")?.let(::parseRadarScorePillar)
+    )
+
+    private fun parseRadarScorePillar(o: JSONObject): RadarScorePillar = RadarScorePillar(
+        score = o.nullableInt("score"),
+        coverage = o.nullableInt("coverage"),
+        reasons = o.optJSONArray("reasons").toStrings(),
+        inputs = o.optJSONObject("inputs").toDoubleMap()
+    )
+
+    private fun parseRadarForecast(o: JSONObject): RadarForecast = RadarForecast(
+        expectedChangePct = o.nullableDouble("expectedChangePct"),
+        bearChangePct = o.nullableDouble("bearChangePct"),
+        bullChangePct = o.nullableDouble("bullChangePct"),
+        direction = o.optString("direction", "UNKNOWN"),
+        quality = o.optString("quality", "NICHT_BELASTBAR"),
+        confidencePct = o.nullableInt("confidencePct"),
+        reasons = o.optJSONArray("reasons").toStrings(),
+        risks = o.optJSONArray("risks").toStrings(),
+        usedInputs = o.optJSONArray("usedInputs").toStrings(),
+        asOf = o.nullableString("asOf")
+    )
+
+    private fun parseRadarDiagnostics(o: JSONObject): RadarDiagnostics = RadarDiagnostics(
+        quoteSource = o.optString("quoteSource", ""),
+        historySource = o.optString("historySource", ""),
+        fundamentalSource = o.optString("fundamentalSource", ""),
+        missingBlocks = o.optJSONArray("missingBlocks").toStrings(),
+        criticalConflicts = o.optJSONArray("criticalConflicts").toStrings(),
+        historyStale = o.optBoolean("historyStale", false),
+        fundamentalsStale = o.optBoolean("fundamentalsStale", false)
+    )
 
     private fun JSONArray?.toInvestmentItems(): List<InvestmentItem> {
         if (this == null) return emptyList()
@@ -283,3 +336,7 @@ private fun JSONObject.nullableInt(name: String): Int? = if (!has(name) || isNul
 private fun JSONObject.nullableString(name: String): String? = if (!has(name) || isNull(name)) null else optString(name).takeIf { it.isNotBlank() }
 private fun JSONObject.nullableBoolean(name: String): Boolean? = if (!has(name) || isNull(name)) null else optBoolean(name)
 private fun JSONArray?.toStrings(): List<String> = if (this == null) emptyList() else (0 until length()).mapNotNull { optString(it).takeIf(String::isNotBlank) }
+private fun JSONObject?.toDoubleMap(): Map<String, Double> {
+    if (this == null) return emptyMap()
+    return keys().asSequence().mapNotNull { key -> nullableDouble(key)?.let { key to it } }.toMap()
+}
