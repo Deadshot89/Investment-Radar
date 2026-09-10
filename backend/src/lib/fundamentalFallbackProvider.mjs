@@ -180,6 +180,7 @@ function normalizeYahooDebtToEquity(value) {
 
 function rawNumber(value) {
   const raw = value?.raw ?? value;
+  if (raw == null || (typeof raw === 'string' && raw.trim() === '')) return null;
   const n = Number(raw);
   return Number.isFinite(n) ? n : null;
 }
