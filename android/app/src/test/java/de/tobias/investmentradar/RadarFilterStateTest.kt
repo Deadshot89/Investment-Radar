@@ -26,7 +26,7 @@ class RadarFilterStateTest {
             recommendation = RadarRecommendationFilter.BUY,
             type = RadarTypeFilter.ETF,
             holding = RadarHoldingFilter.HELD,
-            dataQuality = RadarDataQualityFilter.FULL,
+            dataQuality = RadarDataQualityFilter.GOOD,
             risk = RadarRiskFilter.LOW
         )
         val result = RadarFilterEngine.apply(listOf(buyHeld, buyNotHeld), state, setOf("a"), emptySet(), emptyMap())
@@ -86,14 +86,16 @@ class RadarFilterStateTest {
 
     @Test
     fun coverageAndRiskBucketsFollowApprovedBoundaries() {
-        val fullLow = radarItem("full-low", coverage = 70, risk = 2)
-        val reducedMedium = radarItem("reduced-medium", coverage = 50, risk = 3)
-        val insufficientHigh = radarItem("insufficient-high", coverage = 49, risk = 4)
+        val highLow = radarItem("high-low", coverage = 85, risk = 2)
+        val goodLow = radarItem("good-low", coverage = 70, risk = 2)
+        val limitedMedium = radarItem("limited-medium", coverage = 50, risk = 3)
+        val incompleteHigh = radarItem("incomplete-high", coverage = 49, risk = 4)
         val missingCoverage = radarItem("missing-coverage", coverage = null, risk = 5)
-        val items = listOf(fullLow, reducedMedium, insufficientHigh, missingCoverage)
-        assertEquals(listOf("full-low"), RadarFilterEngine.apply(items, RadarFilterState(dataQuality = RadarDataQualityFilter.FULL, risk = RadarRiskFilter.LOW), emptySet(), emptySet(), emptyMap()).map { it.id })
-        assertEquals(listOf("reduced-medium"), RadarFilterEngine.apply(items, RadarFilterState(dataQuality = RadarDataQualityFilter.REDUCED, risk = RadarRiskFilter.MEDIUM), emptySet(), emptySet(), emptyMap()).map { it.id })
-        assertEquals(listOf("insufficient-high", "missing-coverage"), RadarFilterEngine.apply(items, RadarFilterState(dataQuality = RadarDataQualityFilter.INSUFFICIENT, risk = RadarRiskFilter.HIGH), emptySet(), emptySet(), emptyMap()).map { it.id })
+        val items = listOf(highLow, goodLow, limitedMedium, incompleteHigh, missingCoverage)
+        assertEquals(listOf("high-low"), RadarFilterEngine.apply(items, RadarFilterState(dataQuality = RadarDataQualityFilter.HIGH, risk = RadarRiskFilter.LOW), emptySet(), emptySet(), emptyMap()).map { it.id })
+        assertEquals(listOf("good-low"), RadarFilterEngine.apply(items, RadarFilterState(dataQuality = RadarDataQualityFilter.GOOD, risk = RadarRiskFilter.LOW), emptySet(), emptySet(), emptyMap()).map { it.id })
+        assertEquals(listOf("limited-medium"), RadarFilterEngine.apply(items, RadarFilterState(dataQuality = RadarDataQualityFilter.LIMITED, risk = RadarRiskFilter.MEDIUM), emptySet(), emptySet(), emptyMap()).map { it.id })
+        assertEquals(listOf("incomplete-high", "missing-coverage"), RadarFilterEngine.apply(items, RadarFilterState(dataQuality = RadarDataQualityFilter.INCOMPLETE, risk = RadarRiskFilter.HIGH), emptySet(), emptySet(), emptyMap()).map { it.id })
     }
 
     @Test
