@@ -67,7 +67,7 @@ async function loadProviderHistory(item, key, fetchImpl) {
     const twelve = await loadTwelveHistory(item.marketSymbol, key, fetchImpl);
     if (twelve.points.length > 1) return twelve;
   }
-  const yahooSymbol = item.yahooSymbol || yahooFallbackSymbol(item);
+  const yahooSymbol = resolveYahooHistorySymbol(item);
   if (yahooSymbol) return loadYahooHistory(yahooSymbol, fetchImpl);
   return { points: [], source: "", error: "Kein Historien-Symbol verfügbar" };
 }
@@ -102,7 +102,7 @@ async function loadYahooHistory(symbol, fetchImpl) {
       url.searchParams.set("interval", "1d");
       url.searchParams.set("includePrePost", "false");
       const response = await fetchImpl(url, {
-        headers: { Accept: "application/json", "User-Agent": "Mozilla/5.0 InvestmentRadar/1.2" },
+        headers: { Accept: "application/json", "User-Agent": "Mozilla/5.0 InvestmentRadar/2.4" },
         signal: AbortSignal.timeout(12_000)
       });
       if (!response.ok) { lastError = `Yahoo HTTP ${response.status}`; continue; }
@@ -122,11 +122,16 @@ async function loadYahooHistory(symbol, fetchImpl) {
   return { points: [], source: "Yahoo Finance", error: lastError };
 }
 
-function yahooFallbackSymbol(item) {
-  if (item.yahooSymbol) return item.yahooSymbol;
-  const raw = String(item.ticker ?? "").trim();
+function resolveYahooHistorySymbol(item) {
+  const explicit = String(item?.yahooSymbol ?? '').trim();
+  if (explicit) return explicit;
+  const configured = String(item?.providerSymbols?.yahoo ?? item?.historySymbol ?? '').trim();
+  if (configured) return configured;
+  const raw = String(item?.ticker ?? "").trim();
   if (!raw) return "";
-  if (String(item.marketSymbol ?? "").toUpperCase().endsWith(":XETR")) return `${raw}.DE`;
+  const market = String(item?.marketSymbol ?? "").toUpperCase();
+  const exchange = String(item?.exchange ?? item?.market ?? "").toUpperCase();
+  if (market.endsWith(":XETR") || exchange === 'XETRA') return `${raw}.DE`;
   return raw;
 }
 
