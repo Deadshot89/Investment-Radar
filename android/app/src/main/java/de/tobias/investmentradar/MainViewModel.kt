@@ -95,7 +95,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 .onSuccess {
                     val application = getApplication<Application>()
                     val relevantAlerts = it.alerts.filter { alert -> AlertPolicy.isRelevantForPortfolio(alert, _holdingIds.value) }
-                    _alerts.value = AlertStore.mergeRemote(application, relevantAlerts)
+                    val mergedAlerts = AlertStore.mergeRemote(application, relevantAlerts)
+                    _alerts.value = AlertCenterState.reconcileCurrentAnalysis(mergedAlerts, it.items.associateBy { item -> item.id })
                     persistAdvisorPlan(application, it)
                     _state.value = UiState.Ready(it)
                 }
