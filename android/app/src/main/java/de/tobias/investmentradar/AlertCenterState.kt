@@ -53,6 +53,31 @@ object AlertCenterState {
         return prioritize(merged.values.toList(), emptySet())
     }
 
+    fun reconcileCurrentAnalysis(
+        items: List<StoredAlert>,
+        analysisById: Map<String, InvestmentItem>
+    ): List<StoredAlert> {
+        if (analysisById.isEmpty()) return items
+        return items.map { stored ->
+            if (stored.isConfirmed || !stored.alert.level.equals("BUY", ignoreCase = true)) return@map stored
+            val current = analysisById[stored.alert.itemId] ?: return@map stored
+            val forecastBlocked = current.forecast?.quality.equals("NICHT_BELASTBAR", ignoreCase = true)
+            val qualityBlocked = current.dataQuality?.missingBlocks.orEmpty().isNotEmpty() ||
+                (current.dataQuality?.forecastInputCoverage != null && current.dataQuality.forecastInputCoverage < 70) ||
+                (current.dataQuality?.overallCoverage != null && current.dataQuality.overallCoverage < 70)
+            val buyStillValid = current.recommendation.equals("BUY", ignoreCase = true) && !forecastBlocked && !qualityBlocked
+            if (buyStillValid) stored else stored.copy(
+                alert = stored.alert.copy(
+                    level = "REVIEW",
+                    message = listOf(
+                        stored.alert.message.takeIf { it.isNotBlank() },
+                        "Die aktuelle Datenbasis bestätigt diesen früheren Kaufalarm nicht mehr. Daten und Analyse erneut prüfen."
+                    ).filterNotNull().joinToString(" ")
+                )
+            )
+        }
+    }
+
     fun visible(
         items: List<StoredAlert>,
         filter: AlertFilter,
