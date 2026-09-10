@@ -70,6 +70,49 @@ test('SEC Companyfacts fills explicit US facts when Yahoo is unavailable', async
   assert.match(out.source, /SEC Companyfacts/);
 });
 
+test('SEC supplements partial Yahoo data for safely matched US companies', async () => {
+  const calls = [];
+  const fetchImpl = async (url) => {
+    const href = String(url);
+    calls.push(href);
+    if (href.includes('query1.finance.yahoo.com')) {
+      return jsonResponse({
+        quoteSummary: { result: [{
+          summaryDetail: { trailingPE: { raw: 30 } },
+          defaultKeyStatistics: {},
+          financialData: {}
+        }] }
+      });
+    }
+    return jsonResponse({
+      facts: { 'us-gaap': {
+        Revenues: { units: { USD: [
+          { fy: 2025, fp: 'FY', form: '10-K', filed: '2025-11-01', val: 400 },
+          { fy: 2024, fp: 'FY', form: '10-K', filed: '2024-11-01', val: 320 }
+        ] } },
+        NetIncomeLoss: { units: { USD: [
+          { fy: 2025, fp: 'FY', form: '10-K', filed: '2025-11-01', val: 80 },
+          { fy: 2024, fp: 'FY', form: '10-K', filed: '2024-11-01', val: 64 }
+        ] } },
+        StockholdersEquity: { units: { USD: [
+          { fy: 2025, fp: 'FY', form: '10-K', filed: '2025-11-01', val: 200 }
+        ] } }
+      } }
+    });
+  };
+
+  const out = await loadFundamentalFallback({ yahooSymbol: 'AAPL', cik: '320193', type: 'STOCK' }, { fetchImpl });
+  assert.ok(calls.some((url) => url.includes('query1.finance.yahoo.com')));
+  assert.ok(calls.some((url) => url.includes('/CIK0000320193.json')));
+  assert.equal(out.raw.pe, 30);
+  assert.equal(out.raw.revenueGrowth, 0.25);
+  assert.equal(out.raw.netMargin, 0.20);
+  assert.equal(out.fieldSources.pe, 'Yahoo Finance');
+  assert.equal(out.fieldSources.revenueGrowth, 'SEC Companyfacts');
+  assert.match(out.source, /Yahoo Finance/);
+  assert.match(out.source, /SEC Companyfacts/);
+});
+
 test('SEC is skipped when CIK is absent instead of guessing identity', async () => {
   let calls = 0;
   const fetchImpl = async () => { calls += 1; return jsonResponse({}, 404); };
