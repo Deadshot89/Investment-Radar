@@ -138,4 +138,26 @@ class AlertCenterStateTest {
 
         assertEquals(listOf("held-sell", "held-review"), visible.map { it.alert.id })
     }
+
+    @Test fun currentIncompleteAnalysisDowngradesOpenBuyButPreservesConfirmedHistory() {
+        val openBuy = StoredAlert(SignalAlert("open-buy", "apple", "BUY", "Kaufchance", "", "2026-09-02T10:00:00Z"))
+        val confirmedBuy = StoredAlert(SignalAlert("done-buy", "apple", "BUY", "Frühere Kaufchance", "", "2026-09-01T10:00:00Z"), isRead = true, isConfirmed = true)
+        val current = testInvestmentItem(id = "apple", coverage = 85).copy(
+            recommendation = "REVIEW",
+            forecast = RadarForecast(quality = "NICHT_BELASTBAR"),
+            dataQuality = RadarDataQuality(overallCoverage = 85, forecastInputCoverage = 30, missingBlocks = listOf("history", "forecast"))
+        )
+
+        val reconciled = AlertCenterState.reconcileCurrentAnalysis(
+            listOf(openBuy, confirmedBuy),
+            mapOf("apple" to current)
+        )
+
+        val open = reconciled.first { it.alert.id == "open-buy" }
+        val done = reconciled.first { it.alert.id == "done-buy" }
+        assertEquals("REVIEW", open.alert.level)
+        assertTrue(open.alert.message.contains("aktuelle Datenbasis", ignoreCase = true))
+        assertEquals("BUY", done.alert.level)
+        assertTrue(done.isConfirmed)
+    }
 }
