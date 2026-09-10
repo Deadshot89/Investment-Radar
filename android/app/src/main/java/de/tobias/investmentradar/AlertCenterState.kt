@@ -62,10 +62,11 @@ object AlertCenterState {
             if (stored.isConfirmed || !stored.alert.level.equals("BUY", ignoreCase = true)) return@map stored
             val current = analysisById[stored.alert.itemId] ?: return@map stored
             val forecastBlocked = current.forecast?.quality.equals("NICHT_BELASTBAR", ignoreCase = true)
-            val qualityBlocked = current.dataQuality?.missingBlocks.orEmpty().isNotEmpty() ||
-                (current.dataQuality?.forecastInputCoverage != null && current.dataQuality.forecastInputCoverage < 70) ||
-                (current.dataQuality?.overallCoverage != null && current.dataQuality.overallCoverage < 70)
-            val buyStillValid = current.recommendation.equals("BUY", ignoreCase = true) && !forecastBlocked && !qualityBlocked
+            val qualityBlocked = currentBuyQualityBlocked(current)
+            val buyStillValid = current.recommendation.equals("BUY", ignoreCase = true) &&
+                !forecastBlocked &&
+                !qualityBlocked &&
+                !current.portfolioOnly
             if (buyStillValid) stored else stored.copy(
                 alert = stored.alert.copy(
                     level = "REVIEW",
@@ -76,6 +77,24 @@ object AlertCenterState {
                 )
             )
         }
+    }
+
+    private fun currentBuyQualityBlocked(current: InvestmentItem): Boolean {
+        val quality = current.dataQuality ?: return false
+        val isEtf = current.type.equals("ETF", ignoreCase = true)
+        val missing = quality.missingBlocks.map { it.lowercase() }.toSet()
+        val criticalMissing = "quote" in missing ||
+            "history" in missing ||
+            "forecast" in missing ||
+            (!isEtf && "fundamentals" in missing)
+
+        return (quality.quoteCoverage ?: 0) < 100 ||
+            (quality.historyCoverage ?: 0) < 70 ||
+            (!isEtf && (quality.fundamentalCoverage ?: 0) < 60) ||
+            (quality.forecastInputCoverage ?: 0) < 70 ||
+            (quality.overallCoverage ?: 0) < 70 ||
+            quality.criticalConflicts.isNotEmpty() ||
+            criticalMissing
     }
 
     fun visible(
