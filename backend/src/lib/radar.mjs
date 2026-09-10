@@ -2,7 +2,10 @@ import { loadUniverse as defaultLoadUniverse } from "./universe.mjs";
 import { loadQuotes as defaultLoadQuotes, loadEurRateDetails as defaultLoadEurRateDetails, priceInEur } from "./market.mjs";
 import { loadHistory as defaultLoadHistory } from "./history.mjs";
 import { loadFundamentals as defaultLoadFundamentals } from "./fundamentals.mjs";
+import { normalizeAnalysisInput } from "./analysisDataNormalizer.mjs";
+import { evaluateDataQuality } from "./dataQuality.mjs";
 import { scoreInvestment } from "./scoring.mjs";
+import { forecast12m } from "./forecast12m.mjs";
 import { getRadarAnalysisSnapshot, radarAnalysisKey } from "./radarAnalysisCache.mjs";
 
 const DEFAULT_PAGE_SIZE = 40;
@@ -149,6 +152,28 @@ export function buildRadarCounts(filtered, analyzedVerified = [], unverified = [
   };
 }
 
+export function applyPurchaseQualityGate({ item, analysis, dataQuality }) {
+  const original = upper(analysis?.recommendation);
+  if (original !== "BUY") {
+    return { recommendation: original || "REVIEW", purchaseEligible: false };
+  }
+
+  const isEtf = upper(item?.type) === "ETF";
+  const missing = new Set(Array.isArray(dataQuality?.missingBlocks) ? dataQuality.missingBlocks : []);
+  const conflicts = Array.isArray(dataQuality?.criticalConflicts) ? dataQuality.criticalConflicts : [];
+  const identityEligible = item?.tradeRepublicEligible === true && item?.universeActive !== false && !item?.portfolioOnly;
+  const qualityEligible = Number(dataQuality?.overallCoverage ?? 0) >= 70
+    && Number(dataQuality?.forecastInputCoverage ?? 0) >= 70
+    && !missing.has("quote")
+    && !missing.has("history")
+    && (isEtf || !missing.has("fundamentals"))
+    && conflicts.length === 0;
+
+  if (identityEligible && qualityEligible) return { recommendation: "BUY", purchaseEligible: true };
+  const critical = missing.has("quote") || missing.has("history") || (!isEtf && missing.has("fundamentals")) || conflicts.length > 0;
+  return { recommendation: critical ? "REVIEW" : "WATCH", purchaseEligible: false };
+}
+
 async function analyzeSummaries(items, overrides, options = {}) {
   if (items.length === 0) return [];
   const loadQuotes = overrides.loadQuotes ?? defaultLoadQuotes;
@@ -169,8 +194,21 @@ async function analyzeSummaries(items, overrides, options = {}) {
         const quote = quotes.get(item.id) ?? null;
         const momentum = history.get(item.id) ?? null;
         const fundamental = fundamentals.get(item.id) ?? null;
+        const normalized = normalizeAnalysisInput({ item, quote, history: momentum, fundamentals: fundamental });
+        const dataQuality = evaluateDataQuality({ item, quote, history: momentum, fundamentals: fundamental });
         const analysis = scoreInvestment({ item, fundamentals: fundamental, momentum, quote });
-        const canBuy = item.tradeRepublicEligible === true && item.universeActive !== false && !item.portfolioOnly && analysis.recommendation === "BUY" && Number(analysis.coverage ?? 0) >= 60;
+        const gated = applyPurchaseQualityGate({ item, analysis, dataQuality });
+        const forecast = forecast12m({
+          ...item,
+          scoreQuality: analysis.scoreQuality,
+          scoreValuation: analysis.scoreValuation,
+          scoreGrowth: analysis.scoreGrowth,
+          scoreRisk: analysis.scoreRisk,
+          momentum,
+          fundamentals: fundamental?.metrics ?? normalized?.fundamentals ?? {},
+          coverage: dataQuality.overallCoverage,
+          dataQuality
+        });
         return {
           id: item.id,
           type: item.type,
@@ -185,7 +223,7 @@ async function analyzeSummaries(items, overrides, options = {}) {
           marketCapBucket: item.marketCapBucket,
           tradeRepublicEligible: item.tradeRepublicEligible,
           universeActive: item.universeActive,
-          dataQualityTier: item.dataQualityTier,
+          dataQualityTier: dataQuality.qualityTier,
           risk: item.risk,
           price: quote?.price ?? null,
           priceEur: priceInEur(quote, eurRates),
@@ -197,17 +235,38 @@ async function analyzeSummaries(items, overrides, options = {}) {
           scoreGrowth: analysis.scoreGrowth,
           scoreMomentum: analysis.scoreMomentum,
           scoreRisk: analysis.scoreRisk,
-          coverage: analysis.coverage,
-          recommendation: canBuy ? "BUY" : analysis.recommendation === "BUY" ? "WATCH" : analysis.recommendation,
+          scoreBreakdown: analysis.scoreBreakdown,
+          coverage: dataQuality.overallCoverage,
+          dataQuality,
+          forecast,
+          recommendation: gated.recommendation,
           recommendationReasons: analysis.recommendationReasons,
-          purchaseEligible: canBuy,
+          purchaseEligible: gated.purchaseEligible,
           dataSource: quote?.source ?? "",
           dataDelayed: Boolean(quote?.delayed),
           dataError: quote?.error ?? null,
           analysisAsOf: new Date().toISOString(),
+          diagnostics: {
+            quoteSource: quote?.source ?? "",
+            historySource: momentum?.source ?? "",
+            fundamentalSource: fundamental?.source ?? "",
+            missingBlocks: dataQuality.missingBlocks,
+            criticalConflicts: dataQuality.criticalConflicts,
+            historyStale: Boolean(momentum?.stale),
+            fundamentalsStale: Boolean(fundamental?.stale)
+          },
           ...(options.includeDetails ? {
             momentum,
-            fundamentals: fundamental ? { ...(fundamental.metrics ?? {}), coveragePct: fundamental.coveragePct ?? 0, stale: Boolean(fundamental.stale), source: fundamental.source ?? "", asOf: fundamental.asOf ?? null, error: fundamental.error ?? null } : null
+            fundamentals: fundamental ? {
+              ...(fundamental.metrics ?? {}),
+              coveragePct: fundamental.coveragePct ?? 0,
+              stale: Boolean(fundamental.stale),
+              source: fundamental.source ?? "",
+              asOf: fundamental.asOf ?? null,
+              error: fundamental.error ?? null,
+              fieldSources: fundamental.fieldSources ?? {},
+              conflicts: fundamental.conflicts ?? []
+            } : null
           } : {})
         };
       } catch (error) {
@@ -243,7 +302,7 @@ function compactFallback(item, error) {
     marketCapBucket: item.marketCapBucket,
     tradeRepublicEligible: item.tradeRepublicEligible,
     universeActive: item.universeActive,
-    dataQualityTier: item.dataQualityTier,
+    dataQualityTier: "UNVOLLSTÄNDIG",
     risk: item.risk,
     price: null,
     priceEur: null,
@@ -255,14 +314,27 @@ function compactFallback(item, error) {
     scoreGrowth: null,
     scoreMomentum: null,
     scoreRisk: null,
+    scoreBreakdown: null,
     coverage: 0,
+    dataQuality: {
+      quoteCoverage: 0,
+      historyCoverage: 0,
+      fundamentalCoverage: upper(item.type) === "ETF" ? 100 : 0,
+      forecastInputCoverage: 0,
+      overallCoverage: 0,
+      qualityTier: "UNVOLLSTÄNDIG",
+      missingBlocks: ["quote", "history", ...(upper(item.type) === "ETF" ? [] : ["fundamentals"]), "forecast"],
+      criticalConflicts: []
+    },
+    forecast: null,
     recommendation: "REVIEW",
     recommendationReasons: ["Datenqualität reicht noch nicht für eine Kaufempfehlung"],
     purchaseEligible: false,
     dataSource: "",
     dataDelayed: false,
     dataError: error,
-    analysisAsOf: new Date().toISOString()
+    analysisAsOf: new Date().toISOString(),
+    diagnostics: { quoteSource: "", historySource: "", fundamentalSource: "", missingBlocks: ["quote", "history"], criticalConflicts: [] }
   };
 }
 

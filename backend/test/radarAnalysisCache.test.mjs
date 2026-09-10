@@ -58,3 +58,14 @@ test("parallel requests share one in-flight radar analysis", async () => {
   assert.equal(loads, 1);
   assert.deepEqual(first.items, second.items);
 });
+
+test('forceReload bypasses a fresh snapshot without changing the cache key', async () => {
+  resetRadarAnalysisCache();
+  let loads = 0;
+  const load = async () => [{ id: `load-${++loads}` }];
+  await getRadarAnalysisSnapshot({ key: 'same', now: 1_000, ttlMs: 10_000, load });
+  const refreshed = await getRadarAnalysisSnapshot({ key: 'same', now: 2_000, ttlMs: 10_000, forceReload: true, load });
+  assert.equal(loads, 2);
+  assert.equal(refreshed.cacheHit, false);
+  assert.deepEqual(refreshed.items, [{ id: 'load-2' }]);
+});

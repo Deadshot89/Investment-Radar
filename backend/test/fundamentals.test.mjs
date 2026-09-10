@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { normalizeFundamentals } from "../src/lib/fundamentalSupport.mjs";
+import { mergeFundamentalSources } from "../src/lib/fundamentals.mjs";
 
 test("missing provider fields remain null", () => {
   const result = normalizeFundamentals({ pe: 22, revenueGrowth: null, debtToEquity: undefined });
@@ -33,4 +34,17 @@ test("negative growth lowers growth score", () => {
   const positive = normalizeFundamentals({ revenueGrowth: 0.15, epsGrowth: 0.18 });
   const negative = normalizeFundamentals({ revenueGrowth: -0.10, epsGrowth: -0.20 });
   assert.ok(positive.growthScore > negative.growthScore);
+});
+
+test('merge keeps primary value and records material provider conflict', () => {
+  const merged = mergeFundamentalSources(
+    { raw: { pe: 20, revenueGrowth: null }, source: 'Twelve Data', fieldSources: { pe: 'Twelve Data' } },
+    { raw: { pe: 40, revenueGrowth: 0.12 }, source: 'Yahoo Finance', fieldSources: { pe: 'Yahoo Finance', revenueGrowth: 'Yahoo Finance' } }
+  );
+
+  assert.equal(merged.raw.pe, 20);
+  assert.equal(merged.raw.revenueGrowth, 0.12);
+  assert.ok(merged.conflicts.includes('pe'));
+  assert.equal(merged.fieldSources.pe, 'Twelve Data');
+  assert.equal(merged.fieldSources.revenueGrowth, 'Yahoo Finance');
 });

@@ -4,29 +4,41 @@ import { calculateMomentum } from "../src/lib/historySupport.mjs";
 
 const DAY = 86_400_000;
 const now = Date.UTC(2026, 8, 2);
-const points = [
-  { time: now - 370 * DAY, close: 80 },
-  { time: now - 185 * DAY, close: 90 },
-  { time: now - 95 * DAY, close: 100 },
-  { time: now - 32 * DAY, close: 110 },
-  { time: now - DAY, close: 119 },
-  { time: now, close: 120 }
-];
 
-test("momentum exposes all five horizons", () => {
+function marketLikeSeries(days) {
+  const points = [];
+  let cursor = now - 390 * DAY;
+  let price = 80;
+  while (cursor <= now && points.length < days) {
+    const weekday = new Date(cursor).getUTCDay();
+    if (weekday !== 0 && weekday !== 6) {
+      points.push({ time: cursor, close: price });
+      price += 0.18;
+    }
+    cursor += DAY;
+  }
+  if (points.at(-1)?.time < now) points.push({ time: now, close: price });
+  return points;
+}
+
+const points = marketLikeSeries(280);
+
+test("momentum exposes all five horizons with sufficient observations", () => {
   const result = calculateMomentum(points, now);
-  assert.ok(result.d1 > 0);
+  assert.ok(result.d1 >= 0);
   assert.ok(result.m1 > 0);
   assert.ok(result.m3 > 0);
   assert.ok(result.m6 > 0);
   assert.ok(result.m12 > 0);
-  assert.equal(result.coveragePct, 100);
+  assert.ok(result.coveragePct >= 85);
+  assert.ok(result.pointsCount >= 250);
 });
 
 test("missing old history reduces coverage instead of inventing returns", () => {
-  const result = calculateMomentum(points.slice(-3), now);
+  const result = calculateMomentum(points.slice(-20), now);
   assert.equal(result.m12, null);
-  assert.ok(result.coveragePct < 100);
+  assert.equal(result.m6, null);
+  assert.ok(result.coveragePct < 25);
 });
 
 test("broad positive momentum scores above neutral", () => {

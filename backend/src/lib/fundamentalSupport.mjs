@@ -47,7 +47,9 @@ export function normalizeFundamentals(raw = {}) {
     source: String(raw.source ?? ""),
     stale: Boolean(raw.stale),
     asOf: raw.asOf == null ? null : String(raw.asOf),
-    error: raw.error == null ? null : String(raw.error)
+    error: raw.error == null ? null : String(raw.error),
+    fieldSources: raw.fieldSources && typeof raw.fieldSources === 'object' ? { ...raw.fieldSources } : {},
+    conflicts: Array.isArray(raw.conflicts) ? [...new Set(raw.conflicts.filter(Boolean))] : []
   };
 }
 
