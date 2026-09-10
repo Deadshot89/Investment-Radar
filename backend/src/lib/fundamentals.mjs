@@ -9,6 +9,7 @@ const METRIC_KEYS = [
   "pe", "priceToSales", "evToEbitda", "freeCashFlowYield", "revenueGrowth", "epsGrowth",
   "operatingMargin", "netMargin", "roe", "roic", "debtToEquity", "marketCap"
 ];
+const PERCENTAGE_POINT_FIELDS = new Set(["operatingMargin", "netMargin", "roe", "roic"]);
 
 export async function loadFundamentals(items, {
   fetchImpl = fetch,
@@ -119,7 +120,7 @@ export function mergeFundamentalSources(primary, fallback) {
     if (pv != null) {
       raw[key] = pv;
       fieldSources[key] = primary?.fieldSources?.[key] || primary?.source || '';
-      if (fv != null && materiallyConflicts(pv, fv)) conflicts.push(key);
+      if (fv != null && materiallyConflicts(key, pv, fv)) conflicts.push(key);
     } else if (fv != null) {
       raw[key] = fv;
       fieldSources[key] = fallback?.fieldSources?.[key] || fallback?.source || '';
@@ -206,9 +207,10 @@ function finiteOrNull(value) {
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
 }
-function materiallyConflicts(a, b) {
+function materiallyConflicts(key, a, b) {
+  if (PERCENTAGE_POINT_FIELDS.has(key)) return Math.abs(a - b) > 0.05;
   const scale = Math.max(Math.abs(a), Math.abs(b), 0.01);
-  return Math.abs(a - b) / scale >= 0.35;
+  return Math.abs(a - b) / scale > 0.20;
 }
 function hasAnyMetric(raw) { return raw && METRIC_KEYS.some((key) => finiteOrNull(raw[key]) != null); }
 function newestDate(a, b) {
