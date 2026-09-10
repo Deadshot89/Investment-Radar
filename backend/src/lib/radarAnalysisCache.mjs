@@ -3,12 +3,12 @@ const DEFAULT_TTL_MS = 5 * 60 * 1000;
 let snapshot = null;
 let inFlight = null;
 
-export async function getRadarAnalysisSnapshot({ key, load, now = Date.now(), ttlMs = DEFAULT_TTL_MS }) {
+export async function getRadarAnalysisSnapshot({ key, load, now = Date.now(), ttlMs = DEFAULT_TTL_MS, forceReload = false }) {
   if (typeof load !== "function") throw new Error("Radar analysis loader missing");
   const cacheKey = String(key ?? "");
   const cacheTtl = Math.max(0, Number(ttlMs) || 0);
 
-  if (snapshot && snapshot.key === cacheKey && now - snapshot.createdAt <= cacheTtl) {
+  if (!forceReload && snapshot && snapshot.key === cacheKey && now - snapshot.createdAt <= cacheTtl) {
     return { items: snapshot.items, generatedAt: snapshot.generatedAt, cacheHit: true };
   }
 
