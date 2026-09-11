@@ -277,29 +277,79 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun upsertPurchase(itemId: String, purchase: PortfolioPurchase): Boolean {
+        val app = getApplication<Application>()
         val current = _positions.value[itemId] ?: PortfolioPosition(itemId)
-        val next = current.upsertPurchaseIfValid(purchase) ?: return false
-        savePosition(next)
-        return true
+        val entries = InvestmentBudgetStore.readEntries(app)
+        val reservations = InvestmentBudgetStore.readReservations(app)
+        val budgetBacked = entries.any {
+            it.id == purchase.id && it.type == BudgetJournalType.BUY_DEBIT && it.itemId == itemId
+        }
+        if (!budgetBacked) {
+            val next = current.upsertPurchaseIfValid(purchase) ?: return false
+            savePosition(next)
+            return true
+        }
+        val result = InvestmentBudgetExecutionService.reviseBuy(current, entries, purchase, reservations)
+        return applyBudgetExecutionResult(app, result)
     }
 
     fun removePurchase(itemId: String, purchaseId: String): Boolean {
+        val app = getApplication<Application>()
         val current = _positions.value[itemId] ?: return false
-        val next = current.removePurchaseIfValid(purchaseId) ?: return false
-        savePosition(next)
-        return true
+        val entries = InvestmentBudgetStore.readEntries(app)
+        val reservations = InvestmentBudgetStore.readReservations(app)
+        val budgetBacked = entries.any {
+            it.id == purchaseId && it.type == BudgetJournalType.BUY_DEBIT && it.itemId == itemId
+        }
+        if (!budgetBacked) {
+            val next = current.removePurchaseIfValid(purchaseId) ?: return false
+            savePosition(next)
+            return true
+        }
+        val result = InvestmentBudgetExecutionService.deleteBuy(current, entries, purchaseId, reservations)
+        return applyBudgetExecutionResult(app, result)
     }
 
     fun upsertSale(itemId: String, sale: PortfolioSale): Boolean {
+        val app = getApplication<Application>()
         val current = _positions.value[itemId] ?: PortfolioPosition(itemId)
-        val next = current.upsertSale(sale) ?: return false
-        savePosition(next)
-        return true
+        val entries = InvestmentBudgetStore.readEntries(app)
+        val reservations = InvestmentBudgetStore.readReservations(app)
+        val budgetBacked = entries.any {
+            it.id == sale.id && it.type == BudgetJournalType.SELL_CREDIT && it.itemId == itemId
+        }
+        if (!budgetBacked) {
+            val next = current.upsertSale(sale) ?: return false
+            savePosition(next)
+            return true
+        }
+        val result = InvestmentBudgetExecutionService.reviseSale(current, entries, sale, reservations)
+        return applyBudgetExecutionResult(app, result)
     }
 
     fun removeSale(itemId: String, saleId: String): Boolean {
+        val app = getApplication<Application>()
         val current = _positions.value[itemId] ?: return false
-        savePosition(current.removeSale(saleId))
+        val entries = InvestmentBudgetStore.readEntries(app)
+        val reservations = InvestmentBudgetStore.readReservations(app)
+        val budgetBacked = entries.any {
+            it.id == saleId && it.type == BudgetJournalType.SELL_CREDIT && it.itemId == itemId
+        }
+        if (!budgetBacked) {
+            savePosition(current.removeSale(saleId))
+            return true
+        }
+        val result = InvestmentBudgetExecutionService.deleteSale(current, entries, saleId, reservations)
+        return applyBudgetExecutionResult(app, result)
+    }
+
+    private fun applyBudgetExecutionResult(app: Application, result: BudgetExecutionResult): Boolean {
+        val nextPosition = result.position ?: return false
+        if (result.error != null) return false
+        InvestmentBudgetStore.saveEntries(app, result.entries)
+        InvestmentBudgetStore.saveReservations(app, result.reservations)
+        savePosition(nextPosition)
+        refreshBudgetState(app)
         return true
     }
 
