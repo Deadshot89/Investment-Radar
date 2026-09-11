@@ -6,8 +6,10 @@ SRC="android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt"
 grep -q 'val budgetState by vm.budgetState.collectAsState()' "$SRC"
 grep -q 'budgetState = budgetState' "$SRC"
 grep -q 'budgetState.advisorBudgetEur' "$SRC"
-grep -q 'vm.setMonthlyBudget' "$SRC"
+grep -q 'vm::setMonthlyBudget' "$SRC"
 grep -q 'vm.addExtraFunding' "$SRC"
+grep -q 'vm.executeBuy' "$SRC"
+grep -q 'vm.executeSale' "$SRC"
 
 # Static monthly-budget preference must no longer drive recommendations or the dashboard.
 if grep -q 'prefs.getInt("monthly_budget"' "$SRC"; then
@@ -22,5 +24,8 @@ for label in 'Monatsbudget' 'Zusätzlich' 'Investiert' 'Reserviert' 'Verfügbar'
     exit 1
   }
 done
+
+grep -q 'Kauf ausgeführt' "$SRC"
+grep -q 'Verkauf ausgeführt' "$SRC"
 
 echo "PASS live investment budget cockpit wiring"
