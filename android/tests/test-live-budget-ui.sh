@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 SRC="android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt"
+VM="android/app/src/main/java/de/tobias/investmentradar/MainViewModel.kt"
 
 # Investment Radar 2.4: the root UI must consume the live journal-backed budget state.
 grep -q 'val budgetState by vm.budgetState.collectAsState()' "$SRC"
@@ -27,5 +28,17 @@ done
 
 grep -q 'Kauf ausgeführt' "$SRC"
 grep -q 'Verkauf ausgeführt' "$SRC"
+
+# Editing/deleting an execution-backed transaction must keep portfolio and budget journal in sync.
+for method in reviseBuy deleteBuy reviseSale deleteSale; do
+  grep -q "InvestmentBudgetExecutionService.$method" "$VM" || {
+    echo "Missing budget-aware transaction edit path: $method"
+    exit 1
+  }
+done
+
+grep -q 'InvestmentBudgetStore.saveEntries' "$VM"
+grep -q 'InvestmentBudgetStore.saveReservations' "$VM"
+grep -q 'refreshBudgetState' "$VM"
 
 echo "PASS live investment budget cockpit wiring"
