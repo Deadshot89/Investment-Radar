@@ -3,6 +3,8 @@ package de.tobias.investmentradar
 import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 object InvestmentBudgetCodec {
     fun encodeEntries(entries: List<BudgetJournalEntry>): String {
@@ -90,6 +92,8 @@ object InvestmentBudgetStore {
     private const val PREFS = "investment_radar_budget"
     private const val ENTRIES_KEY = "entries_v1"
     private const val RESERVATIONS_KEY = "reservations_v1"
+    private const val SETTINGS_PREFS = "investment_radar_settings"
+    private const val LEGACY_BUDGET_KEY = "monthly_budget"
 
     fun readEntries(context: Context): List<BudgetJournalEntry> {
         val raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -139,6 +143,25 @@ object InvestmentBudgetStore {
 
     fun summary(context: Context): InvestmentBudgetSummary =
         InvestmentBudgetJournalEngine.summarize(readEntries(context), readReservations(context))
+
+    fun ensureInitialized(context: Context) {
+        val existing = readEntries(context)
+        val legacyBudget = context.getSharedPreferences(SETTINGS_PREFS, Context.MODE_PRIVATE)
+            .getInt(LEGACY_BUDGET_KEY, 100)
+            .coerceAtLeast(0)
+        val seeded = InvestmentBudgetMigration.seedIfEmpty(
+            existing = existing,
+            legacyMonthlyBudgetEur = legacyBudget,
+            date = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
+        )
+        if (seeded != existing) {
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .edit()
+                .putString(ENTRIES_KEY, InvestmentBudgetCodec.encodeEntries(seeded))
+                .apply()
+        }
+        refreshRuntime(context)
+    }
 
     fun refreshRuntime(context: Context) {
         InvestmentBudgetRuntime.refresh(summary(context))
