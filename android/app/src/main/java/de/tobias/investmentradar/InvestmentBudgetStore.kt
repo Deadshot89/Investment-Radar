@@ -157,7 +157,8 @@ object InvestmentBudgetStore {
     fun summary(context: Context): InvestmentBudgetSummary =
         InvestmentBudgetJournalEngine.summarize(readEntries(context), readReservations(context))
 
-    fun viewState(context: Context): InvestmentBudgetViewState = InvestmentBudgetViewState.from(summary(context))
+    fun viewState(context: Context): InvestmentBudgetViewState =
+        InvestmentBudgetViewState.from(summary(context), readEntries(context))
 
     fun ensureInitialized(context: Context) {
         val existing = readEntries(context)

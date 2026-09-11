@@ -357,9 +357,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val app = getApplication<Application>()
         CustomInvestmentStore.save(app, item)
         _customItems.value = CustomInvestmentStore.read(app)
-        val current = _positions.value[item.id] ?: PortfolioPosition(item.id)
-        val next = if (initialPurchase != null) current.upsertPurchaseIfValid(initialPurchase) ?: current else current
-        savePosition(next)
+        if (initialPurchase != null) {
+            executeBuy(item.id, initialPurchase, BudgetJournalSource.MANUAL)
+        } else {
+            savePosition(_positions.value[item.id] ?: PortfolioPosition(item.id))
+        }
         refresh(silent = true)
     }
 

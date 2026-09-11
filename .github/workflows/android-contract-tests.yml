@@ -28,6 +28,7 @@ jobs:
             android/tests/test-live-radar-buy-candidates.sh \
             android/tests/test-live-depot-value-ui.sh \
             android/tests/test-live-budget-ui.sh \
+            android/tests/test-budget-history-custom-buy.sh \
             android/tests/test-portfolio-allocation-ui.sh \
             android/tests/test-portfolio-advisor-2-3-ui.sh \
             android/tests/test-portfolio-dashboard-ui.sh \
