@@ -27,6 +27,13 @@ data class BudgetJournalEntry(
     val note: String = ""
 )
 
+data class BudgetReservation(
+    val id: String,
+    val itemId: String,
+    val amountEur: Double,
+    val note: String = ""
+)
+
 data class InvestmentBudgetSummary(
     val monthlyDepositsEur: Double,
     val extraDepositsEur: Double,
@@ -81,6 +88,25 @@ object InvestmentBudgetJournalEngine {
             entries + entry
         }
     }
+
+    fun upsertReservation(
+        reservations: List<BudgetReservation>,
+        reservation: BudgetReservation
+    ): List<BudgetReservation> {
+        require(reservation.id.isNotBlank()) { "Reservation id must not be blank" }
+        require(reservation.amountEur.isFinite() && reservation.amountEur >= 0.0) { "Reservation amount must be finite and non-negative" }
+        val index = reservations.indexOfFirst { it.id == reservation.id }
+        return if (index >= 0) {
+            reservations.toMutableList().apply { set(index, reservation) }
+        } else {
+            reservations + reservation
+        }
+    }
+
+    fun removeReservation(
+        reservations: List<BudgetReservation>,
+        reservationId: String
+    ): List<BudgetReservation> = reservations.filterNot { it.id == reservationId }
 
     fun containsEvent(entries: List<BudgetJournalEntry>, eventId: String): Boolean =
         entries.any { it.id == eventId }
