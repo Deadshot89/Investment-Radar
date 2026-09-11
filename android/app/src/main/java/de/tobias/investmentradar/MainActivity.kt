@@ -1331,6 +1331,38 @@ private fun BudgetDialog(
                     colors = ButtonDefaults.buttonColors(containerColor = RadarGreen, contentColor = Color(0xFF05150E))
                 ) { Text("Wechselgeld hinzufügen", fontWeight = FontWeight.Black) }
 
+                HorizontalDivider(color = RadarSurface2)
+                Text("BUDGET-HISTORIE", color = RadarCyan, fontWeight = FontWeight.Black, style = MaterialTheme.typography.labelLarge)
+                Text("Alle Einzahlungen, Käufe und Verkäufe in zeitlicher Reihenfolge.", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
+                if (current.history.isEmpty()) {
+                    Text("Noch keine Budgetbuchungen vorhanden.", color = RadarMuted)
+                } else {
+                    current.history.take(30).forEach { entry ->
+                        val accent = if (entry.isCredit) RadarGreen else RadarBlue
+                        NeonPanel(accent = accent) {
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(entry.title, fontWeight = FontWeight.Black)
+                                    Text(entry.date, color = RadarMuted, style = MaterialTheme.typography.bodySmall)
+                                }
+                                Text(
+                                    formatSignedMoney(entry.amountEur),
+                                    color = accent,
+                                    fontWeight = FontWeight.Black
+                                )
+                            }
+                            val details = listOf(entry.itemId, entry.note).filter { it.isNotBlank() }.joinToString(" · ")
+                            if (details.isNotBlank()) {
+                                Text(details, color = RadarMuted, style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
+                }
+
                 message?.let { Text(it, color = if (it.contains("nicht")) RadarRed else RadarGreen, fontWeight = FontWeight.Bold) }
             }
         },
