@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.util.UUID
 
 sealed interface UiState {
     data object Loading : UiState
@@ -22,11 +23,15 @@ sealed interface UiState {
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
     init {
+        InvestmentBudgetStore.ensureInitialized(app)
         UserPortfolioSeed.ensureSeeded(app)
     }
 
     private val _state = MutableStateFlow<UiState>(UiState.Loading)
     val state: StateFlow<UiState> = _state.asStateFlow()
+
+    private val _budgetState = MutableStateFlow(InvestmentBudgetStore.viewState(app))
+    val budgetState: StateFlow<InvestmentBudgetViewState> = _budgetState.asStateFlow()
 
     private val initialPositions = PortfolioStore.readPositions(app)
     private val _holdingIds = MutableStateFlow(initialPositions.keys)
@@ -97,6 +102,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     val relevantAlerts = it.alerts.filter { alert -> AlertPolicy.isRelevantForPortfolio(alert, _holdingIds.value) }
                     val mergedAlerts = AlertStore.mergeRemote(application, relevantAlerts)
                     _alerts.value = AlertCenterState.reconcileCurrentAnalysis(mergedAlerts, it.items.associateBy { item -> item.id })
+                    refreshBudgetState(application)
                     persistAdvisorPlan(application, it)
                     _state.value = UiState.Ready(it)
                 }
@@ -109,9 +115,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun persistAdvisorPlan(application: Application, dashboard: DashboardData) {
-        val budget = application.getSharedPreferences("investment_radar_settings", 0)
-            .getInt("monthly_budget", 100)
-            .coerceIn(10, 10000)
+        val budgetSummary = InvestmentBudgetStore.summary(application)
         val portfolioValues = PortfolioAnalysis.values(dashboard.items, _positions.value, _customItems.value)
         val monthlySavings = SavingsPlanBudget.monthlyAmounts(SavingsPlanStore.readPlans(application))
         val candidates = dashboard.items.map { item ->
@@ -123,7 +127,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 freshness = DataFreshness.summarize(item)
             )
         }
-        val plan = PortfolioAdvisorEngine.allocate(candidates, budget)
+        val plan = PortfolioAdvisorEngine.allocate(candidates, budgetSummary)
         val analysisDay = dashboard.generatedAt.take(10).takeIf { it.length == 10 } ?: LocalDate.now().toString()
         PortfolioAdvisorStore.save(application, analysisDay, plan)
     }
@@ -164,6 +168,93 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun setMonthlyBudget(amountEur: Double): Boolean = runCatching {
+        require(amountEur.isFinite() && amountEur >= 0.0)
+        val app = getApplication<Application>()
+        InvestmentBudgetStore.setMonthlyBudget(app, amountEur)
+        refreshBudgetState(app)
+    }.isSuccess
+
+    fun addExtraFunding(
+        amountEur: Double,
+        source: BudgetJournalSource = BudgetJournalSource.SPARE_CHANGE,
+        note: String = "Wechselgeld"
+    ): Boolean = runCatching {
+        require(amountEur.isFinite() && amountEur > 0.0)
+        val app = getApplication<Application>()
+        InvestmentBudgetStore.addExtraFunding(
+            app,
+            ExtraFundingCommand(
+                eventId = "extra-${UUID.randomUUID()}",
+                amountEur = amountEur,
+                date = LocalDate.now().toString(),
+                source = source,
+                note = note
+            )
+        )
+        refreshBudgetState(app)
+    }.isSuccess
+
+    fun executeBuy(
+        itemId: String,
+        purchase: PortfolioPurchase,
+        source: BudgetJournalSource = BudgetJournalSource.MANUAL,
+        reservationId: String? = null
+    ): Boolean {
+        val app = getApplication<Application>()
+        val current = _positions.value[itemId] ?: PortfolioPosition(itemId)
+        val result = InvestmentBudgetExecutionService.executeBuy(
+            position = current,
+            entries = InvestmentBudgetStore.readEntries(app),
+            reservations = InvestmentBudgetStore.readReservations(app),
+            request = BudgetBuyExecution(
+                eventId = purchase.id,
+                reservationId = reservationId,
+                itemId = itemId,
+                date = purchase.date,
+                amountEur = purchase.investedAmount,
+                shares = purchase.shares,
+                source = source
+            )
+        )
+        val nextPosition = result.position ?: return false
+        if (result.error != null) return false
+        InvestmentBudgetStore.saveEntries(app, result.entries)
+        InvestmentBudgetStore.saveReservations(app, result.reservations)
+        savePosition(nextPosition)
+        refreshBudgetState(app)
+        return true
+    }
+
+    fun executeSale(
+        itemId: String,
+        sale: PortfolioSale,
+        source: BudgetJournalSource = BudgetJournalSource.MANUAL
+    ): Boolean {
+        val app = getApplication<Application>()
+        val current = _positions.value[itemId] ?: return false
+        val result = InvestmentBudgetExecutionService.executeSale(
+            position = current,
+            entries = InvestmentBudgetStore.readEntries(app),
+            reservations = InvestmentBudgetStore.readReservations(app),
+            request = BudgetSaleExecution(
+                eventId = sale.id,
+                itemId = itemId,
+                date = sale.date,
+                proceedsEur = sale.proceeds,
+                shares = sale.shares,
+                source = source
+            )
+        )
+        val nextPosition = result.position ?: return false
+        if (result.error != null) return false
+        InvestmentBudgetStore.saveEntries(app, result.entries)
+        InvestmentBudgetStore.saveReservations(app, result.reservations)
+        savePosition(nextPosition)
+        refreshBudgetState(app)
+        return true
+    }
+
     fun markBought(itemId: String) {
         savePosition(PortfolioPosition(itemId = itemId))
     }
@@ -186,29 +277,79 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun upsertPurchase(itemId: String, purchase: PortfolioPurchase): Boolean {
+        val app = getApplication<Application>()
         val current = _positions.value[itemId] ?: PortfolioPosition(itemId)
-        val next = current.upsertPurchaseIfValid(purchase) ?: return false
-        savePosition(next)
-        return true
+        val entries = InvestmentBudgetStore.readEntries(app)
+        val reservations = InvestmentBudgetStore.readReservations(app)
+        val budgetBacked = entries.any {
+            it.id == purchase.id && it.type == BudgetJournalType.BUY_DEBIT && it.itemId == itemId
+        }
+        if (!budgetBacked) {
+            val next = current.upsertPurchaseIfValid(purchase) ?: return false
+            savePosition(next)
+            return true
+        }
+        val result = InvestmentBudgetExecutionService.reviseBuy(current, entries, purchase, reservations)
+        return applyBudgetExecutionResult(app, result)
     }
 
     fun removePurchase(itemId: String, purchaseId: String): Boolean {
+        val app = getApplication<Application>()
         val current = _positions.value[itemId] ?: return false
-        val next = current.removePurchaseIfValid(purchaseId) ?: return false
-        savePosition(next)
-        return true
+        val entries = InvestmentBudgetStore.readEntries(app)
+        val reservations = InvestmentBudgetStore.readReservations(app)
+        val budgetBacked = entries.any {
+            it.id == purchaseId && it.type == BudgetJournalType.BUY_DEBIT && it.itemId == itemId
+        }
+        if (!budgetBacked) {
+            val next = current.removePurchaseIfValid(purchaseId) ?: return false
+            savePosition(next)
+            return true
+        }
+        val result = InvestmentBudgetExecutionService.deleteBuy(current, entries, purchaseId, reservations)
+        return applyBudgetExecutionResult(app, result)
     }
 
     fun upsertSale(itemId: String, sale: PortfolioSale): Boolean {
+        val app = getApplication<Application>()
         val current = _positions.value[itemId] ?: PortfolioPosition(itemId)
-        val next = current.upsertSale(sale) ?: return false
-        savePosition(next)
-        return true
+        val entries = InvestmentBudgetStore.readEntries(app)
+        val reservations = InvestmentBudgetStore.readReservations(app)
+        val budgetBacked = entries.any {
+            it.id == sale.id && it.type == BudgetJournalType.SELL_CREDIT && it.itemId == itemId
+        }
+        if (!budgetBacked) {
+            val next = current.upsertSale(sale) ?: return false
+            savePosition(next)
+            return true
+        }
+        val result = InvestmentBudgetExecutionService.reviseSale(current, entries, sale, reservations)
+        return applyBudgetExecutionResult(app, result)
     }
 
     fun removeSale(itemId: String, saleId: String): Boolean {
+        val app = getApplication<Application>()
         val current = _positions.value[itemId] ?: return false
-        savePosition(current.removeSale(saleId))
+        val entries = InvestmentBudgetStore.readEntries(app)
+        val reservations = InvestmentBudgetStore.readReservations(app)
+        val budgetBacked = entries.any {
+            it.id == saleId && it.type == BudgetJournalType.SELL_CREDIT && it.itemId == itemId
+        }
+        if (!budgetBacked) {
+            savePosition(current.removeSale(saleId))
+            return true
+        }
+        val result = InvestmentBudgetExecutionService.deleteSale(current, entries, saleId, reservations)
+        return applyBudgetExecutionResult(app, result)
+    }
+
+    private fun applyBudgetExecutionResult(app: Application, result: BudgetExecutionResult): Boolean {
+        val nextPosition = result.position ?: return false
+        if (result.error != null) return false
+        InvestmentBudgetStore.saveEntries(app, result.entries)
+        InvestmentBudgetStore.saveReservations(app, result.reservations)
+        savePosition(nextPosition)
+        refreshBudgetState(app)
         return true
     }
 
@@ -289,6 +430,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun localAlerts(): List<SignalAlert> = _alerts.value.map { it.alert }
+
+    private fun refreshBudgetState(app: Application) {
+        _budgetState.value = InvestmentBudgetStore.viewState(app)
+    }
 
     private fun reloadPortfolio(app: Application) {
         val next = PortfolioStore.readPositions(app)

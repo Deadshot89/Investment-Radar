@@ -35,6 +35,14 @@ data class PortfolioAdvisorPlan(
 object PortfolioAdvisorEngine {
     fun allocate(
         candidates: List<PortfolioAdvisorCandidate>,
+        budget: InvestmentBudgetSummary
+    ): PortfolioAdvisorPlan = allocate(
+        candidates = candidates,
+        budgetEur = floor(budget.availableEur.coerceAtLeast(0.0)).toInt()
+    )
+
+    fun allocate(
+        candidates: List<PortfolioAdvisorCandidate>,
         budgetEur: Int
     ): PortfolioAdvisorPlan {
         val budget = budgetEur.coerceAtLeast(0)

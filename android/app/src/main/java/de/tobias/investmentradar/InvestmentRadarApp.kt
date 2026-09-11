@@ -7,6 +7,7 @@ import com.google.firebase.FirebaseOptions
 class InvestmentRadarApp : Application() {
     override fun onCreate() {
         super.onCreate()
+        InvestmentBudgetStore.ensureInitialized(this)
         FirebaseBootstrap.initialize(this)
         DailyAnalysisScheduler.schedule(this)
     }
