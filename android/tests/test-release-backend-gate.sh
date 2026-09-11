@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Investment Radar 2.4.7 release verification: backend compatibility, 2000-item radar and monotonic Android update.
+# Investment Radar 2.4.8 release verification: backend compatibility, 2000-item radar and monotonic Android update.
 # This contract is also the trigger used to re-verify candidate release workflow changes end-to-end.
 set -euo pipefail
 
@@ -28,10 +28,10 @@ if echo "$publish_if" | grep -q 'feature/investment-radar-2.4'; then
   exit 1
 fi
 
-# The live backend contract remains 2.1.0; Android 2.4.7/code67 is the new update candidate.
-grep -q 'versionCode = 67' "$GRADLE"
-grep -q 'versionName = "2.4.7"' "$GRADLE"
-grep -q 'Investment Radar 2.4.7' "$GRADLE"
+# The live backend contract remains 2.1.0; Android 2.4.8/code68 is the new update candidate.
+grep -q 'versionCode = 68' "$GRADLE"
+grep -q 'versionName = "2.4.8"' "$GRADLE"
+grep -q 'Investment Radar 2.4.8' "$GRADLE"
 grep -q '"version": "2.1.0"' "$BACKEND"
 grep -q 'backendVersion: "2.1.0"' "$HEALTH"
 grep -q 'universeTarget: 2000' "$HEALTH"
@@ -69,6 +69,6 @@ test "$gate_line" -lt "$publish_line"
 
 echo "PASS Android candidate and main both validate live backend 2.1.0 and >=2000 radar instruments"
 echo "PASS Android in-app publishing remains restricted to main"
-echo "PASS Android app release is monotonic at 2.4.7 / code 67"
+echo "PASS Android app release is monotonic at 2.4.8 / code 68"
 echo "PASS existing releases are immutable by android/app tree"
 echo "PASS Android release notes follow VERSION_NAME instead of stale 2.1 copy"
