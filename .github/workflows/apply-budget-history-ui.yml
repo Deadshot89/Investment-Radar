@@ -25,42 +25,43 @@ jobs:
 
           path = Path('android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt')
           text = path.read_text()
-          anchor = '''                message?.let { Text(it, color = if (it.contains("nicht")) RadarRed else RadarGreen, fontWeight = FontWeight.Bold) }
-'''
-          replacement = '''                HorizontalDivider(color = RadarSurface2)
-                Text("BUDGET-HISTORIE", color = RadarCyan, fontWeight = FontWeight.Black, style = MaterialTheme.typography.labelLarge)
-                Text("Alle Einzahlungen, Käufe und Verkäufe in zeitlicher Reihenfolge.", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
-                if (current.history.isEmpty()) {
-                    Text("Noch keine Budgetbuchungen vorhanden.", color = RadarMuted)
-                } else {
-                    current.history.take(30).forEach { entry ->
-                        val accent = if (entry.isCredit) RadarGreen else RadarBlue
-                        NeonPanel(accent = accent) {
-                            Row(
-                                Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(Modifier.weight(1f)) {
-                                    Text(entry.title, fontWeight = FontWeight.Black)
-                                    Text(entry.date, color = RadarMuted, style = MaterialTheme.typography.bodySmall)
-                                }
-                                Text(
-                                    formatSignedMoney(entry.amountEur),
-                                    color = accent,
-                                    fontWeight = FontWeight.Black
-                                )
-                            }
-                            val details = listOf(entry.itemId, entry.note).filter { it.isNotBlank() }.joinToString(" · ")
-                            if (details.isNotBlank()) {
-                                Text(details, color = RadarMuted, style = MaterialTheme.typography.bodySmall)
-                            }
-                        }
-                    }
-                }
-
-                message?.let { Text(it, color = if (it.contains("nicht")) RadarRed else RadarGreen, fontWeight = FontWeight.Bold) }
-'''
+          anchor = '                message?.let { Text(it, color = if (it.contains("nicht")) RadarRed else RadarGreen, fontWeight = FontWeight.Bold) }\n'
+          lines = [
+              '                HorizontalDivider(color = RadarSurface2)',
+              '                Text("BUDGET-HISTORIE", color = RadarCyan, fontWeight = FontWeight.Black, style = MaterialTheme.typography.labelLarge)',
+              '                Text("Alle Einzahlungen, Käufe und Verkäufe in zeitlicher Reihenfolge.", color = RadarMuted, style = MaterialTheme.typography.bodySmall)',
+              '                if (current.history.isEmpty()) {',
+              '                    Text("Noch keine Budgetbuchungen vorhanden.", color = RadarMuted)',
+              '                } else {',
+              '                    current.history.take(30).forEach { entry ->',
+              '                        val accent = if (entry.isCredit) RadarGreen else RadarBlue',
+              '                        NeonPanel(accent = accent) {',
+              '                            Row(',
+              '                                Modifier.fillMaxWidth(),',
+              '                                horizontalArrangement = Arrangement.SpaceBetween,',
+              '                                verticalAlignment = Alignment.CenterVertically',
+              '                            ) {',
+              '                                Column(Modifier.weight(1f)) {',
+              '                                    Text(entry.title, fontWeight = FontWeight.Black)',
+              '                                    Text(entry.date, color = RadarMuted, style = MaterialTheme.typography.bodySmall)',
+              '                                }',
+              '                                Text(',
+              '                                    formatSignedMoney(entry.amountEur),',
+              '                                    color = accent,',
+              '                                    fontWeight = FontWeight.Black',
+              '                                )',
+              '                            }',
+              '                            val details = listOf(entry.itemId, entry.note).filter { it.isNotBlank() }.joinToString(" · ")',
+              '                            if (details.isNotBlank()) {',
+              '                                Text(details, color = RadarMuted, style = MaterialTheme.typography.bodySmall)',
+              '                            }',
+              '                        }',
+              '                    }',
+              '                }',
+              '',
+              '                message?.let { Text(it, color = if (it.contains("nicht")) RadarRed else RadarGreen, fontWeight = FontWeight.Bold) }',
+          ]
+          replacement = '\n'.join(lines) + '\n'
           if anchor not in text:
               raise SystemExit('BudgetDialog-Anker nicht gefunden')
           if 'Text("BUDGET-HISTORIE"' in text:
