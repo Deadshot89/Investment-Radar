@@ -45,7 +45,7 @@ object PortfolioAdvisorEngine {
         candidates: List<PortfolioAdvisorCandidate>,
         budgetEur: Int
     ): PortfolioAdvisorPlan {
-        val budget = budgetEur.coerceAtLeast(0)
+        val budget = InvestmentBudgetRuntime.resolveAdvisorBudget(budgetEur).coerceAtLeast(0)
         val reallocations = ReallocationPolicy.suggest(candidates)
         val conflicts = candidates
             .filter {
