@@ -1,0 +1,77 @@
+name: Budget-Historie anwenden
+
+on:
+  push:
+    branches:
+      - feature/budget-history-custom-buy
+    paths:
+      - '.github/workflows/apply-budget-history-ui.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/budget-history-custom-buy
+      - name: Budget-Historie einfügen
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt')
+          text = path.read_text()
+          anchor = '''                message?.let { Text(it, color = if (it.contains("nicht")) RadarRed else RadarGreen, fontWeight = FontWeight.Bold) }
+'''
+          replacement = '''                HorizontalDivider(color = RadarSurface2)
+                Text("BUDGET-HISTORIE", color = RadarCyan, fontWeight = FontWeight.Black, style = MaterialTheme.typography.labelLarge)
+                Text("Alle Einzahlungen, Käufe und Verkäufe in zeitlicher Reihenfolge.", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
+                if (current.history.isEmpty()) {
+                    Text("Noch keine Budgetbuchungen vorhanden.", color = RadarMuted)
+                } else {
+                    current.history.take(30).forEach { entry ->
+                        val accent = if (entry.isCredit) RadarGreen else RadarBlue
+                        NeonPanel(accent = accent) {
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(entry.title, fontWeight = FontWeight.Black)
+                                    Text(entry.date, color = RadarMuted, style = MaterialTheme.typography.bodySmall)
+                                }
+                                Text(
+                                    formatSignedMoney(entry.amountEur),
+                                    color = accent,
+                                    fontWeight = FontWeight.Black
+                                )
+                            }
+                            val details = listOf(entry.itemId, entry.note).filter { it.isNotBlank() }.joinToString(" · ")
+                            if (details.isNotBlank()) {
+                                Text(details, color = RadarMuted, style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
+                }
+
+                message?.let { Text(it, color = if (it.contains("nicht")) RadarRed else RadarGreen, fontWeight = FontWeight.Bold) }
+'''
+          if anchor not in text:
+              raise SystemExit('BudgetDialog-Anker nicht gefunden')
+          if 'Text("BUDGET-HISTORIE"' in text:
+              raise SystemExit('Budget-Historie ist bereits vorhanden')
+          path.write_text(text.replace(anchor, replacement, 1))
+          PY
+      - name: Änderung speichern
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt
+          git commit -m "feat: Budget-Historie im Budgetfenster anzeigen"
+          git push origin HEAD:feature/budget-history-custom-buy
