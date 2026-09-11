@@ -22,7 +22,7 @@ grep -q 'Warum:' "$RADAR"
 
 # Die drei Dashboard-Kacheln sollen fest unterschiedliche Akzentfarben haben.
 grep -q 'DarkMetricCard("MARKT", data.marketLight.uppercase(), RadarYellow' "$MAIN"
-grep -q 'DarkMetricCard("BUDGET", "$budget €", RadarBlue' "$MAIN"
+grep -q 'DarkMetricCard("VERFÜGBAR", formatMoney(budgetState.availableEur), RadarBlue' "$MAIN"
 grep -q 'val signalAccent = if (top != null) RadarGreen else RadarPurple' "$MAIN"
 grep -q 'DarkMetricCard("SIGNAL", if (top != null) "AKTIV" else "WARTEN", signalAccent' "$MAIN"
 # WARTEN in der Metrik darf nicht mehr titleLarge verwenden.
