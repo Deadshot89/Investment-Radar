@@ -102,6 +102,7 @@ object InvestmentBudgetStore {
             .edit()
             .putString(ENTRIES_KEY, InvestmentBudgetCodec.encodeEntries(entries))
             .apply()
+        refreshRuntime(context)
     }
 
     fun upsertEntry(context: Context, entry: BudgetJournalEntry) {
@@ -119,6 +120,7 @@ object InvestmentBudgetStore {
             .edit()
             .putString(RESERVATIONS_KEY, InvestmentBudgetCodec.encodeReservations(reservations))
             .apply()
+        refreshRuntime(context)
     }
 
     fun upsertReservation(context: Context, reservation: BudgetReservation) {
@@ -137,4 +139,8 @@ object InvestmentBudgetStore {
 
     fun summary(context: Context): InvestmentBudgetSummary =
         InvestmentBudgetJournalEngine.summarize(readEntries(context), readReservations(context))
+
+    fun refreshRuntime(context: Context) {
+        InvestmentBudgetRuntime.refresh(summary(context))
+    }
 }
