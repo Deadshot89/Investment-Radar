@@ -66,6 +66,6 @@ class InvestmentLedgerTest {
         assertEquals("IE00B3YLTY66", position.key)
         assertEquals(4.900222, position.shares, 0.0000001)
         assertEquals(57.4093991, position.costBasisEur, 0.000001)
-        assertEquals(11.716693, position.averageBuyInEur, 0.000001)
+        assertEquals(11.715673, position.averageBuyInEur, 0.000001)
     }
 }
