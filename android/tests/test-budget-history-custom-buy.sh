@@ -24,3 +24,4 @@ grep -Fq 'BUDGET-HISTORIE' "$UI" || fail 'Im Budgetbereich fehlt die sichtbare �
 grep -Fq 'current.history' "$UI" || fail 'Die Budget-Historie wird in der Oberfläche nicht gerendert.'
 
 echo 'PASS: Budget-Historie und budgetwirksamer Erstkauf sind vollständig verdrahtet.'
+# Finale Verifikation des vollständigen Feature-Stands.
