@@ -76,4 +76,92 @@ class InvestmentBudgetExecutionServiceTest {
         assertEquals(first.position, second.position)
         assertEquals(first.entries, second.entries)
     }
+
+    @Test
+    fun `editing executed buy updates both position and debit`() {
+        val original = InvestmentBudgetExecutionService.executeBuy(
+            PortfolioPosition("msci"),
+            listOf(BudgetJournalEntry("month", BudgetJournalType.MONTHLY_DEPOSIT, 100.0, "2026-09-01")),
+            emptyList(),
+            BudgetBuyExecution("buy-msci", null, "msci", "2026-09-09", 20.0, 1.0, BudgetJournalSource.SPARE_CHANGE)
+        )
+
+        val revised = InvestmentBudgetExecutionService.reviseBuy(
+            position = original.position!!,
+            entries = original.entries,
+            purchase = PortfolioPurchase("buy-msci", "2026-09-09", 25.0, 1.25)
+        )
+
+        assertNull(revised.error)
+        assertEquals(25.0, revised.position?.purchases?.single()?.investedAmount ?: 0.0, 0.000001)
+        assertEquals(75.0, InvestmentBudgetJournalEngine.summarize(revised.entries, revised.reservations).availableEur, 0.000001)
+        assertEquals(25.0, revised.entries.single { it.id == "buy-msci" }.amountEur, 0.000001)
+        assertEquals(BudgetJournalSource.SPARE_CHANGE, revised.entries.single { it.id == "buy-msci" }.source)
+    }
+
+    @Test
+    fun `editing executed buy above restored buying power is rejected`() {
+        val entries = listOf(
+            BudgetJournalEntry("month", BudgetJournalType.MONTHLY_DEPOSIT, 100.0, "2026-09-01"),
+            BudgetJournalEntry("buy-msci", BudgetJournalType.BUY_DEBIT, 80.0, "2026-09-09", "msci")
+        )
+        val position = PortfolioPosition("msci").upsertPurchaseIfValid(
+            PortfolioPurchase("buy-msci", "2026-09-09", 80.0, 4.0)
+        )!!
+
+        val revised = InvestmentBudgetExecutionService.reviseBuy(
+            position,
+            entries,
+            PortfolioPurchase("buy-msci", "2026-09-09", 110.0, 5.5)
+        )
+
+        assertEquals("Nicht genügend verfügbares Budget", revised.error)
+        assertEquals(80.0, revised.entries.single { it.id == "buy-msci" }.amountEur, 0.000001)
+    }
+
+    @Test
+    fun `deleting executed buy removes matching debit`() {
+        val position = PortfolioPosition("msci").upsertPurchaseIfValid(
+            PortfolioPurchase("buy-msci", "2026-09-09", 20.0, 1.0)
+        )!!
+        val entries = listOf(
+            BudgetJournalEntry("month", BudgetJournalType.MONTHLY_DEPOSIT, 100.0, "2026-09-01"),
+            BudgetJournalEntry("buy-msci", BudgetJournalType.BUY_DEBIT, 20.0, "2026-09-09", "msci")
+        )
+
+        val deleted = InvestmentBudgetExecutionService.deleteBuy(position, entries, "buy-msci")
+
+        assertNull(deleted.error)
+        assertTrue(deleted.position?.purchases?.isEmpty() == true)
+        assertTrue(deleted.entries.none { it.id == "buy-msci" })
+        assertEquals(100.0, InvestmentBudgetJournalEngine.summarize(deleted.entries, deleted.reservations).availableEur, 0.000001)
+    }
+
+    @Test
+    fun `editing and deleting executed sale keep credit synchronized`() {
+        val base = PortfolioPosition("msci").upsertPurchaseIfValid(
+            PortfolioPurchase("buy-old", "2026-08-31", 50.0, 5.0)
+        )!!
+        val sold = InvestmentBudgetExecutionService.executeSale(
+            base,
+            listOf(BudgetJournalEntry("month", BudgetJournalType.MONTHLY_DEPOSIT, 100.0, "2026-09-01")),
+            emptyList(),
+            BudgetSaleExecution("sell-msci", "msci", "2026-09-10", 15.0, 1.0, BudgetJournalSource.MANUAL)
+        )
+
+        val revised = InvestmentBudgetExecutionService.reviseSale(
+            sold.position!!,
+            sold.entries,
+            PortfolioSale("sell-msci", "2026-09-10", 18.0, 1.0)
+        )
+        assertNull(revised.error)
+        assertEquals(118.0, InvestmentBudgetJournalEngine.summarize(revised.entries, revised.reservations).availableEur, 0.000001)
+        assertEquals(18.0, revised.entries.single { it.id == "sell-msci" }.amountEur, 0.000001)
+
+        val deleted = InvestmentBudgetExecutionService.deleteSale(revised.position!!, revised.entries, "sell-msci")
+        assertNull(deleted.error)
+        assertTrue(deleted.position?.sales?.isEmpty() == true)
+        assertTrue(deleted.entries.none { it.id == "sell-msci" })
+        assertEquals(100.0, InvestmentBudgetJournalEngine.summarize(deleted.entries, deleted.reservations).availableEur, 0.000001)
+    }
 }
