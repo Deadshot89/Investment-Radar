@@ -47,7 +47,7 @@ object InvestmentBudgetExecutionService {
             ?.let { id -> reservations.firstOrNull { it.id == id && it.itemId == request.itemId } }
         val summary = InvestmentBudgetJournalEngine.summarize(entries, reservations)
         val buyingPower = summary.availableEur + (matchingReservation?.amountEur ?: 0.0)
-        if (request.amountEur > buyingPower + 0.000001) {
+        if (request.amountEur > buyingPower + EPSILON) {
             return BudgetExecutionResult(position, entries, reservations, "Nicht genügend verfügbares Budget")
         }
 
@@ -77,6 +77,62 @@ object InvestmentBudgetExecutionService {
             ?: reservations
 
         return BudgetExecutionResult(updatedPosition, updatedEntries, updatedReservations)
+    }
+
+    fun reviseBuy(
+        position: PortfolioPosition,
+        entries: List<BudgetJournalEntry>,
+        purchase: PortfolioPurchase,
+        reservations: List<BudgetReservation> = emptyList()
+    ): BudgetExecutionResult {
+        val existingEntry = entries.firstOrNull {
+            it.id == purchase.id &&
+                it.type == BudgetJournalType.BUY_DEBIT &&
+                it.itemId == position.itemId
+        } ?: return BudgetExecutionResult(position, entries, reservations, "Budgetbuchung für Kauf fehlt")
+
+        if (purchase.id.isBlank() || purchase.date.isBlank() ||
+            !purchase.investedAmount.isFinite() || purchase.investedAmount <= 0.0 ||
+            !purchase.shares.isFinite() || purchase.shares <= 0.0
+        ) {
+            return BudgetExecutionResult(position, entries, reservations, "Ungültige Kaufdaten")
+        }
+
+        val summary = InvestmentBudgetJournalEngine.summarize(entries, reservations)
+        val restoredBuyingPower = summary.availableEur + existingEntry.amountEur
+        if (purchase.investedAmount > restoredBuyingPower + EPSILON) {
+            return BudgetExecutionResult(position, entries, reservations, "Nicht genügend verfügbares Budget")
+        }
+
+        val updatedPosition = position.upsertPurchaseIfValid(purchase)
+            ?: return BudgetExecutionResult(position, entries, reservations, "Kauf konnte nicht aktualisiert werden")
+        val updatedEntries = InvestmentBudgetJournalEngine.upsert(
+            entries,
+            existingEntry.copy(
+                amountEur = purchase.investedAmount,
+                date = purchase.date,
+                note = "Kauf aktualisiert"
+            )
+        )
+        return BudgetExecutionResult(updatedPosition, updatedEntries, reservations)
+    }
+
+    fun deleteBuy(
+        position: PortfolioPosition,
+        entries: List<BudgetJournalEntry>,
+        purchaseId: String,
+        reservations: List<BudgetReservation> = emptyList()
+    ): BudgetExecutionResult {
+        val matchingEntry = entries.firstOrNull {
+            it.id == purchaseId &&
+                it.type == BudgetJournalType.BUY_DEBIT &&
+                it.itemId == position.itemId
+        } ?: return BudgetExecutionResult(position, entries, reservations, "Budgetbuchung für Kauf fehlt")
+
+        val updatedPosition = position.removePurchaseIfValid(purchaseId)
+            ?: return BudgetExecutionResult(position, entries, reservations, "Kauf kann wegen späterer Verkäufe nicht gelöscht werden")
+        val updatedEntries = entries.filterNot { it.id == matchingEntry.id }
+        return BudgetExecutionResult(updatedPosition, updatedEntries, reservations)
     }
 
     fun executeSale(
@@ -119,4 +175,55 @@ object InvestmentBudgetExecutionService {
 
         return BudgetExecutionResult(updatedPosition, updatedEntries, reservations)
     }
+
+    fun reviseSale(
+        position: PortfolioPosition,
+        entries: List<BudgetJournalEntry>,
+        sale: PortfolioSale,
+        reservations: List<BudgetReservation> = emptyList()
+    ): BudgetExecutionResult {
+        val existingEntry = entries.firstOrNull {
+            it.id == sale.id &&
+                it.type == BudgetJournalType.SELL_CREDIT &&
+                it.itemId == position.itemId
+        } ?: return BudgetExecutionResult(position, entries, reservations, "Budgetbuchung für Verkauf fehlt")
+
+        if (sale.id.isBlank() || sale.date.isBlank() ||
+            !sale.proceeds.isFinite() || sale.proceeds < 0.0 ||
+            !sale.shares.isFinite() || sale.shares <= 0.0
+        ) {
+            return BudgetExecutionResult(position, entries, reservations, "Ungültige Verkaufsdaten")
+        }
+
+        val updatedPosition = position.upsertSale(sale)
+            ?: return BudgetExecutionResult(position, entries, reservations, "Verkauf übersteigt den Bestand")
+        val updatedEntries = InvestmentBudgetJournalEngine.upsert(
+            entries,
+            existingEntry.copy(
+                amountEur = sale.proceeds,
+                date = sale.date,
+                note = "Verkauf aktualisiert"
+            )
+        )
+        return BudgetExecutionResult(updatedPosition, updatedEntries, reservations)
+    }
+
+    fun deleteSale(
+        position: PortfolioPosition,
+        entries: List<BudgetJournalEntry>,
+        saleId: String,
+        reservations: List<BudgetReservation> = emptyList()
+    ): BudgetExecutionResult {
+        val matchingEntry = entries.firstOrNull {
+            it.id == saleId &&
+                it.type == BudgetJournalType.SELL_CREDIT &&
+                it.itemId == position.itemId
+        } ?: return BudgetExecutionResult(position, entries, reservations, "Budgetbuchung für Verkauf fehlt")
+
+        val updatedPosition = position.removeSale(saleId)
+        val updatedEntries = entries.filterNot { it.id == matchingEntry.id }
+        return BudgetExecutionResult(updatedPosition, updatedEntries, reservations)
+    }
+
+    private const val EPSILON = 0.000001
 }
