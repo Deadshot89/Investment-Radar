@@ -123,6 +123,7 @@ fun InvestmentRadarUi(
     pushNavigationRequest: Long = 0L
 ) {
     val state by vm.state.collectAsState()
+    val budgetState by vm.budgetState.collectAsState()
     val holdingIds by vm.holdingIds.collectAsState()
     val positions by vm.positions.collectAsState()
     val customItems by vm.customItems.collectAsState()
@@ -130,8 +131,6 @@ fun InvestmentRadarUi(
     val alerts by vm.alerts.collectAsState()
     val alertPreferences by vm.alertPreferences.collectAsState()
     val context = LocalContext.current
-    val prefs = remember { context.getSharedPreferences("investment_radar_settings", 0) }
-    var budget by remember { mutableIntStateOf(prefs.getInt("monthly_budget", 100).coerceIn(10, 10000)) }
     var tab by remember { mutableIntStateOf(initialTab.coerceIn(0, 3)) }
     var selectedDetailId by remember { mutableStateOf(initialDetailId?.takeIf { it.isNotBlank() }) }
     var detailReturnTab by remember { mutableIntStateOf(if (initialDetailId.isNullOrBlank()) initialTab.coerceIn(0, 3) else 3) }
@@ -303,7 +302,7 @@ fun InvestmentRadarUi(
                                 freshness = DataFreshness.summarize(item)
                             )
                         }
-                        val advisorPlan = PortfolioAdvisorEngine.allocate(advisorCandidates, budget)
+                        val advisorPlan = PortfolioAdvisorEngine.allocate(advisorCandidates, budgetState.advisorBudgetEur)
                         val advisorById = advisorPlan.candidates.associateBy { it.itemId }
                         val itemsById = s.data.items.associateBy { it.id }
                         val detailId = selectedDetailId
@@ -325,7 +324,7 @@ fun InvestmentRadarUi(
                         } else when (tab) {
                             0 -> DashboardScreen(
                                 data = s.data,
-                                budget = budget,
+                                budgetState = budgetState,
                                 holdingIds = holdingIds,
                                 positions = positions,
                                 customItems = customItems,
@@ -429,13 +428,10 @@ fun InvestmentRadarUi(
 
     if (budgetDialog) {
         BudgetDialog(
-            current = budget,
+            current = budgetState,
             onDismiss = { budgetDialog = false },
-            onSave = { newBudget ->
-                budget = newBudget.coerceIn(10, 10000)
-                prefs.edit().putInt("monthly_budget", budget).apply()
-                budgetDialog = false
-            }
+            onSaveMonthly = vm::setMonthlyBudget,
+            onAddExtra = { amount -> vm.addExtraFunding(amount) }
         )
     }
 
@@ -451,7 +447,9 @@ fun InvestmentRadarUi(
             onUpsertPurchase = { purchase -> vm.upsertPurchase(item.id, purchase) },
             onDeletePurchase = { purchaseId -> vm.removePurchase(item.id, purchaseId) },
             onUpsertSale = { sale -> vm.upsertSale(item.id, sale) },
-            onDeleteSale = { saleId -> vm.removeSale(item.id, saleId) }
+            onDeleteSale = { saleId -> vm.removeSale(item.id, saleId) },
+            onExecutePurchase = { purchase -> vm.executeBuy(item.id, purchase) },
+            onExecuteSale = { sale -> vm.executeSale(item.id, sale) }
         )
     }
 
@@ -522,7 +520,7 @@ fun InvestmentRadarUi(
 @Composable
 private fun DashboardScreen(
     data: DashboardData,
-    budget: Int,
+    budgetState: InvestmentBudgetViewState,
     holdingIds: Set<String>,
     positions: Map<String, PortfolioPosition>,
     customItems: List<CustomInvestment>,
@@ -567,8 +565,32 @@ private fun DashboardScreen(
             val signalStyle = if (top == null) MaterialTheme.typography.labelLarge else MaterialTheme.typography.titleLarge
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 DarkMetricCard("MARKT", data.marketLight.uppercase(), RadarYellow, Modifier.weight(1f))
-                DarkMetricCard("BUDGET", "$budget €", RadarBlue, Modifier.weight(1f), onClick = onEditBudget)
+                DarkMetricCard("VERFÜGBAR", formatMoney(budgetState.availableEur), RadarBlue, Modifier.weight(1f), onClick = onEditBudget)
                 DarkMetricCard("SIGNAL", if (top != null) "AKTIV" else "WARTEN", signalAccent, Modifier.weight(1f), valueStyle = signalStyle)
+            }
+        }
+
+        item {
+            NeonPanel(accent = RadarBlue) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("BUDGET-COCKPIT", color = RadarBlue, fontWeight = FontWeight.Black, style = MaterialTheme.typography.labelLarge)
+                        Text("Echtes verfügbares Investmentbudget", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
+                    }
+                    IconButton(onClick = onEditBudget) { Icon(Icons.Default.Edit, contentDescription = "Budget bearbeiten") }
+                }
+                NeonStatStrip(
+                    entries = listOf(
+                        "Monatsbudget" to formatMoney(budgetState.monthlyBudgetEur),
+                        "Zusätzlich" to formatMoney(budgetState.extraFundingEur),
+                        "Investiert" to formatMoney(budgetState.investedEur),
+                        "Verkäufe" to formatMoney(budgetState.saleCreditsEur),
+                        "Reserviert" to formatMoney(budgetState.reservedEur),
+                        "Verfügbar" to formatMoney(budgetState.availableEur)
+                    ),
+                    accent = RadarBlue
+                )
+                Text("Empfehlungen reservieren oder verteilen nur verfügbares Geld. Erst „Kauf ausgeführt“ belastet das Budget.", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
             }
         }
 
@@ -670,12 +692,12 @@ private fun DashboardScreen(
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column {
                     Text("DEIN KAUFPLAN", style = MaterialTheme.typography.labelLarge, color = RadarMuted, fontWeight = FontWeight.Bold)
-                    Text("$budget € Monatsbudget", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+                    Text("${formatMoney(budgetState.availableEur)} verfügbar", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
                 }
                 FilledTonalButton(onClick = onEditBudget) {
                     Icon(Icons.Default.AccountBalanceWallet, null)
                     Spacer(Modifier.width(6.dp))
-                    Text("Ändern")
+                    Text("Budget")
                 }
             }
         }
@@ -802,7 +824,9 @@ private fun PurchaseHistoryDialog(
     onUpsertPurchase: (PortfolioPurchase) -> Boolean,
     onDeletePurchase: (String) -> Boolean,
     onUpsertSale: (PortfolioSale) -> Boolean,
-    onDeleteSale: (String) -> Boolean
+    onDeleteSale: (String) -> Boolean,
+    onExecutePurchase: (PortfolioPurchase) -> Boolean,
+    onExecuteSale: (PortfolioSale) -> Boolean
 ) {
     var entryType by remember(item.id, initialEntryType) { mutableStateOf(initialEntryType.takeIf { it == "SELL" } ?: "BUY") }
     var editingId by remember(item.id) { mutableStateOf<String?>(null) }
@@ -933,6 +957,13 @@ private fun PurchaseHistoryDialog(
                     fontWeight = FontWeight.Bold
                 )
 
+                if (editingId == null) {
+                    Text(
+                        if (entryType == "BUY") "Der ausgeführte Kauf wird vom verfügbaren Budget abgezogen." else "Der Verkaufserlös wird dem verfügbaren Budget gutgeschrieben.",
+                        color = RadarMuted,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
                 errorText?.let { Text(it, color = RadarRed, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold) }
 
                 Button(
@@ -944,10 +975,15 @@ private fun PurchaseHistoryDialog(
                                 investedAmount = amount!!,
                                 shares = shares!!
                             )
-                            if (onUpsertPurchase(purchase)) {
+                            val saved = if (editingPurchase) onUpsertPurchase(purchase) else onExecutePurchase(purchase)
+                            if (saved) {
                                 resetEditor("BUY")
                             } else {
-                                errorText = "Änderung nicht möglich – dadurch wäre ein bereits erfasster Verkauf nicht mehr durch den Bestand gedeckt."
+                                errorText = if (editingPurchase) {
+                                    "Änderung nicht möglich – dadurch wäre ein bereits erfasster Verkauf nicht mehr durch den Bestand gedeckt."
+                                } else {
+                                    "Kauf nicht möglich – prüfe verfügbares Budget, Betrag und Stückzahl."
+                                }
                             }
                         } else {
                             val sale = PortfolioSale(
@@ -956,7 +992,8 @@ private fun PurchaseHistoryDialog(
                                 proceeds = amount!!,
                                 shares = shares!!
                             )
-                            if (onUpsertSale(sale)) {
+                            val saved = if (editingSale) onUpsertSale(sale) else onExecuteSale(sale)
+                            if (saved) {
                                 resetEditor("SELL")
                             } else {
                                 errorText = "Verkauf nicht möglich – die Stückzahl zum gewählten Datum überschreitet deinen vorhandenen Bestand."
@@ -969,9 +1006,9 @@ private fun PurchaseHistoryDialog(
                     Text(
                         when {
                             entryType == "BUY" && editingPurchase -> "Kauf aktualisieren"
-                            entryType == "BUY" -> "Nachkauf speichern"
+                            entryType == "BUY" -> "Kauf ausgeführt"
                             entryType == "SELL" && editingSale -> "Verkauf aktualisieren"
-                            else -> "Verkauf speichern"
+                            else -> "Verkauf ausgeführt"
                         }
                     )
                 }
@@ -986,28 +1023,28 @@ private fun PurchaseHistoryDialog(
                 } else {
                     current.purchases.asReversed().forEach { purchase ->
                         NeonPanel(accent = RadarGreen) {
-                                Text(purchase.date.ifBlank { "Bestand übernommen" }, fontWeight = FontWeight.Bold)
-                                Text(
-                                    "${formatMoney(purchase.investedAmount)} · ${formatShares(purchase.shares)} Anteile · Kaufkurs ${purchase.buyPrice()?.let(::formatMoney) ?: "–"}",
-                                    color = RadarMuted,
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    TextButton(onClick = { editPurchase(purchase) }, modifier = Modifier.weight(1f)) { Text("Ändern") }
-                                    TextButton(
-                                        onClick = {
-                                            if (onDeletePurchase(purchase.id)) {
-                                                if (editingId == purchase.id && entryType == "BUY") resetEditor("BUY")
-                                            } else {
-                                                errorText = "Änderung nicht möglich – dieser Kauf wird für einen späteren Verkauf benötigt."
-                                            }
-                                        },
-                                        modifier = Modifier.weight(1f)
-                                    ) { Text("Löschen", color = RadarRed) }
-                                }
+                            Text(purchase.date.ifBlank { "Bestand übernommen" }, fontWeight = FontWeight.Bold)
+                            Text(
+                                "${formatMoney(purchase.investedAmount)} · ${formatShares(purchase.shares)} Anteile · Kaufkurs ${purchase.buyPrice()?.let(::formatMoney) ?: "–"}",
+                                color = RadarMuted,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                TextButton(onClick = { editPurchase(purchase) }, modifier = Modifier.weight(1f)) { Text("Ändern") }
+                                TextButton(
+                                    onClick = {
+                                        if (onDeletePurchase(purchase.id)) {
+                                            if (editingId == purchase.id && entryType == "BUY") resetEditor("BUY")
+                                        } else {
+                                            errorText = "Änderung nicht möglich – dieser Kauf wird für einen späteren Verkauf benötigt."
+                                        }
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                ) { Text("Löschen", color = RadarRed) }
                             }
                         }
                     }
+                }
 
                 HorizontalDivider(color = RadarSurface2)
                 Text("Bisherige Verkäufe", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
@@ -1016,25 +1053,25 @@ private fun PurchaseHistoryDialog(
                 } else {
                     current.sales.asReversed().forEach { sale ->
                         NeonPanel(accent = RadarYellow) {
-                                Text(sale.date.ifBlank { "Verkauf" }, fontWeight = FontWeight.Bold, color = RadarYellow)
-                                Text(
-                                    "${formatMoney(sale.proceeds)} Erlös · ${formatShares(sale.shares)} Anteile · Verkaufspreis ${sale.salePrice()?.let(::formatMoney) ?: "–"}",
-                                    color = RadarMuted,
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    TextButton(onClick = { editSale(sale) }, modifier = Modifier.weight(1f)) { Text("Ändern") }
-                                    TextButton(
-                                        onClick = {
-                                            onDeleteSale(sale.id)
-                                            if (editingId == sale.id && entryType == "SELL") resetEditor("SELL")
-                                        },
-                                        modifier = Modifier.weight(1f)
-                                    ) { Text("Löschen", color = RadarRed) }
-                                }
+                            Text(sale.date.ifBlank { "Verkauf" }, fontWeight = FontWeight.Bold, color = RadarYellow)
+                            Text(
+                                "${formatMoney(sale.proceeds)} Erlös · ${formatShares(sale.shares)} Anteile · Verkaufspreis ${sale.salePrice()?.let(::formatMoney) ?: "–"}",
+                                color = RadarMuted,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                TextButton(onClick = { editSale(sale) }, modifier = Modifier.weight(1f)) { Text("Ändern") }
+                                TextButton(
+                                    onClick = {
+                                        onDeleteSale(sale.id)
+                                        if (editingId == sale.id && entryType == "SELL") resetEditor("SELL")
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                ) { Text("Löschen", color = RadarRed) }
                             }
                         }
                     }
+                }
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Fertig") } },
@@ -1217,32 +1254,88 @@ private fun NeonStatStrip(entries: List<Pair<String, String>>, accent: Color) {
 }
 
 @Composable
-private fun BudgetDialog(current: Int, onDismiss: () -> Unit, onSave: (Int) -> Unit) {
-    var value by remember(current) { mutableStateOf(current.toString()) }
+private fun BudgetDialog(
+    current: InvestmentBudgetViewState,
+    onDismiss: () -> Unit,
+    onSaveMonthly: (Double) -> Boolean,
+    onAddExtra: (Double) -> Boolean
+) {
+    var monthlyValue by remember(current.monthlyBudgetEur) { mutableStateOf(formatEditableNumber(current.monthlyBudgetEur)) }
+    var extraValue by remember { mutableStateOf("") }
+    var message by remember { mutableStateOf<String?>(null) }
+    val monthly = parseDecimal(monthlyValue)
+    val extra = parseDecimal(extraValue)
+
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Monatsbudget ändern") },
+        title = { Text("Investmentbudget") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Der Kaufplan wird sofort auf dein neues Budget neu verteilt.", color = RadarMuted)
+            Column(Modifier.heightIn(max = 590.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Budget-Cockpit", color = RadarBlue, fontWeight = FontWeight.Black)
+                NeonStatStrip(
+                    entries = listOf(
+                        "Monatsbudget" to formatMoney(current.monthlyBudgetEur),
+                        "Zusätzlich" to formatMoney(current.extraFundingEur),
+                        "Investiert" to formatMoney(current.investedEur),
+                        "Reserviert" to formatMoney(current.reservedEur),
+                        "Verfügbar" to formatMoney(current.availableEur)
+                    ),
+                    accent = RadarBlue
+                )
+
+                HorizontalDivider(color = RadarSurface2)
+                Text("Monatsbudget ändern", fontWeight = FontWeight.Black)
                 OutlinedTextField(
-                    value = value,
-                    onValueChange = { value = it.filter(Char::isDigit).take(5) },
-                    label = { Text("Budget in €") },
+                    value = monthlyValue,
+                    onValueChange = { monthlyValue = sanitizeDecimalInput(it); message = null },
+                    label = { Text("Monatsbudget in €") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     listOf(50, 100, 200, 500).forEach { preset ->
-                        AssistChip(onClick = { value = preset.toString() }, label = { Text("$preset €") })
+                        AssistChip(onClick = { monthlyValue = preset.toString() }, label = { Text("$preset €") })
                     }
                 }
+                Button(
+                    onClick = {
+                        val value = monthly ?: return@Button
+                        message = if (onSaveMonthly(value)) "Monatsbudget aktualisiert." else "Monatsbudget konnte nicht gespeichert werden."
+                    },
+                    enabled = monthly != null && monthly >= 0.0,
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Monatsbudget speichern") }
+
+                HorizontalDivider(color = RadarSurface2)
+                Text("Zusatzgeld / Wechselgeld", fontWeight = FontWeight.Black)
+                Text("Zusatzgeld erhöht dein verfügbares Investmentbudget, ohne dein Monatsbudget zu verändern.", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
+                OutlinedTextField(
+                    value = extraValue,
+                    onValueChange = { extraValue = sanitizeDecimalInput(it); message = null },
+                    label = { Text("Zusätzlicher Betrag in €") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Button(
+                    onClick = {
+                        val value = extra ?: return@Button
+                        if (onAddExtra(value)) {
+                            extraValue = ""
+                            message = "Wechselgeld hinzugefügt."
+                        } else {
+                            message = "Zusatzgeld konnte nicht gespeichert werden."
+                        }
+                    },
+                    enabled = extra != null && extra > 0.0,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = RadarGreen, contentColor = Color(0xFF05150E))
+                ) { Text("Wechselgeld hinzufügen", fontWeight = FontWeight.Black) }
+
+                message?.let { Text(it, color = if (it.contains("nicht")) RadarRed else RadarGreen, fontWeight = FontWeight.Bold) }
             }
         },
-        confirmButton = {
-            Button(onClick = { value.toIntOrNull()?.let { onSave(it) } }, enabled = (value.toIntOrNull() ?: 0) >= 10) { Text("Übernehmen") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } }
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Fertig") } },
+        dismissButton = {}
     )
 }
 
