@@ -141,8 +141,23 @@ object InvestmentBudgetStore {
         )
     }
 
+    fun setMonthlyBudget(context: Context, amountEur: Double, date: String = LocalDate.now().toString()) {
+        val next = InvestmentBudgetCommands.setMonthlyBudget(readEntries(context), amountEur, date)
+        saveEntries(context, next)
+        context.getSharedPreferences(SETTINGS_PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putInt(LEGACY_BUDGET_KEY, amountEur.toInt())
+            .apply()
+    }
+
+    fun addExtraFunding(context: Context, command: ExtraFundingCommand) {
+        saveEntries(context, InvestmentBudgetCommands.addExtraFunding(readEntries(context), command))
+    }
+
     fun summary(context: Context): InvestmentBudgetSummary =
         InvestmentBudgetJournalEngine.summarize(readEntries(context), readReservations(context))
+
+    fun viewState(context: Context): InvestmentBudgetViewState = InvestmentBudgetViewState.from(summary(context))
 
     fun ensureInitialized(context: Context) {
         val existing = readEntries(context)
