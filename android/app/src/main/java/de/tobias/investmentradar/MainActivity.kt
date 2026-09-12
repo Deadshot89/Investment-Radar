@@ -431,7 +431,8 @@ fun InvestmentRadarUi(
             current = budgetState,
             onDismiss = { budgetDialog = false },
             onSaveMonthly = vm::setMonthlyBudget,
-            onAddExtra = { amount -> vm.addExtraFunding(amount) }
+            onAddExtra = { amount -> vm.addExtraFunding(amount) },
+            onAdjustment = { amount, credit, note -> vm.addBudgetAdjustment(amount, credit, note) }
         )
     }
 
@@ -439,17 +440,18 @@ fun InvestmentRadarUi(
         PurchaseHistoryDialog(
             item = item,
             current = positions[item.id] ?: PortfolioPosition(item.id),
+            budgetHistory = budgetState.history,
             initialEntryType = investmentDialogEntryType,
             onDismiss = {
                 investmentDialogItem = null
                 investmentDialogEntryType = "BUY"
             },
-            onUpsertPurchase = { purchase -> vm.upsertPurchase(item.id, purchase) },
+            onUpsertPurchase = { purchase, fee -> vm.upsertPurchase(item.id, purchase, fee) },
             onDeletePurchase = { purchaseId -> vm.removePurchase(item.id, purchaseId) },
-            onUpsertSale = { sale -> vm.upsertSale(item.id, sale) },
+            onUpsertSale = { sale, fee -> vm.upsertSale(item.id, sale, fee) },
             onDeleteSale = { saleId -> vm.removeSale(item.id, saleId) },
-            onExecutePurchase = { purchase -> vm.executeBuy(item.id, purchase) },
-            onExecuteSale = { sale -> vm.executeSale(item.id, sale) }
+            onExecutePurchase = { purchase, fee -> vm.executeBuy(item.id, purchase, feeEur = fee) },
+            onExecuteSale = { sale, fee -> vm.executeSale(item.id, sale, feeEur = fee) }
         )
     }
 
@@ -581,16 +583,17 @@ private fun DashboardScreen(
                 }
                 NeonStatStrip(
                     entries = listOf(
-                        "Monatsbudget" to formatMoney(budgetState.monthlyBudgetEur),
+                        "Monatsbudget ${budgetState.monthLabel}" to formatMoney(budgetState.monthlyBudgetEur),
+                        "Rest Vormonate" to formatMoney(budgetState.carryoverEur),
                         "Zusätzlich" to formatMoney(budgetState.extraFundingEur),
-                        "Investiert" to formatMoney(budgetState.investedEur),
-                        "Verkäufe" to formatMoney(budgetState.saleCreditsEur),
+                        "Depot-Einstand" to formatMoney(budgetState.investedEur),
+                        "Kontostand" to formatMoney(budgetState.cashBalanceEur),
                         "Reserviert" to formatMoney(budgetState.reservedEur),
                         "Verfügbar" to formatMoney(budgetState.availableEur)
                     ),
                     accent = RadarBlue
                 )
-                Text("Empfehlungen reservieren oder verteilen nur verfügbares Geld. Erst „Kauf ausgeführt“ belastet das Budget.", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
+                Text("Restgeld wird in den nächsten Monat übertragen. Empfehlungen erzeugen keine Buchung; erst ein bestätigter Kauf oder Verkauf verändert den Kontostand.", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
             }
         }
 
@@ -819,20 +822,23 @@ private fun PortfolioValueRow(label: String, value: String, valueColor: Color) {
 private fun PurchaseHistoryDialog(
     item: InvestmentItem,
     current: PortfolioPosition,
+    budgetHistory: List<BudgetHistoryItem>,
     initialEntryType: String = "BUY",
     onDismiss: () -> Unit,
-    onUpsertPurchase: (PortfolioPurchase) -> Boolean,
+    onUpsertPurchase: (PortfolioPurchase, Double?) -> Boolean,
     onDeletePurchase: (String) -> Boolean,
-    onUpsertSale: (PortfolioSale) -> Boolean,
+    onUpsertSale: (PortfolioSale, Double?) -> Boolean,
     onDeleteSale: (String) -> Boolean,
-    onExecutePurchase: (PortfolioPurchase) -> Boolean,
-    onExecuteSale: (PortfolioSale) -> Boolean
+    onExecutePurchase: (PortfolioPurchase, Double) -> Boolean,
+    onExecuteSale: (PortfolioSale, Double) -> Boolean
 ) {
     var entryType by remember(item.id, initialEntryType) { mutableStateOf(initialEntryType.takeIf { it == "SELL" } ?: "BUY") }
     var editingId by remember(item.id) { mutableStateOf<String?>(null) }
     var dateText by remember(item.id) { mutableStateOf(todayPurchaseDate()) }
     var amountText by remember(item.id) { mutableStateOf("") }
+    var feeText by remember(item.id) { mutableStateOf("") }
     var sharesText by remember(item.id) { mutableStateOf("") }
+    var budgetRelevant by remember(item.id) { mutableStateOf(true) }
     var errorText by remember(item.id) { mutableStateOf<String?>(null) }
 
     fun resetEditor(nextType: String = entryType) {
@@ -840,7 +846,9 @@ private fun PurchaseHistoryDialog(
         editingId = null
         dateText = todayPurchaseDate()
         amountText = ""
+        feeText = ""
         sharesText = ""
+        budgetRelevant = true
         errorText = null
     }
 
@@ -849,6 +857,7 @@ private fun PurchaseHistoryDialog(
         editingId = purchase.id
         dateText = purchase.date.ifBlank { todayPurchaseDate() }
         amountText = formatEditableNumber(purchase.investedAmount)
+        feeText = budgetHistory.firstOrNull { it.id == purchase.id }?.feeEur?.takeIf { it > 0.0 }?.let(::formatEditableNumber).orEmpty()
         sharesText = formatEditableNumber(purchase.shares)
         errorText = null
     }
@@ -858,14 +867,17 @@ private fun PurchaseHistoryDialog(
         editingId = sale.id
         dateText = sale.date.ifBlank { todayPurchaseDate() }
         amountText = formatEditableNumber(sale.proceeds)
+        feeText = budgetHistory.firstOrNull { it.id == sale.id }?.feeEur?.takeIf { it > 0.0 }?.let(::formatEditableNumber).orEmpty()
         sharesText = formatEditableNumber(sale.shares)
         errorText = null
     }
 
     val amount = parseDecimal(amountText)
+    val fee = parseDecimal(feeText) ?: 0.0
     val shares = parseDecimal(sharesText)
     val unitPrice = if (amount != null && shares != null && shares > 0.0) amount / shares else null
-    val valid = isValidPurchaseDate(dateText) && amount != null && amount > 0.0 && shares != null && shares > 0.0
+    val valid = isValidPurchaseDate(dateText) && amount != null && amount > 0.0 && fee >= 0.0 &&
+        (entryType != "BUY" || fee <= amount) && shares != null && shares > 0.0
     val editingPurchase = entryType == "BUY" && editingId != null
     val editingSale = entryType == "SELL" && editingId != null
 
@@ -936,10 +948,30 @@ private fun PurchaseHistoryDialog(
                 OutlinedTextField(
                     value = amountText,
                     onValueChange = { amountText = sanitizeDecimalInput(it); errorText = null },
-                    label = { Text(if (entryType == "BUY") "Investierter Betrag in €" else "Verkaufserlös in €") },
+                    label = { Text(if (entryType == "BUY") "Tatsächliche Belastung inkl. Gebühren" else "Netto-Gutschrift nach Gebühren") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
+                OutlinedTextField(
+                    value = feeText,
+                    onValueChange = { feeText = sanitizeDecimalInput(it); errorText = null },
+                    label = { Text("Davon Gebühren in € (optional)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (editingId == null) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Budgetwirksam", fontWeight = FontWeight.Bold)
+                            Text(
+                                if (budgetRelevant) "Verändert den Investment-Kontostand." else "Nur historische Depotbuchung – verändert das Budget nicht.",
+                                color = RadarMuted,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                        Switch(checked = budgetRelevant, onCheckedChange = { budgetRelevant = it })
+                    }
+                }
                 OutlinedTextField(
                     value = sharesText,
                     onValueChange = { sharesText = sanitizeDecimalInput(it); errorText = null },
@@ -959,7 +991,11 @@ private fun PurchaseHistoryDialog(
 
                 if (editingId == null) {
                     Text(
-                        if (entryType == "BUY") "Der ausgeführte Kauf wird vom verfügbaren Budget abgezogen." else "Der Verkaufserlös wird dem verfügbaren Budget gutgeschrieben.",
+                        if (budgetRelevant) {
+                            if (entryType == "BUY") "Erst diese Bestätigung bucht die tatsächliche Belastung vom Budget ab." else "Erst diese Bestätigung schreibt die Netto-Gutschrift dem Budget gut."
+                        } else {
+                            "Historische Depotbuchung: Stückzahl und Einstand werden ergänzt, der Investment-Kontostand bleibt unverändert."
+                        },
                         color = RadarMuted,
                         style = MaterialTheme.typography.bodySmall
                     )
@@ -975,7 +1011,13 @@ private fun PurchaseHistoryDialog(
                                 investedAmount = amount!!,
                                 shares = shares!!
                             )
-                            val saved = if (editingPurchase) onUpsertPurchase(purchase) else onExecutePurchase(purchase)
+                            val saved = if (editingPurchase) {
+                                onUpsertPurchase(purchase, budgetHistory.firstOrNull { it.id == purchase.id }?.let { fee })
+                            } else if (budgetRelevant) {
+                                onExecutePurchase(purchase, fee)
+                            } else {
+                                onUpsertPurchase(purchase, null)
+                            }
                             if (saved) {
                                 resetEditor("BUY")
                             } else {
@@ -992,7 +1034,13 @@ private fun PurchaseHistoryDialog(
                                 proceeds = amount!!,
                                 shares = shares!!
                             )
-                            val saved = if (editingSale) onUpsertSale(sale) else onExecuteSale(sale)
+                            val saved = if (editingSale) {
+                                onUpsertSale(sale, budgetHistory.firstOrNull { it.id == sale.id }?.let { fee })
+                            } else if (budgetRelevant) {
+                                onExecuteSale(sale, fee)
+                            } else {
+                                onUpsertSale(sale, null)
+                            }
                             if (saved) {
                                 resetEditor("SELL")
                             } else {
@@ -1258,33 +1306,48 @@ private fun BudgetDialog(
     current: InvestmentBudgetViewState,
     onDismiss: () -> Unit,
     onSaveMonthly: (Double) -> Boolean,
-    onAddExtra: (Double) -> Boolean
+    onAddExtra: (Double) -> Boolean,
+    onAdjustment: (Double, Boolean, String) -> Boolean
 ) {
     var monthlyValue by remember(current.monthlyBudgetEur) { mutableStateOf(formatEditableNumber(current.monthlyBudgetEur)) }
     var extraValue by remember { mutableStateOf("") }
+    var adjustmentValue by remember { mutableStateOf("") }
+    var adjustmentNote by remember { mutableStateOf("") }
     var message by remember { mutableStateOf<String?>(null) }
     val monthly = parseDecimal(monthlyValue)
     val extra = parseDecimal(extraValue)
+    val adjustment = parseDecimal(adjustmentValue)
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Investmentbudget") },
         text = {
             Column(Modifier.heightIn(max = 590.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Budget-Cockpit", color = RadarBlue, fontWeight = FontWeight.Black)
+                Text("Budget-Cockpit · ${current.monthLabel}", color = RadarBlue, fontWeight = FontWeight.Black)
                 NeonStatStrip(
                     entries = listOf(
                         "Monatsbudget" to formatMoney(current.monthlyBudgetEur),
+                        "Rest Vormonate" to formatMoney(current.carryoverEur),
                         "Zusätzlich" to formatMoney(current.extraFundingEur),
-                        "Investiert" to formatMoney(current.investedEur),
+                        "Depot-Einstand" to formatMoney(current.investedEur),
+                        "Kontostand" to formatMoney(current.cashBalanceEur),
                         "Reserviert" to formatMoney(current.reservedEur),
                         "Verfügbar" to formatMoney(current.availableEur)
                     ),
                     accent = RadarBlue
                 )
+                Text(
+                    "Restgeld wird automatisch übertragen. Das Monatsbudget wird pro Monat genau einmal hinzugefügt. Reservierungen sind keine Buchungen; sie reduzieren nur den für neue Empfehlungen frei verplanbaren Betrag.",
+                    color = RadarMuted,
+                    style = MaterialTheme.typography.bodySmall
+                )
+                if (current.feesEur > 0.0) {
+                    Text("Diesen Monat in Transaktionen ausgewiesene Gebühren: ${formatMoney(current.feesEur)}", color = RadarYellow, style = MaterialTheme.typography.bodySmall)
+                }
 
                 HorizontalDivider(color = RadarSurface2)
                 Text("Monatsbudget ändern", fontWeight = FontWeight.Black)
+                Text("Die Änderung ersetzt nur das Budget des aktuellen Monats und wird als Standard für kommende Monate gespeichert. Frühere Monate bleiben in der Historie erhalten.", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
                 OutlinedTextField(
                     value = monthlyValue,
                     onValueChange = { monthlyValue = sanitizeDecimalInput(it); message = null },
@@ -1308,7 +1371,7 @@ private fun BudgetDialog(
 
                 HorizontalDivider(color = RadarSurface2)
                 Text("Zusatzgeld / Wechselgeld", fontWeight = FontWeight.Black)
-                Text("Zusatzgeld erhöht dein verfügbares Investmentbudget, ohne dein Monatsbudget zu verändern.", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
+                Text("Zusatzgeld erhöht den Kontostand zusätzlich zum Monatsbudget. Es wird nur einmal gebucht.", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
                 OutlinedTextField(
                     value = extraValue,
                     onValueChange = { extraValue = sanitizeDecimalInput(it); message = null },
@@ -1332,12 +1395,52 @@ private fun BudgetDialog(
                 ) { Text("Wechselgeld hinzufügen", fontWeight = FontWeight.Black) }
 
                 HorizontalDivider(color = RadarSurface2)
+                Text("Korrektur", fontWeight = FontWeight.Black)
+                Text("Nur verwenden, wenn der angezeigte Kontostand nach einer realen Buchung korrigiert werden muss. Die Begründung bleibt in der Historie sichtbar.", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
+                OutlinedTextField(
+                    value = adjustmentValue,
+                    onValueChange = { adjustmentValue = sanitizeDecimalInput(it); message = null },
+                    label = { Text("Korrekturbetrag in €") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = adjustmentNote,
+                    onValueChange = { adjustmentNote = it.take(120); message = null },
+                    label = { Text("Grund der Korrektur") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = {
+                            val value = adjustment ?: return@Button
+                            if (onAdjustment(value, true, adjustmentNote)) {
+                                adjustmentValue = ""; adjustmentNote = ""; message = "Gutschrift korrigiert."
+                            } else message = "Korrektur konnte nicht gespeichert werden."
+                        },
+                        enabled = adjustment != null && adjustment > 0.0 && adjustmentNote.isNotBlank(),
+                        modifier = Modifier.weight(1f)
+                    ) { Text("+ Gutschrift") }
+                    OutlinedButton(
+                        onClick = {
+                            val value = adjustment ?: return@OutlinedButton
+                            if (onAdjustment(value, false, adjustmentNote)) {
+                                adjustmentValue = ""; adjustmentNote = ""; message = "Abbuchung korrigiert."
+                            } else message = "Korrektur konnte nicht gespeichert werden."
+                        },
+                        enabled = adjustment != null && adjustment > 0.0 && adjustmentNote.isNotBlank(),
+                        modifier = Modifier.weight(1f)
+                    ) { Text("− Abbuchung") }
+                }
+
+                HorizontalDivider(color = RadarSurface2)
                 Text("BUDGET-HISTORIE", color = RadarCyan, fontWeight = FontWeight.Black, style = MaterialTheme.typography.labelLarge)
-                Text("Alle Einzahlungen, Käufe und Verkäufe in zeitlicher Reihenfolge.", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
+                Text("Hier siehst du jede budgetwirksame Veränderung und warum sich dein verfügbarer Betrag geändert hat.", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
                 if (current.history.isEmpty()) {
                     Text("Noch keine Budgetbuchungen vorhanden.", color = RadarMuted)
                 } else {
-                    current.history.take(30).forEach { entry ->
+                    current.history.take(50).forEach { entry ->
                         val accent = if (entry.isCredit) RadarGreen else RadarBlue
                         NeonPanel(accent = accent) {
                             Row(
@@ -1349,16 +1452,10 @@ private fun BudgetDialog(
                                     Text(entry.title, fontWeight = FontWeight.Black)
                                     Text(entry.date, color = RadarMuted, style = MaterialTheme.typography.bodySmall)
                                 }
-                                Text(
-                                    formatSignedMoney(entry.amountEur),
-                                    color = accent,
-                                    fontWeight = FontWeight.Black
-                                )
+                                Text(formatSignedMoney(entry.amountEur), color = accent, fontWeight = FontWeight.Black)
                             }
                             val details = listOf(entry.itemId, entry.note).filter { it.isNotBlank() }.joinToString(" · ")
-                            if (details.isNotBlank()) {
-                                Text(details, color = RadarMuted, style = MaterialTheme.typography.bodySmall)
-                            }
+                            if (details.isNotBlank()) Text(details, color = RadarMuted, style = MaterialTheme.typography.bodySmall)
                         }
                     }
                 }
