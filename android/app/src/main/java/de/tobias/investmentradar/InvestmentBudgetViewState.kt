@@ -114,8 +114,23 @@ data class InvestmentBudgetViewState(
             )
         }
 
-        fun from(summary: InvestmentBudgetSummary): InvestmentBudgetViewState =
-            from(summary, emptyList())
+        fun from(summary: InvestmentBudgetSummary): InvestmentBudgetViewState {
+            val cockpit = InvestmentBudgetPresentation.from(summary)
+            return InvestmentBudgetViewState(
+                monthlyBudgetEur = cockpit.monthlyBudgetEur,
+                extraFundingEur = cockpit.extraFundingEur,
+                investedEur = cockpit.investedEur,
+                saleCreditsEur = cockpit.saleCreditsEur,
+                reservedEur = cockpit.reservedEur,
+                availableEur = cockpit.availableEur,
+                advisorBudgetEur = cockpit.advisorBudgetEur,
+                cashBalanceEur = summary.cashBalanceEur.coerceFiniteNonNegative(),
+                carryoverEur = 0.0,
+                feesEur = summary.feesEur.coerceFiniteNonNegative(),
+                monthLabel = InvestmentBudgetDate.monthLabel(YearMonth.from(LocalDate.now()).toString()),
+                history = emptyList()
+            )
+        }
 
         private fun balanceEffect(entry: BudgetJournalEntry): Double = when (entry.type) {
             BudgetJournalType.MONTHLY_DEPOSIT,
