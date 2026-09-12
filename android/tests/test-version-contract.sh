@@ -19,11 +19,11 @@ grep -Fq 'versionName = "2.5.0"' "$GRADLE_FILE" || fail 'Android versionName mus
 grep -Fq 'Release candidate: Investment Radar 2.5.0' "$GRADLE_FILE" || fail 'Release-Kandidat muss 2.5.0 benennen.'
 grep -Fq 'EXPECTED_BACKEND_VERSION: "2.1.0"' "$WORKFLOW_FILE" || fail 'Backend-Vertrag muss bei 2.1.0 bleiben.'
 
-if grep -Fq 'versionCode = 68' "$GRADLE_FILE"; then
+if grep -Fq 'versionCode = 69' "$GRADLE_FILE"; then
   fail 'Alter versionCode 69 darf im Release-Kandidaten nicht mehr aktiv sein.'
 fi
-if grep -Fq 'versionName = "2.4.8"' "$GRADLE_FILE"; then
-  fail 'Alte versionName 2.4.8 darf im Release-Kandidaten nicht mehr aktiv sein.'
+if grep -Fq 'versionName = "2.4.9"' "$GRADLE_FILE"; then
+  fail 'Alte versionName 2.4.9 darf im Release-Kandidaten nicht mehr aktiv sein.'
 fi
 for temp_workflow in "$TEMP_NAV_WORKFLOW" "$TEMP_DETAIL_WORKFLOW" "$TEMP_TASK10_WORKFLOW"; do
   if [ -e "$temp_workflow" ]; then
