@@ -87,7 +87,8 @@ object InvestmentBudgetExecutionService {
         position: PortfolioPosition,
         entries: List<BudgetJournalEntry>,
         purchase: PortfolioPurchase,
-        reservations: List<BudgetReservation> = emptyList()
+        reservations: List<BudgetReservation> = emptyList(),
+        feeEur: Double? = null
     ): BudgetExecutionResult {
         val existingEntry = entries.firstOrNull {
             it.id == purchase.id &&
@@ -97,7 +98,8 @@ object InvestmentBudgetExecutionService {
 
         if (purchase.id.isBlank() || purchase.date.isBlank() ||
             !purchase.investedAmount.isFinite() || purchase.investedAmount <= 0.0 ||
-            !purchase.shares.isFinite() || purchase.shares <= 0.0
+            !purchase.shares.isFinite() || purchase.shares <= 0.0 ||
+            feeEur?.let { !it.isFinite() || it < 0.0 || it > purchase.investedAmount } == true
         ) {
             return BudgetExecutionResult(position, entries, reservations, "Ungültige Kaufdaten")
         }
@@ -115,7 +117,8 @@ object InvestmentBudgetExecutionService {
             existingEntry.copy(
                 amountEur = purchase.investedAmount,
                 date = purchase.date,
-                note = "Kauf aktualisiert"
+                note = "Kauf aktualisiert",
+                feeEur = feeEur ?: existingEntry.feeEur
             )
         )
         return BudgetExecutionResult(updatedPosition, updatedEntries, reservations)
@@ -186,7 +189,8 @@ object InvestmentBudgetExecutionService {
         position: PortfolioPosition,
         entries: List<BudgetJournalEntry>,
         sale: PortfolioSale,
-        reservations: List<BudgetReservation> = emptyList()
+        reservations: List<BudgetReservation> = emptyList(),
+        feeEur: Double? = null
     ): BudgetExecutionResult {
         val existingEntry = entries.firstOrNull {
             it.id == sale.id &&
@@ -196,7 +200,8 @@ object InvestmentBudgetExecutionService {
 
         if (sale.id.isBlank() || sale.date.isBlank() ||
             !sale.proceeds.isFinite() || sale.proceeds < 0.0 ||
-            !sale.shares.isFinite() || sale.shares <= 0.0
+            !sale.shares.isFinite() || sale.shares <= 0.0 ||
+            feeEur?.let { !it.isFinite() || it < 0.0 } == true
         ) {
             return BudgetExecutionResult(position, entries, reservations, "Ungültige Verkaufsdaten")
         }
@@ -208,7 +213,8 @@ object InvestmentBudgetExecutionService {
             existingEntry.copy(
                 amountEur = sale.proceeds,
                 date = sale.date,
-                note = "Verkauf aktualisiert"
+                note = "Verkauf aktualisiert",
+                feeEur = feeEur ?: existingEntry.feeEur
             )
         )
         return BudgetExecutionResult(updatedPosition, updatedEntries, reservations)
