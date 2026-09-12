@@ -7,7 +7,8 @@ data class BudgetBuyExecution(
     val date: String,
     val amountEur: Double,
     val shares: Double,
-    val source: BudgetJournalSource
+    val source: BudgetJournalSource,
+    val feeEur: Double = 0.0
 )
 
 data class BudgetSaleExecution(
@@ -16,7 +17,8 @@ data class BudgetSaleExecution(
     val date: String,
     val proceedsEur: Double,
     val shares: Double,
-    val source: BudgetJournalSource
+    val source: BudgetJournalSource,
+    val feeEur: Double = 0.0
 )
 
 data class BudgetExecutionResult(
@@ -38,6 +40,7 @@ object InvestmentBudgetExecutionService {
         }
         if (request.itemId != position.itemId || request.eventId.isBlank() || request.date.isBlank() ||
             !request.amountEur.isFinite() || request.amountEur <= 0.0 ||
+            !request.feeEur.isFinite() || request.feeEur < 0.0 || request.feeEur > request.amountEur ||
             !request.shares.isFinite() || request.shares <= 0.0
         ) {
             return BudgetExecutionResult(position, entries, reservations, "Ungültige Kaufdaten")
@@ -69,7 +72,8 @@ object InvestmentBudgetExecutionService {
                 date = request.date,
                 itemId = request.itemId,
                 source = request.source,
-                note = "Kauf ausgeführt"
+                note = "Kauf ausgeführt",
+                feeEur = request.feeEur
             )
         )
         val updatedReservations = request.reservationId
@@ -146,6 +150,7 @@ object InvestmentBudgetExecutionService {
         }
         if (request.itemId != position.itemId || request.eventId.isBlank() || request.date.isBlank() ||
             !request.proceedsEur.isFinite() || request.proceedsEur < 0.0 ||
+            !request.feeEur.isFinite() || request.feeEur < 0.0 ||
             !request.shares.isFinite() || request.shares <= 0.0
         ) {
             return BudgetExecutionResult(position, entries, reservations, "Ungültige Verkaufsdaten")
@@ -169,7 +174,8 @@ object InvestmentBudgetExecutionService {
                 date = request.date,
                 itemId = request.itemId,
                 source = request.source,
-                note = "Verkauf ausgeführt"
+                note = "Verkauf ausgeführt",
+                feeEur = request.feeEur
             )
         )
 
