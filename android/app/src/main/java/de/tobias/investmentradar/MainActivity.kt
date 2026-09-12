@@ -660,6 +660,11 @@ private fun DashboardScreen(
                 )
                 Text(advisor?.advisor?.reasons?.joinToString(" · ") ?: RecommendationPresentation.topReasons(top).joinToString(" · ").ifBlank { "Analyse liegt vor." }, color = RadarText)
                 Text(priceLine(top), color = RadarMuted)
+                Text(
+                    "Datenstand Analyse: ${data.generatedAt.ifBlank { "nicht gemeldet" }}",
+                    color = RadarMuted,
+                    style = MaterialTheme.typography.bodySmall
+                )
                 LiveForecastSummary(top)
                 ScoreBreakdownCard(top)
                 FilledTonalButton(onClick = { onAddToPortfolio(top) }, modifier = Modifier.fillMaxWidth()) {
