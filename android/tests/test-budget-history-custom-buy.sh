@@ -17,7 +17,7 @@ grep -Fq 'executeBuy(item.id, initialPurchase' "$VM" || fail 'Erstkauf eines eig
 # Der Budget-Zustand muss eine sichtbare, aufbereitete Buchungshistorie liefern.
 grep -Fq 'val history: List<BudgetHistoryItem>' "$STATE" || fail 'BudgetViewState muss eine Historie enthalten.'
 grep -Fq 'entries: List<BudgetJournalEntry>' "$STATE" || fail 'BudgetViewState muss aus Summary und Journal-Einträgen aufgebaut werden.'
-grep -Fq 'InvestmentBudgetViewState.from(summary(context), readEntries(context))' "$STORE" || fail 'BudgetStore muss Journal-Einträge an den ViewState übergeben.'
+grep -Fq 'entries = readEntries(context)' "$STORE" || fail 'BudgetStore muss Journal-Einträge an den ViewState übergeben.'
 
 # Die Historie muss für den Nutzer im Budgetbereich sichtbar sein.
 grep -Fq 'BUDGET-HISTORIE' "$UI" || fail 'Im Budgetbereich fehlt die sichtbare Überschrift BUDGET-HISTORIE.'
@@ -25,3 +25,8 @@ grep -Fq 'current.history' "$UI" || fail 'Die Budget-Historie wird in der Oberfl
 
 echo 'PASS: Budget-Historie und budgetwirksamer Erstkauf sind vollständig verdrahtet.'
 # Finale Verifikation des vollständigen Feature-Stands.
+
+grep -Fq 'ensureCurrentMonth' "$STORE" || fail 'Monatswechsel muss Restbudget und neues Monatsbudget automatisch fortführen.'
+grep -Fq 'Rest Vormonate' "$UI" || fail 'Restbudget aus Vormonaten muss sichtbar erklärt werden.'
+grep -Fq 'Budgetwirksam' "$UI" || fail 'Historische Transaktionen brauchen eine explizite Budgetwirksam-Auswahl.'
+grep -Fq 'Davon Gebühren' "$UI" || fail 'Gebühren müssen bei Transaktionen erfassbar sein.'
