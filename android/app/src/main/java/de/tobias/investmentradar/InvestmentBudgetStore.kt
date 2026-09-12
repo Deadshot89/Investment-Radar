@@ -19,6 +19,7 @@ object InvestmentBudgetCodec {
                     .put("itemId", entry.itemId)
                     .put("source", entry.source.name)
                     .put("note", entry.note)
+                    .put("feeEur", entry.feeEur)
             )
         }
         return array.toString()
@@ -32,11 +33,12 @@ object InvestmentBudgetCodec {
                 val id = item.optString("id").trim()
                 val type = runCatching { BudgetJournalType.valueOf(item.optString("type")) }.getOrNull() ?: continue
                 val amount = item.optDouble("amountEur", Double.NaN)
+                val fee = item.optDouble("feeEur", 0.0)
                 val date = item.optString("date").trim()
                 val source = runCatching {
                     BudgetJournalSource.valueOf(item.optString("source", BudgetJournalSource.MANUAL.name))
                 }.getOrDefault(BudgetJournalSource.MANUAL)
-                if (id.isBlank() || !amount.isFinite() || amount < 0.0 || date.isBlank()) continue
+                if (id.isBlank() || !amount.isFinite() || amount < 0.0 || !fee.isFinite() || fee < 0.0 || date.isBlank()) continue
                 add(
                     BudgetJournalEntry(
                         id = id,
@@ -45,7 +47,8 @@ object InvestmentBudgetCodec {
                         date = date,
                         itemId = item.optString("itemId").trim(),
                         source = source,
-                        note = item.optString("note").trim()
+                        note = item.optString("note").trim(),
+                        feeEur = fee
                     )
                 )
             }
@@ -141,6 +144,11 @@ object InvestmentBudgetStore {
         )
     }
 
+    fun configuredMonthlyBudget(context: Context): Int =
+        context.getSharedPreferences(SETTINGS_PREFS, Context.MODE_PRIVATE)
+            .getInt(LEGACY_BUDGET_KEY, 100)
+            .coerceAtLeast(0)
+
     fun setMonthlyBudget(context: Context, amountEur: Double, date: String = LocalDate.now().toString()) {
         val next = InvestmentBudgetCommands.setMonthlyBudget(readEntries(context), amountEur, date)
         saveEntries(context, next)
@@ -154,29 +162,56 @@ object InvestmentBudgetStore {
         saveEntries(context, InvestmentBudgetCommands.addExtraFunding(readEntries(context), command))
     }
 
+    fun addAdjustment(context: Context, command: BudgetAdjustmentCommand) {
+        saveEntries(context, InvestmentBudgetCommands.addAdjustment(readEntries(context), command))
+    }
+
     fun summary(context: Context): InvestmentBudgetSummary =
         InvestmentBudgetJournalEngine.summarize(readEntries(context), readReservations(context))
 
-    fun viewState(context: Context): InvestmentBudgetViewState =
-        InvestmentBudgetViewState.from(summary(context), readEntries(context))
+    fun viewState(
+        context: Context,
+        activeInvestedEur: Double = 0.0,
+        today: LocalDate = LocalDate.now()
+    ): InvestmentBudgetViewState =
+        InvestmentBudgetViewState.from(
+            summary = summary(context),
+            entries = readEntries(context),
+            activeInvestedEur = activeInvestedEur,
+            today = today
+        )
 
-    fun ensureInitialized(context: Context) {
+    fun ensureInitialized(context: Context, today: LocalDate = LocalDate.now()) {
         val existing = readEntries(context)
-        val legacyBudget = context.getSharedPreferences(SETTINGS_PREFS, Context.MODE_PRIVATE)
-            .getInt(LEGACY_BUDGET_KEY, 100)
-            .coerceAtLeast(0)
+        val legacyBudget = configuredMonthlyBudget(context)
+        val date = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
         val seeded = InvestmentBudgetMigration.seedIfEmpty(
             existing = existing,
             legacyMonthlyBudgetEur = legacyBudget,
-            date = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
+            date = date
         )
-        if (seeded != existing) {
+        val current = InvestmentBudgetMigration.ensureCurrentMonth(
+            existing = seeded,
+            configuredMonthlyBudgetEur = legacyBudget,
+            date = date
+        )
+        if (current != existing) {
             context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                 .edit()
-                .putString(ENTRIES_KEY, InvestmentBudgetCodec.encodeEntries(seeded))
+                .putString(ENTRIES_KEY, InvestmentBudgetCodec.encodeEntries(current))
                 .apply()
         }
         refreshRuntime(context)
+    }
+
+    fun ensureCurrentMonth(context: Context, today: LocalDate = LocalDate.now()) {
+        val existing = readEntries(context)
+        val next = InvestmentBudgetMigration.ensureCurrentMonth(
+            existing = existing,
+            configuredMonthlyBudgetEur = configuredMonthlyBudget(context),
+            date = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
+        )
+        if (next != existing) saveEntries(context, next) else refreshRuntime(context)
     }
 
     fun refreshRuntime(context: Context) {

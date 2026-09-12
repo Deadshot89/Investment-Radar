@@ -30,10 +30,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _state = MutableStateFlow<UiState>(UiState.Loading)
     val state: StateFlow<UiState> = _state.asStateFlow()
 
-    private val _budgetState = MutableStateFlow(InvestmentBudgetStore.viewState(app))
+    private val initialPositions = PortfolioStore.readPositions(app)
+    private val _budgetState = MutableStateFlow(
+        InvestmentBudgetStore.viewState(
+            app,
+            activeInvestedEur = initialPositions.values.sumOf { it.activeCostBasis }
+        )
+    )
     val budgetState: StateFlow<InvestmentBudgetViewState> = _budgetState.asStateFlow()
 
-    private val initialPositions = PortfolioStore.readPositions(app)
     private val _holdingIds = MutableStateFlow(initialPositions.keys)
     val holdingIds: StateFlow<Set<String>> = _holdingIds.asStateFlow()
 
@@ -195,11 +200,33 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         refreshBudgetState(app)
     }.isSuccess
 
+    fun addBudgetAdjustment(
+        amountEur: Double,
+        credit: Boolean,
+        note: String
+    ): Boolean = runCatching {
+        require(amountEur.isFinite() && amountEur > 0.0)
+        require(note.isNotBlank())
+        val app = getApplication<Application>()
+        InvestmentBudgetStore.addAdjustment(
+            app,
+            BudgetAdjustmentCommand(
+                eventId = "adjustment-${UUID.randomUUID()}",
+                amountEur = amountEur,
+                date = LocalDate.now().toString(),
+                credit = credit,
+                note = note.trim()
+            )
+        )
+        refreshBudgetState(app)
+    }.isSuccess
+
     fun executeBuy(
         itemId: String,
         purchase: PortfolioPurchase,
         source: BudgetJournalSource = BudgetJournalSource.MANUAL,
-        reservationId: String? = null
+        reservationId: String? = null,
+        feeEur: Double = 0.0
     ): Boolean {
         val app = getApplication<Application>()
         val current = _positions.value[itemId] ?: PortfolioPosition(itemId)
@@ -214,7 +241,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 date = purchase.date,
                 amountEur = purchase.investedAmount,
                 shares = purchase.shares,
-                source = source
+                source = source,
+                feeEur = feeEur
             )
         )
         val nextPosition = result.position ?: return false
@@ -229,7 +257,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun executeSale(
         itemId: String,
         sale: PortfolioSale,
-        source: BudgetJournalSource = BudgetJournalSource.MANUAL
+        source: BudgetJournalSource = BudgetJournalSource.MANUAL,
+        feeEur: Double = 0.0
     ): Boolean {
         val app = getApplication<Application>()
         val current = _positions.value[itemId] ?: return false
@@ -243,7 +272,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 date = sale.date,
                 proceedsEur = sale.proceeds,
                 shares = sale.shares,
-                source = source
+                source = source,
+                feeEur = feeEur
             )
         )
         val nextPosition = result.position ?: return false
@@ -276,7 +306,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         return true
     }
 
-    fun upsertPurchase(itemId: String, purchase: PortfolioPurchase): Boolean {
+    fun upsertPurchase(itemId: String, purchase: PortfolioPurchase, feeEur: Double? = null): Boolean {
         val app = getApplication<Application>()
         val current = _positions.value[itemId] ?: PortfolioPosition(itemId)
         val entries = InvestmentBudgetStore.readEntries(app)
@@ -289,7 +319,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             savePosition(next)
             return true
         }
-        val result = InvestmentBudgetExecutionService.reviseBuy(current, entries, purchase, reservations)
+        val result = InvestmentBudgetExecutionService.reviseBuy(current, entries, purchase, reservations, feeEur)
         return applyBudgetExecutionResult(app, result)
     }
 
@@ -310,7 +340,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         return applyBudgetExecutionResult(app, result)
     }
 
-    fun upsertSale(itemId: String, sale: PortfolioSale): Boolean {
+    fun upsertSale(itemId: String, sale: PortfolioSale, feeEur: Double? = null): Boolean {
         val app = getApplication<Application>()
         val current = _positions.value[itemId] ?: PortfolioPosition(itemId)
         val entries = InvestmentBudgetStore.readEntries(app)
@@ -323,7 +353,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             savePosition(next)
             return true
         }
-        val result = InvestmentBudgetExecutionService.reviseSale(current, entries, sale, reservations)
+        val result = InvestmentBudgetExecutionService.reviseSale(current, entries, sale, reservations, feeEur)
         return applyBudgetExecutionResult(app, result)
     }
 
@@ -434,7 +464,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun localAlerts(): List<SignalAlert> = _alerts.value.map { it.alert }
 
     private fun refreshBudgetState(app: Application) {
-        _budgetState.value = InvestmentBudgetStore.viewState(app)
+        InvestmentBudgetStore.ensureCurrentMonth(app)
+        _budgetState.value = InvestmentBudgetStore.viewState(
+            app,
+            activeInvestedEur = _positions.value.values.sumOf { it.activeCostBasis }
+        )
     }
 
     private fun reloadPortfolio(app: Application) {

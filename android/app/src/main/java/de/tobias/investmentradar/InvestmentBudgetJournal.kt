@@ -24,7 +24,8 @@ data class BudgetJournalEntry(
     val date: String,
     val itemId: String = "",
     val source: BudgetJournalSource = BudgetJournalSource.MANUAL,
-    val note: String = ""
+    val note: String = "",
+    val feeEur: Double = 0.0
 )
 
 data class BudgetReservation(
@@ -40,7 +41,9 @@ data class InvestmentBudgetSummary(
     val executedBuysEur: Double,
     val saleCreditsEur: Double,
     val availableEur: Double,
-    val reservedEur: Double
+    val reservedEur: Double,
+    val cashBalanceEur: Double = availableEur + reservedEur,
+    val feesEur: Double = 0.0
 )
 
 object InvestmentBudgetJournalEngine {
@@ -49,7 +52,11 @@ object InvestmentBudgetJournalEngine {
         reservations: List<BudgetReservation>
     ): InvestmentBudgetSummary {
         val unique = entries
-            .filter { it.id.isNotBlank() && it.amountEur.isFinite() && it.amountEur >= 0.0 }
+            .filter {
+                it.id.isNotBlank() &&
+                    it.amountEur.isFinite() && it.amountEur >= 0.0 &&
+                    it.feeEur.isFinite() && it.feeEur >= 0.0
+            }
             .associateBy { it.id }
             .values
 
@@ -59,19 +66,25 @@ object InvestmentBudgetJournalEngine {
         val sales = unique.filter { it.type == BudgetJournalType.SELL_CREDIT }.sumOf { it.amountEur }
         val credits = unique.filter { it.type == BudgetJournalType.ADJUSTMENT_CREDIT }.sumOf { it.amountEur }
         val debits = unique.filter { it.type == BudgetJournalType.ADJUSTMENT_DEBIT }.sumOf { it.amountEur }
+        val fees = unique
+            .filter { it.type == BudgetJournalType.BUY_DEBIT || it.type == BudgetJournalType.SELL_CREDIT }
+            .sumOf { it.feeEur }
         val reserved = reservations
             .filter { it.id.isNotBlank() && it.amountEur.isFinite() && it.amountEur > 0.0 }
             .associateBy { it.id }
             .values
             .sumOf { it.amountEur }
+        val cashBalance = monthly + extra + sales + credits - buys - debits
 
         return InvestmentBudgetSummary(
             monthlyDepositsEur = monthly,
             extraDepositsEur = extra,
             executedBuysEur = buys,
             saleCreditsEur = sales,
-            availableEur = monthly + extra + sales + credits - buys - debits - reserved,
-            reservedEur = reserved
+            availableEur = cashBalance - reserved,
+            reservedEur = reserved,
+            cashBalanceEur = cashBalance,
+            feesEur = fees
         )
     }
 
@@ -81,6 +94,7 @@ object InvestmentBudgetJournalEngine {
     ): List<BudgetJournalEntry> {
         require(entry.id.isNotBlank()) { "Budget event id must not be blank" }
         require(entry.amountEur.isFinite() && entry.amountEur >= 0.0) { "Budget amount must be finite and non-negative" }
+        require(entry.feeEur.isFinite() && entry.feeEur >= 0.0) { "Budget fee must be finite and non-negative" }
         val index = entries.indexOfFirst { it.id == entry.id }
         return if (index >= 0) {
             entries.toMutableList().apply { set(index, entry) }

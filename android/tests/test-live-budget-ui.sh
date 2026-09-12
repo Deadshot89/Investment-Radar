@@ -19,7 +19,7 @@ if grep -q 'prefs.getInt("monthly_budget"' "$SRC"; then
 fi
 
 # The visible cockpit must expose the key budget buckets.
-for label in 'Monatsbudget' 'Zusätzlich' 'Investiert' 'Reserviert' 'Verfügbar'; do
+for label in 'Monatsbudget' 'Rest Vormonate' 'Zusätzlich' 'Depot-Einstand' 'Kontostand' 'Reserviert' 'Verfügbar'; do
   grep -q "$label" "$SRC" || {
     echo "Missing budget cockpit label: $label"
     exit 1
@@ -42,3 +42,6 @@ grep -q 'InvestmentBudgetStore.saveReservations' "$VM"
 grep -q 'refreshBudgetState' "$VM"
 
 echo "PASS live investment budget cockpit wiring"
+
+grep -q 'addBudgetAdjustment' "$VM"
+grep -q 'feeEur' "$VM"
