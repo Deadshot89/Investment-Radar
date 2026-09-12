@@ -233,7 +233,7 @@ jobs:
           test -n "$VERSION_NAME"
           TAG="v$VERSION_NAME"
           RELEASE_APK="$RUNNER_TEMP/investment-radar.apk"
-          RELEASE_NOTES="Investment Radar $VERSION_NAME: Depot-Alarme werden priorisiert, Kauf- und WATCH-Signale klar getrennt und die Datenqualität vor jeder Entscheidung sichtbar gemacht."
+          RELEASE_NOTES="Investment Radar $VERSION_NAME: nachvollziehbare Geldverwaltung mit Monatswechsel, Restbudget, Wechselgeld, Gebühren, Korrekturen und historischen Depotbuchungen ohne Doppelzählung. Keine automatischen Trades."
           cp "$APK" "$RELEASE_APK"
           if gh release view "$TAG" >/dev/null 2>&1; then
             git fetch --no-tags origin "refs/tags/$TAG:refs/tags/$TAG"
