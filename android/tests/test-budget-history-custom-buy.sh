@@ -19,11 +19,11 @@ grep -Fq 'val history: List<BudgetHistoryItem>' "$STATE" || fail 'BudgetViewStat
 grep -Fq 'entries: List<BudgetJournalEntry>' "$STATE" || fail 'BudgetViewState muss aus Summary und Journal-Einträgen aufgebaut werden.'
 grep -Fq 'entries = readEntries(context)' "$STORE" || fail 'BudgetStore muss Journal-Einträge an den ViewState übergeben.'
 
-# Die Historie muss für den Nutzer im Budgetbereich sichtbar sein.
-grep -Fq 'BUDGET-HISTORIE' "$UI" || fail 'Im Budgetbereich fehlt die sichtbare Überschrift BUDGET-HISTORIE.'
-grep -Fq 'current.history' "$UI" || fail 'Die Budget-Historie wird in der Oberfläche nicht gerendert.'
+# Die Historie heißt in der Geldverwaltung bewusst Geldverlauf, bleibt aber dieselbe vollständige Journalansicht.
+grep -Fq 'Text("Geldverlauf"' "$UI" || fail 'In der Geldverwaltung fehlt die sichtbare Überschrift Geldverlauf.'
+grep -Fq 'current.history' "$UI" || fail 'Der Geldverlauf wird in der Oberfläche nicht aus der Budget-Historie gerendert.'
 
-echo 'PASS: Budget-Historie und budgetwirksamer Erstkauf sind vollständig verdrahtet.'
+echo 'PASS: Geldverlauf und budgetwirksamer Erstkauf sind vollständig verdrahtet.'
 # Finale Verifikation des vollständigen Feature-Stands.
 
 grep -Fq 'ensureCurrentMonth' "$STORE" || fail 'Monatswechsel muss Restbudget und neues Monatsbudget automatisch fortführen.'
