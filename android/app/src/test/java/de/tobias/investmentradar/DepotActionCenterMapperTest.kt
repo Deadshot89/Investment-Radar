@@ -126,6 +126,27 @@ class DepotActionCenterMapperTest {
     }
 
     @Test
+    fun buyActionShowsCashAfterExecution() {
+        val plan = ActionPlan("plan", "2026-09-08", 65.0, 30.0, listOf(action("buy", ActionType.BUY_MORE, 35.0)))
+        val candidate = candidate("buy", reliable = true, coverage = 90)
+
+        val item = DepotActionCenterMapper.build(plan, mapOf("buy" to candidate), emptyMap(), emptyMap()).items.single()
+
+        assertEquals(30.0, item.projectedCashEur!!, 0.001)
+        assertEquals("Jetzt 35 € kaufen → danach 30 € verfügbar", item.cashImpactText)
+    }
+
+    @Test
+    fun sellActionShowsCashCreditAfterExecution() {
+        val plan = ActionPlan("plan", "2026-09-08", 42.0, 42.0, listOf(action("sell", ActionType.SELL, 25.0)))
+
+        val item = DepotActionCenterMapper.build(plan, emptyMap(), emptyMap(), emptyMap()).items.single()
+
+        assertEquals(67.0, item.projectedCashEur!!, 0.001)
+        assertEquals("25 € verkaufen → danach 67 € verfügbar", item.cashImpactText)
+    }
+
+    @Test
     fun summaryUsesPlanAmountsWithoutRecalculatingAllocations() {
         val plan = ActionPlan(
             "plan",
