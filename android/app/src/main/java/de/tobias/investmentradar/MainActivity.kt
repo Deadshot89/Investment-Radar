@@ -150,6 +150,8 @@ fun InvestmentRadarUi(
     }
     var moneyActionItemsById by remember { mutableStateOf<Map<String, InvestmentItem>>(emptyMap()) }
     var pendingActionAmountEur by remember { mutableStateOf<Double?>(null) }
+    var pendingActionShares by remember { mutableStateOf<Double?>(null) }
+    var pendingActionPrefillMessage by remember { mutableStateOf<String?>(null) }
     var investmentDialogItem by remember { mutableStateOf<InvestmentItem?>(null) }
     var investmentDialogEntryType by remember { mutableStateOf("BUY") }
     var customAssetDialog by remember { mutableStateOf(false) }
@@ -190,6 +192,8 @@ fun InvestmentRadarUi(
                             investmentDialogItem = null
                             investmentDialogEntryType = "BUY"
                             pendingActionAmountEur = null
+                            pendingActionShares = null
+                            pendingActionPrefillMessage = null
                         }
                         AppOverlay.CUSTOM_ASSET -> customAssetDialog = false
                         AppOverlay.EDIT_CUSTOM_ASSET -> editingCustomAsset = null
@@ -446,7 +450,15 @@ fun InvestmentRadarUi(
                                         ActionType.BUY_MORE, ActionType.OPEN_POSITION -> {
                                             val item = itemsById[action.instrumentId]
                                             if (item != null) {
-                                                pendingActionAmountEur = action.displayAmountEur
+                                                val prefill = RecommendationTradePrefill.calculate(
+                                                    type = action.type,
+                                                    amountEur = action.displayAmountEur,
+                                                    priceEur = euroComparablePrice(item),
+                                                    heldShares = positions[item.id]?.shares
+                                                )
+                                                pendingActionAmountEur = prefill.amountEur.takeIf { it > 0.0 }
+                                                pendingActionShares = prefill.shares
+                                                pendingActionPrefillMessage = prefill.message
                                                 investmentDialogEntryType = "BUY"
                                                 investmentDialogItem = item
                                             } else {
@@ -456,7 +468,15 @@ fun InvestmentRadarUi(
                                         ActionType.SELL, ActionType.REDUCE -> {
                                             val item = itemsById[action.instrumentId]
                                             if (item != null) {
-                                                pendingActionAmountEur = action.displayAmountEur
+                                                val prefill = RecommendationTradePrefill.calculate(
+                                                    type = action.type,
+                                                    amountEur = action.displayAmountEur,
+                                                    priceEur = euroComparablePrice(item),
+                                                    heldShares = positions[item.id]?.shares
+                                                )
+                                                pendingActionAmountEur = prefill.amountEur.takeIf { it > 0.0 }
+                                                pendingActionShares = prefill.shares
+                                                pendingActionPrefillMessage = prefill.message
                                                 investmentDialogEntryType = "SELL"
                                                 investmentDialogItem = item
                                             } else {
@@ -514,7 +534,15 @@ fun InvestmentRadarUi(
                                         ActionType.BUY_MORE, ActionType.OPEN_POSITION -> {
                                             val item = itemsById[action.instrumentId]
                                             if (item != null) {
-                                                pendingActionAmountEur = action.displayAmountEur
+                                                val prefill = RecommendationTradePrefill.calculate(
+                                                    type = action.type,
+                                                    amountEur = action.displayAmountEur,
+                                                    priceEur = euroComparablePrice(item),
+                                                    heldShares = positions[item.id]?.shares
+                                                )
+                                                pendingActionAmountEur = prefill.amountEur.takeIf { it > 0.0 }
+                                                pendingActionShares = prefill.shares
+                                                pendingActionPrefillMessage = prefill.message
                                                 investmentDialogEntryType = "BUY"
                                                 investmentDialogItem = item
                                             } else {
@@ -524,7 +552,15 @@ fun InvestmentRadarUi(
                                         ActionType.SELL, ActionType.REDUCE -> {
                                             val item = itemsById[action.instrumentId]
                                             if (item != null) {
-                                                pendingActionAmountEur = action.displayAmountEur
+                                                val prefill = RecommendationTradePrefill.calculate(
+                                                    type = action.type,
+                                                    amountEur = action.displayAmountEur,
+                                                    priceEur = euroComparablePrice(item),
+                                                    heldShares = positions[item.id]?.shares
+                                                )
+                                                pendingActionAmountEur = prefill.amountEur.takeIf { it > 0.0 }
+                                                pendingActionShares = prefill.shares
+                                                pendingActionPrefillMessage = prefill.message
                                                 investmentDialogEntryType = "SELL"
                                                 investmentDialogItem = item
                                             } else {
@@ -561,7 +597,15 @@ fun InvestmentRadarUi(
                     ActionType.BUY_MORE, ActionType.OPEN_POSITION -> {
                         val item = moneyActionItemsById[action.instrumentId]
                         if (item != null) {
-                            pendingActionAmountEur = action.displayAmountEur
+                            val prefill = RecommendationTradePrefill.calculate(
+                                type = action.type,
+                                amountEur = action.displayAmountEur,
+                                priceEur = euroComparablePrice(item),
+                                heldShares = positions[item.id]?.shares
+                            )
+                            pendingActionAmountEur = prefill.amountEur.takeIf { it > 0.0 }
+                            pendingActionShares = prefill.shares
+                            pendingActionPrefillMessage = prefill.message
                             investmentDialogEntryType = "BUY"
                             investmentDialogItem = item
                         } else {
@@ -571,7 +615,15 @@ fun InvestmentRadarUi(
                     ActionType.SELL, ActionType.REDUCE -> {
                         val item = moneyActionItemsById[action.instrumentId]
                         if (item != null) {
-                            pendingActionAmountEur = action.displayAmountEur
+                            val prefill = RecommendationTradePrefill.calculate(
+                                type = action.type,
+                                amountEur = action.displayAmountEur,
+                                priceEur = euroComparablePrice(item),
+                                heldShares = positions[item.id]?.shares
+                            )
+                            pendingActionAmountEur = prefill.amountEur.takeIf { it > 0.0 }
+                            pendingActionShares = prefill.shares
+                            pendingActionPrefillMessage = prefill.message
                             investmentDialogEntryType = "SELL"
                             investmentDialogItem = item
                         } else {
@@ -596,10 +648,14 @@ fun InvestmentRadarUi(
             budgetHistory = budgetState.history,
             initialEntryType = investmentDialogEntryType,
             initialAmountEur = pendingActionAmountEur,
+            initialShares = pendingActionShares,
+            initialPrefillMessage = pendingActionPrefillMessage,
             onDismiss = {
                 investmentDialogItem = null
                 investmentDialogEntryType = "BUY"
                 pendingActionAmountEur = null
+                pendingActionShares = null
+                pendingActionPrefillMessage = null
             },
             onUpsertPurchase = { purchase, fee -> vm.upsertPurchase(item.id, purchase, fee) },
             onDeletePurchase = { purchaseId -> vm.removePurchase(item.id, purchaseId) },
@@ -985,6 +1041,8 @@ private fun PurchaseHistoryDialog(
     budgetHistory: List<BudgetHistoryItem>,
     initialEntryType: String = "BUY",
     initialAmountEur: Double? = null,
+    initialShares: Double? = null,
+    initialPrefillMessage: String? = null,
     onDismiss: () -> Unit,
     onUpsertPurchase: (PortfolioPurchase, Double?) -> Boolean,
     onDeletePurchase: (String) -> Boolean,
@@ -1000,7 +1058,9 @@ private fun PurchaseHistoryDialog(
         mutableStateOf(initialAmountEur?.takeIf { it > 0.0 }?.let(::formatEditableNumber).orEmpty())
     }
     var feeText by remember(item.id) { mutableStateOf("") }
-    var sharesText by remember(item.id) { mutableStateOf("") }
+    var sharesText by remember(item.id, initialShares) {
+        mutableStateOf(initialShares?.takeIf { it > 0.0 }?.let(::formatEditableNumber).orEmpty())
+    }
     var budgetRelevant by remember(item.id) { mutableStateOf(true) }
     var errorText by remember(item.id) { mutableStateOf<String?>(null) }
 
@@ -1060,6 +1120,14 @@ private fun PurchaseHistoryDialog(
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.Bold
                 )
+                initialPrefillMessage?.takeIf { it.isNotBlank() }?.let { message ->
+                    Text(
+                        "$message Bitte Betrag, Kurs und Anteile vor der Bestätigung prüfen.",
+                        color = RadarYellow,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
 
                 NeonPanel(accent = RadarPurple) {
                     PortfolioBadgeRow(
