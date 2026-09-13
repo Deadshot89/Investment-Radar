@@ -122,4 +122,35 @@ class InvestmentBudgetMoneyFlowTest {
         assertEquals(1, decoded.size)
         assertEquals(0.0, decoded.single().feeEur, 0.000001)
     }
+
+    @Test
+    fun currentMonthPortfolioPurchaseMissingFromJournalIsReconciledExactlyOnce() {
+        val entries = listOf(
+            BudgetJournalEntry("monthly-budget-2026-09", BudgetJournalType.MONTHLY_DEPOSIT, 100.0, "2026-09-01")
+        )
+        val positions = mapOf(
+            "msft" to PortfolioPosition("msft").upsertPurchaseIfValid(
+                PortfolioPurchase("confirmed-buy", "2026-09-12", 35.0, 0.1)
+            )!!,
+            "old" to PortfolioPosition("old").upsertPurchaseIfValid(
+                PortfolioPurchase("historic-buy", "2026-08-15", 500.0, 1.0)
+            )!!
+        )
+
+        val reconciled = InvestmentBudgetMigration.reconcileCurrentMonthTransactions(
+            existing = entries,
+            positions = positions,
+            today = LocalDate.of(2026, 9, 13)
+        )
+        val restarted = InvestmentBudgetMigration.reconcileCurrentMonthTransactions(
+            existing = reconciled,
+            positions = positions,
+            today = LocalDate.of(2026, 9, 13)
+        )
+
+        assertEquals(65.0, InvestmentBudgetJournalEngine.summarize(reconciled, emptyList()).availableEur, 0.000001)
+        assertTrue(reconciled.any { it.id == "confirmed-buy" && it.type == BudgetJournalType.BUY_DEBIT })
+        assertTrue(reconciled.none { it.id == "historic-buy" })
+        assertEquals(reconciled, restarted)
+    }
 }
