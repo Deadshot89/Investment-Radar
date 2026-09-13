@@ -14,6 +14,8 @@ data class DepotActionCenterItem(
     val instrumentId: String,
     val instrumentName: String,
     val actionText: String,
+    val cashImpactText: String,
+    val projectedCashEur: Double?,
     val reason: String,
     val priority: Int,
     val isHolding: Boolean,
@@ -54,6 +56,7 @@ object DepotActionCenterMapper {
         itemsById: Map<String, InvestmentItem>,
         positions: Map<String, PortfolioPosition>
     ): DepotActionCenterState {
+        val availableCash = actionPlan.availableBudgetEur.coerceAtLeast(0.0)
         val mapped = actionPlan.actions.map { action ->
             val candidate = advisorById[action.instrumentId]
             val item = itemsById[action.instrumentId]
@@ -86,6 +89,12 @@ object DepotActionCenterMapper {
                 else -> true
             }
             val displayAmount = if (buyBlocked) null else action.amountEur.takeIf { it.isFinite() && it >= 0.0 }
+            val projectedCash = projectedCash(
+                type = effectiveType,
+                availableCashEur = availableCash,
+                amountEur = displayAmount,
+                buyBlocked = buyBlocked
+            )
 
             DepotActionCenterItem(
                 actionId = action.actionId,
@@ -93,6 +102,8 @@ object DepotActionCenterMapper {
                 instrumentId = action.instrumentId,
                 instrumentName = item?.name ?: if (action.instrumentId == "cash") "Cash" else action.instrumentId,
                 actionText = actionText(action, effectiveType, buyBlocked, analysisIncomplete),
+                cashImpactText = cashImpactText(action, effectiveType, buyBlocked, projectedCash),
+                projectedCashEur = projectedCash,
                 reason = action.reason,
                 priority = action.priority,
                 isHolding = isHolding,
@@ -149,6 +160,45 @@ object DepotActionCenterMapper {
             (quality.overallCoverage ?: 0) < 70 ||
             quality.criticalConflicts.isNotEmpty() ||
             criticalMissing
+    }
+
+    private fun projectedCash(
+        type: ActionType,
+        availableCashEur: Double,
+        amountEur: Double?,
+        buyBlocked: Boolean
+    ): Double? {
+        if (buyBlocked) return null
+        val amount = amountEur ?: return when (type) {
+            ActionType.REVIEW_SAVINGS_PLAN -> availableCashEur
+            else -> null
+        }
+        return when (type) {
+            ActionType.SELL, ActionType.REDUCE -> availableCashEur + amount
+            ActionType.BUY_MORE, ActionType.OPEN_POSITION, ActionType.KEEP_SAVINGS_PLAN ->
+                (availableCashEur - amount).coerceAtLeast(0.0)
+            ActionType.REVIEW_SAVINGS_PLAN, ActionType.HOLD_CASH -> availableCashEur
+        }
+    }
+
+    private fun cashImpactText(
+        action: ActionPlanAction,
+        effectiveType: ActionType,
+        buyBlocked: Boolean,
+        projectedCashEur: Double?
+    ): String {
+        if (buyBlocked) return "Kein Budgetabzug – Kauf ist gesperrt"
+        val projected = projectedCashEur ?: return ""
+        val amount = formatEur(action.amountEur)
+        val cash = formatEur(projected)
+        return when (effectiveType) {
+            ActionType.SELL -> "$amount verkaufen → danach $cash verfügbar"
+            ActionType.REDUCE -> "$amount reduzieren → danach $cash verfügbar"
+            ActionType.BUY_MORE, ActionType.OPEN_POSITION -> "Jetzt $amount kaufen → danach $cash verfügbar"
+            ActionType.KEEP_SAVINGS_PLAN -> "$amount für Sparplan → danach $cash verfügbar"
+            ActionType.REVIEW_SAVINGS_PLAN -> "Keine Buchung → $cash verfügbar"
+            ActionType.HOLD_CASH -> "$cash verfügbar halten"
+        }
     }
 
     private fun actionText(action: ActionPlanAction, effectiveType: ActionType, buyBlocked: Boolean, analysisIncomplete: Boolean): String {
