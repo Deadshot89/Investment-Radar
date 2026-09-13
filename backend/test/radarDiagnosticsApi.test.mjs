@@ -21,7 +21,8 @@ test('radar item exposes coverageBreakdown missingData providerStatus and analys
     loadEurRateDetails: async () => new Map([['USD', { rate: 0.9 }]])
   });
 
-  const out = result.items.single();
+  assert.equal(result.items.length, 1);
+  const [out] = result.items;
   assert.ok(out.coverageBreakdown);
   assert.equal(out.coverageBreakdown.quote, out.dataQuality.quoteCoverage);
   assert.equal(out.coverageBreakdown.history, out.dataQuality.historyCoverage);
