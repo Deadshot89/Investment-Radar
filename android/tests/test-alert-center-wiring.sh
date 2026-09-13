@@ -23,7 +23,7 @@ grep -Fq 'putExtra("openItemId", itemId)' "$PUSH"
 grep -Fq 'initialDetailId' "$MAIN"
 grep -Fq 'intent.getStringExtra("openItemId")' "$MAIN"
 grep -Fq 'selectedDetailId by remember { mutableStateOf(initialDetailId?.takeIf' "$MAIN"
-grep -Fq 'detailReturnTab by remember { mutableIntStateOf(if (initialDetailId.isNullOrBlank()) initialTab.coerceIn(0, 3) else 3) }' "$MAIN"
+grep -Fq 'detailReturnTab by remember { mutableIntStateOf(if (initialDetailId.isNullOrBlank()) initialTab.coerceIn(0, 4) else 3) }' "$MAIN"
 
 # Auch bei bereits laufender MainActivity muss ein neuer Push erneut zur Aktie navigieren.
 grep -Fq 'override fun onNewIntent(intent: Intent)' "$MAIN"

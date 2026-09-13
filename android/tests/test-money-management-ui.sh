@@ -16,5 +16,8 @@ grep -Fq 'Text("Geldverlauf"' "$SRC" || fail 'Budgethistorie muss als Geldverlau
 grep -Fq 'Text("+ 5 €")' "$SRC" || fail '5-Euro-Schnellbuchung für Wechselgeld fehlt.'
 grep -Fq 'Text("+ 10 €")' "$SRC" || fail '10-Euro-Schnellbuchung für Wechselgeld fehlt.'
 grep -Fq 'onExecuteAction: (DepotActionCenterItem) -> Unit' "$SRC" || fail 'Geldverwaltung muss Aktionen in die manuelle Erfassung weiterreichen.'
+grep -Fq 'label = { Text("Geld") }' "$SRC" || fail 'Geldverwaltung muss als eigener Hauptreiter erreichbar sein.'
+grep -Fq 'private fun MoneyManagementScreen(' "$SRC" || fail 'Eigener Geldverwaltungs-Screen fehlt.'
+grep -Fq 'tab = 4' "$SRC" || fail 'Geldverwaltungs-Reiter ist nicht in der Root-Navigation verdrahtet.'
 
 echo 'PASS: Geldverwaltung zeigt Kontostand, konkrete Aktionen, Schnellbuchungen und Geldverlauf.'

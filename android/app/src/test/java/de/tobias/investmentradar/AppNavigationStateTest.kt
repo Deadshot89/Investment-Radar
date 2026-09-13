@@ -30,6 +30,12 @@ class AppNavigationStateTest {
         assertEquals(AppNavigationState(rootTab = 0), result.next)
     }
 
+    @Test fun moneyManagementRootTabReturnsToLive() {
+        val state = AppNavigationState(rootTab = 4)
+        val result = state.onBack() as BackResult.Consume
+        assertEquals(AppNavigationState(rootTab = 0), result.next)
+    }
+
     @Test fun exitsOnlyFromTrueRootState() {
         assertEquals(BackResult.ExitActivity, AppNavigationState(rootTab = 0).onBack())
     }
