@@ -2,6 +2,7 @@ package de.tobias.investmentradar
 
 import java.security.MessageDigest
 import java.util.Locale
+import kotlin.math.floor
 import kotlin.math.min
 
 enum class ActionType {
@@ -113,6 +114,46 @@ object ActionPlanEngine {
                     reason = suggestion.reason,
                     fingerprints = eventFingerprintsByInstrument[suggestion.toItemId].orEmpty(),
                     critical = suggestion.toItemId in criticalEventInstrumentIds
+                )
+            }
+
+        val reallocatedSources = advisorPlan.reallocations.map { it.fromItemId }.toSet()
+        advisorPlan.candidates
+            .filter { it.isHolding }
+            .filter { it.itemId !in reallocatedSources }
+            .filter {
+                it.action == PortfolioAdvisorAction.REDUZIEREN ||
+                    it.action == PortfolioAdvisorAction.VERKAUFEN
+            }
+            .sortedBy { it.itemId }
+            .forEach { candidate ->
+                val sourceValue = candidate.currentValueEur?.takeIf { it.isFinite() && it > 0.0 }
+                    ?: return@forEach
+                val amount = when (candidate.action) {
+                    PortfolioAdvisorAction.REDUZIEREN -> floor(min(sourceValue * 0.25, 50.0))
+                    PortfolioAdvisorAction.VERKAUFEN -> floor(min(sourceValue * 0.50, 100.0))
+                    else -> 0.0
+                }
+                if (amount <= 0.0) return@forEach
+                val type = if (candidate.action == PortfolioAdvisorAction.VERKAUFEN) {
+                    ActionType.SELL
+                } else {
+                    ActionType.REDUCE
+                }
+                actions += action(
+                    analysisDay = analysisDay,
+                    type = type,
+                    instrumentId = candidate.itemId,
+                    amountEur = amount,
+                    plannedShares = sharesFor(amount, currentPricesEur[candidate.itemId]),
+                    fromInstrumentId = candidate.itemId,
+                    reason = if (type == ActionType.SELL) {
+                        "Advisor empfiehlt Verkauf; kein stärkeres Umschichtungsziel erforderlich"
+                    } else {
+                        "Advisor empfiehlt Reduzierung; kein stärkeres Umschichtungsziel erforderlich"
+                    },
+                    fingerprints = eventFingerprintsByInstrument[candidate.itemId].orEmpty(),
+                    critical = candidate.itemId in criticalEventInstrumentIds
                 )
             }
 
