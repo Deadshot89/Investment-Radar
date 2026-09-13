@@ -121,7 +121,7 @@ class DepotActionCenterMapperTest {
         val item = DepotActionCenterMapper.build(plan, mapOf("buy" to candidate), emptyMap(), emptyMap()).items.single()
 
         assertEquals(37.0, item.displayAmountEur!!, 0.001)
-        assertEquals("Position um ca. 37 € erhöhen", item.actionText)
+        assertEquals("Jetzt 37 € kaufen → danach 63 € verfügbar", item.actionText)
         assertTrue(item.executable)
     }
 
@@ -134,6 +134,7 @@ class DepotActionCenterMapperTest {
 
         assertEquals(30.0, item.projectedCashEur!!, 0.001)
         assertEquals("Jetzt 35 € kaufen → danach 30 € verfügbar", item.cashImpactText)
+        assertEquals(item.cashImpactText, item.actionText)
     }
 
     @Test
@@ -144,6 +145,7 @@ class DepotActionCenterMapperTest {
 
         assertEquals(67.0, item.projectedCashEur!!, 0.001)
         assertEquals("25 € verkaufen → danach 67 € verfügbar", item.cashImpactText)
+        assertEquals(item.cashImpactText, item.actionText)
     }
 
     @Test
