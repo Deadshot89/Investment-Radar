@@ -32,7 +32,7 @@ sealed interface BackResult {
 fun AppNavigationState.onBack(): BackResult = when {
     overlay != AppOverlay.NONE -> BackResult.Consume(copy(overlay = AppOverlay.NONE))
     detailId != null -> BackResult.Consume(
-        AppNavigationState(rootTab = detailReturnTab.coerceIn(0, 3))
+        AppNavigationState(rootTab = detailReturnTab.coerceIn(0, 4))
     )
     child != AppChildScreen.NONE -> BackResult.Consume(copy(child = AppChildScreen.NONE))
     rootTab != 0 -> BackResult.Consume(AppNavigationState(rootTab = 0))
