@@ -31,6 +31,7 @@ jobs:
             android/tests/test-budget-history-custom-buy.sh \
             android/tests/test-money-management-ui.sh \
             android/tests/test-money-action-prefill-flow.sh \
+            android/tests/test-recommendation-share-prefill-ui.sh \
             android/tests/test-exit-strategy-ui.sh \
             android/tests/test-liquidity-need-ui.sh \
             android/tests/test-portfolio-allocation-ui.sh \
