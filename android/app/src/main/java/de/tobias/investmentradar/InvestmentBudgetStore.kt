@@ -173,13 +173,15 @@ object InvestmentBudgetStore {
         context: Context,
         activeInvestedEur: Double = 0.0,
         today: LocalDate = LocalDate.now()
-    ): InvestmentBudgetViewState =
-        InvestmentBudgetViewState.from(
+    ): InvestmentBudgetViewState {
+        reconcileCurrentMonthPortfolio(context, PortfolioStore.readPositions(context), today)
+        return InvestmentBudgetViewState.from(
             summary = summary(context),
             entries = readEntries(context),
             activeInvestedEur = activeInvestedEur,
             today = today
         )
+    }
 
     fun ensureInitialized(context: Context, today: LocalDate = LocalDate.now()) {
         val existing = readEntries(context)
