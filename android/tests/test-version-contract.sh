@@ -1,34 +1,36 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Final Integration Contract für Investment Radar 2.5.3 / Android 2.5.3.
+# Final Integration Contract für Investment Radar 2.5.4 / Android 2.5.4.
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 GRADLE_FILE="$ROOT/android/app/build.gradle.kts"
 WORKFLOW_FILE="$ROOT/.github/workflows/android-build.yml"
 TEMP_NAV_WORKFLOW="$ROOT/.github/workflows/apply-2-2-navigation-fix.yml"
 TEMP_DETAIL_WORKFLOW="$ROOT/.github/workflows/apply-2-2-detail-cleanup.yml"
 TEMP_TASK10_WORKFLOW="$ROOT/.github/workflows/task10-ui-patch.yml"
+TEMP_MONEY_WORKFLOW="$ROOT/.github/workflows/apply-money-management.yml"
+TEMP_MONEY_SCRIPT="$ROOT/.github/scripts/apply_money_management.py"
 
 fail() {
   echo "FAIL: $1" >&2
   exit 1
 }
 
-grep -Fq 'versionCode = 73' "$GRADLE_FILE" || fail 'Android versionCode muss 73 sein.'
-grep -Fq 'versionName = "2.5.3"' "$GRADLE_FILE" || fail 'Android versionName muss 2.5.3 sein.'
-grep -Fq 'Release candidate: Investment Radar 2.5.3' "$GRADLE_FILE" || fail 'Release-Kandidat muss 2.5.3 benennen.'
+grep -Fq 'versionCode = 74' "$GRADLE_FILE" || fail 'Android versionCode muss 74 sein.'
+grep -Fq 'versionName = "2.5.4"' "$GRADLE_FILE" || fail 'Android versionName muss 2.5.4 sein.'
+grep -Fq 'Release candidate: Investment Radar 2.5.4' "$GRADLE_FILE" || fail 'Release-Kandidat muss 2.5.4 benennen.'
 grep -Fq 'EXPECTED_BACKEND_VERSION: "2.1.0"' "$WORKFLOW_FILE" || fail 'Backend-Vertrag muss bei 2.1.0 bleiben.'
 
-if grep -Fq 'versionCode = 72' "$GRADLE_FILE"; then
-  fail 'Alter versionCode 72 darf im Release-Kandidaten nicht mehr aktiv sein.'
+if grep -Fq 'versionCode = 73' "$GRADLE_FILE"; then
+  fail 'Alter versionCode 73 darf im Release-Kandidaten nicht mehr aktiv sein.'
 fi
-if grep -Fq 'versionName = "2.5.2"' "$GRADLE_FILE"; then
-  fail 'Alte versionName 2.5.2 darf im Release-Kandidaten nicht mehr aktiv sein.'
+if grep -Fq 'versionName = "2.5.3"' "$GRADLE_FILE"; then
+  fail 'Alte versionName 2.5.3 darf im Release-Kandidaten nicht mehr aktiv sein.'
 fi
-for temp_workflow in "$TEMP_NAV_WORKFLOW" "$TEMP_DETAIL_WORKFLOW" "$TEMP_TASK10_WORKFLOW"; do
-  if [ -e "$temp_workflow" ]; then
-    fail "Temporärer Reparaturworkflow darf im Release-Kandidaten nicht enthalten sein: $temp_workflow"
+for temp_artifact in "$TEMP_NAV_WORKFLOW" "$TEMP_DETAIL_WORKFLOW" "$TEMP_TASK10_WORKFLOW" "$TEMP_MONEY_WORKFLOW" "$TEMP_MONEY_SCRIPT"; do
+  if [ -e "$temp_artifact" ]; then
+    fail "Temporäres Reparaturartefakt darf im Release-Kandidaten nicht enthalten sein: $temp_artifact"
   fi
 done
 
-echo 'PASS: Android 2.5.3/code73 mit Backend-Vertrag 2.1.0 und bereinigtem Release-Branch.'
+echo 'PASS: Android 2.5.4/code74 mit Backend-Vertrag 2.1.0 und bereinigtem Release-Branch.'
