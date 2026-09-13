@@ -320,7 +320,38 @@ fun InvestmentRadarUi(
                         val advisorPlan = PortfolioAdvisorEngine.allocate(advisorCandidates, budgetState.advisorBudgetEur)
                         val advisorById = advisorPlan.candidates.associateBy { it.itemId }
                         val itemsById = s.data.items.associateBy { it.id }
+                        val liquidityItemsById = buildMap {
+                            putAll(itemsById)
+                            customItems.forEach { custom ->
+                                if (custom.id !in this) put(custom.id, custom.fallbackItem())
+                            }
+                        }
                         val currentPricesEur = itemsById.mapValues { (_, item) -> euroComparablePrice(item) }
+                        val liquidityPricesEur = liquidityItemsById.mapValues { (_, item) -> euroComparablePrice(item) }
+                        val liquidityHoldings = positions.values.mapNotNull { position ->
+                            if (!position.isActiveHolding()) return@mapNotNull null
+                            val itemId = position.itemId
+                            val item = liquidityItemsById[itemId]
+                            val candidate = advisorById[itemId]
+                            val price = liquidityPricesEur[itemId]
+                            val value = (portfolioValues[itemId] ?: position.currentValue(price))
+                                ?.takeIf { it.isFinite() && it > 0.01 }
+                                ?: return@mapNotNull null
+                            val shares = position.shares.takeIf { it.isFinite() && it > 0.0 }
+                                ?: position.trackedShares?.takeIf { it.isFinite() && it > 0.0 }
+                            LiquidityHolding(
+                                itemId = itemId,
+                                instrumentName = item?.name ?: itemId,
+                                currentValueEur = value,
+                                shares = shares,
+                                advisorAction = candidate?.action,
+                                advisorScore = candidate?.advisor?.score,
+                                dataReliable = candidate?.advisor?.reliable
+                                    ?: ((item?.dataQuality?.overallCoverage ?: item?.coverage ?: 0) >= 60),
+                                forecastDirection = candidate?.forecastDirection ?: item?.forecast?.direction,
+                                profitLossPct = position.unrealizedProfitLossPercent(price)
+                            )
+                        }
                         val baseActionPlan = ActionPlanEngine.build(
                             analysisDay = s.data.generatedAt.take(10).ifBlank { "current" },
                             advisorPlan = advisorPlan,
@@ -463,7 +494,21 @@ fun InvestmentRadarUi(
                             else -> MoneyManagementScreen(
                                 current = budgetState,
                                 actionCenter = moneyActionCenter,
+                                liquidityHoldings = liquidityHoldings,
                                 onOpenBudgetEditor = { budgetDialog = true },
+                                onExecuteLiquiditySale = { itemId, amountEur ->
+                                    val item = liquidityItemsById[itemId]
+                                    if (item != null) {
+                                        pendingActionAmountEur = amountEur
+                                        investmentDialogEntryType = "SELL"
+                                        investmentDialogItem = item
+                                    } else {
+                                        missingAlertItemMessage = "Das Wertpapier ist nicht im aktuellen Radar enthalten."
+                                    }
+                                },
+                                onRecordWithdrawal = { amountEur ->
+                                    vm.addBudgetAdjustment(amountEur, false, "Auszahlung / Geldbedarf")
+                                },
                                 onExecuteAction = { action ->
                                     when (action.type) {
                                         ActionType.BUY_MORE, ActionType.OPEN_POSITION -> {
@@ -1423,9 +1468,25 @@ private fun NeonStatStrip(entries: List<Pair<String, String>>, accent: Color) {
 private fun MoneyManagementScreen(
     current: InvestmentBudgetViewState,
     actionCenter: DepotActionCenterState,
+    liquidityHoldings: List<LiquidityHolding>,
     onOpenBudgetEditor: () -> Unit,
+    onExecuteLiquiditySale: (String, Double) -> Unit,
+    onRecordWithdrawal: (Double) -> Boolean,
     onExecuteAction: (DepotActionCenterItem) -> Unit
 ) {
+    var liquidityNeedText by rememberSaveable { mutableStateOf("") }
+    var useCashFirst by rememberSaveable { mutableStateOf(true) }
+    var withdrawalBooked by rememberSaveable { mutableStateOf(false) }
+    val liquidityNeed = parseDecimal(liquidityNeedText)?.takeIf { it > 0.0 }
+    val liquidityPlan = remember(liquidityNeed, useCashFirst, current.availableEur, liquidityHoldings) {
+        liquidityNeed?.let {
+            LiquidityNeedEngine.plan(
+                requestedEur = it,
+                availableCashEur = if (useCashFirst) current.availableEur else 0.0,
+                holdings = liquidityHoldings
+            )
+        }
+    }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
@@ -1466,6 +1527,159 @@ private fun MoneyManagementScreen(
                 ),
                 accent = RadarBlue
             )
+        }
+
+        item {
+            NeonPanel(accent = RadarYellow) {
+                Text("ICH BRAUCHE GELD", color = RadarYellow, fontWeight = FontWeight.Black)
+                Text(
+                    "Sag der App, wie viel Geld du brauchst. Sie nutzt auf Wunsch zuerst freies Cash und schlägt danach die sinnvollsten Verkäufe vor. Keine Order wird automatisch ausgeführt.",
+                    color = RadarMuted,
+                    style = MaterialTheme.typography.bodySmall
+                )
+                OutlinedTextField(
+                    value = liquidityNeedText,
+                    onValueChange = {
+                        liquidityNeedText = sanitizeDecimalInput(it)
+                        withdrawalBooked = false
+                    },
+                    label = { Text("Benötigter Betrag in €") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf(50, 100, 250, 500).forEach { preset ->
+                        AssistChip(
+                            onClick = {
+                                liquidityNeedText = preset.toString()
+                                withdrawalBooked = false
+                            },
+                            label = { Text("$preset €") }
+                        )
+                    }
+                }
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Freies Cash zuerst verwenden", fontWeight = FontWeight.Bold)
+                        Text(
+                            if (useCashFirst) "Nur der fehlende Rest wird verkauft." else "Der komplette Betrag wird über Verkäufe geplant.",
+                            color = RadarMuted,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                    Switch(
+                        checked = useCashFirst,
+                        onCheckedChange = {
+                            useCashFirst = it
+                            withdrawalBooked = false
+                        }
+                    )
+                }
+
+                if (withdrawalBooked) {
+                    Text(
+                        "Auszahlung verbucht. Der Betrag ist nicht mehr als Investmentbudget verfügbar.",
+                        color = RadarGreen,
+                        fontWeight = FontWeight.Black
+                    )
+                    OutlinedButton(
+                        onClick = {
+                            liquidityNeedText = ""
+                            withdrawalBooked = false
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Neuen Geldbedarf planen") }
+                } else if (liquidityPlan != null) {
+                    val plan = liquidityPlan
+                    HorizontalDivider(color = RadarSurface2)
+                    Text("Benötigt: ${formatMoney(plan.requestedEur)}", fontWeight = FontWeight.Black)
+                    if (useCashFirst && plan.cashUsedEur > 0.0) {
+                        Text("Davon aus freiem Cash: ${formatMoney(plan.cashUsedEur)}", color = RadarGreen)
+                    }
+                    if (plan.saleNeededEur <= 0.01) {
+                        Text(
+                            "Kein Verkauf nötig. Dein freies Cash reicht für diesen Geldbedarf.",
+                            color = RadarGreen,
+                            fontWeight = FontWeight.Black
+                        )
+                    } else {
+                        Text(
+                            "Noch durch Verkäufe freizumachen: ${formatMoney(plan.saleNeededEur)}",
+                            color = RadarRed,
+                            fontWeight = FontWeight.Black
+                        )
+                        plan.suggestions.forEachIndexed { index, suggestion ->
+                            NeonPanel(accent = if (index == 0) RadarRed else RadarYellow) {
+                                Row(
+                                    Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text("${index + 1}. ${suggestion.instrumentName}", fontWeight = FontWeight.Black)
+                                        Text(
+                                            if (suggestion.fullExit) "Vollständig verkaufen" else "Teilverkauf",
+                                            color = if (suggestion.fullExit) RadarRed else RadarYellow,
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                    Text(formatMoney(suggestion.amountEur), color = RadarRed, fontWeight = FontWeight.Black)
+                                }
+                                suggestion.shares?.let {
+                                    Text("Ca. ${formatShares(it)} Anteile", color = RadarText, style = MaterialTheme.typography.bodySmall)
+                                }
+                                if (!suggestion.fullExit) {
+                                    Text(
+                                        "Danach verbleiben ca. ${formatMoney(suggestion.remainingValueEur)} in der Position.",
+                                        color = RadarMuted,
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
+                                Text(suggestion.reason, color = RadarMuted, style = MaterialTheme.typography.bodySmall)
+                                Button(
+                                    onClick = { onExecuteLiquiditySale(suggestion.itemId, suggestion.amountEur) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(containerColor = RadarRed, contentColor = Color.White)
+                                ) {
+                                    Text("Verkauf erfassen", fontWeight = FontWeight.Black)
+                                }
+                            }
+                        }
+                        if (plan.uncoveredEur > 0.01) {
+                            Text(
+                                "Noch nicht gedeckt: ${formatMoney(plan.uncoveredEur)}. Der aktuell bewertbare Depotwert reicht für den gewünschten Betrag nicht aus.",
+                                color = RadarRed,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    val withdrawalReady = liquidityNeed != null && current.availableEur + 0.001 >= liquidityNeed
+                    if (withdrawalReady) {
+                        HorizontalDivider(color = RadarSurface2)
+                        Text(
+                            "Das benötigte Geld ist jetzt als freies Cash vorhanden. Wenn du es wirklich aus dem Investmenttopf herausnimmst, verbuche die Auszahlung.",
+                            color = RadarMuted,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Button(
+                            onClick = {
+                                val amount = liquidityNeed ?: return@Button
+                                if (onRecordWithdrawal(amount)) withdrawalBooked = true
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = RadarYellow, contentColor = Color(0xFF201703))
+                        ) {
+                            Text("Auszahlung verbuchen", fontWeight = FontWeight.Black)
+                        }
+                    }
+                }
+            }
         }
 
         item {
