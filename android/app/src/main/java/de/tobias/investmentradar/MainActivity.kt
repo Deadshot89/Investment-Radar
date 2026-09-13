@@ -131,9 +131,9 @@ fun InvestmentRadarUi(
     val alerts by vm.alerts.collectAsState()
     val alertPreferences by vm.alertPreferences.collectAsState()
     val context = LocalContext.current
-    var tab by remember { mutableIntStateOf(initialTab.coerceIn(0, 3)) }
+    var tab by remember { mutableIntStateOf(initialTab.coerceIn(0, 4)) }
     var selectedDetailId by remember { mutableStateOf(initialDetailId?.takeIf { it.isNotBlank() }) }
-    var detailReturnTab by remember { mutableIntStateOf(if (initialDetailId.isNullOrBlank()) initialTab.coerceIn(0, 3) else 3) }
+    var detailReturnTab by remember { mutableIntStateOf(if (initialDetailId.isNullOrBlank()) initialTab.coerceIn(0, 4) else 3) }
     var showSavingsPlans by remember { mutableStateOf(initialOpenSavingsPlans) }
     var missingAlertItemMessage by rememberSaveable { mutableStateOf<String?>(null) }
     var budgetDialog by remember { mutableStateOf(false) }
@@ -205,8 +205,8 @@ fun InvestmentRadarUi(
 
     LaunchedEffect(pushNavigationRequest) {
         if (pushNavigationRequest > 0L) {
-            tab = if (!initialDetailId.isNullOrBlank()) 3 else initialTab.coerceIn(0, 3)
-            detailReturnTab = if (initialDetailId.isNullOrBlank()) initialTab.coerceIn(0, 3) else 3
+            tab = if (!initialDetailId.isNullOrBlank()) 3 else initialTab.coerceIn(0, 4)
+            detailReturnTab = if (initialDetailId.isNullOrBlank()) initialTab.coerceIn(0, 4) else 3
             selectedDetailId = initialDetailId?.takeIf { it.isNotBlank() }
             showSavingsPlans = initialOpenSavingsPlans
             initialAlertId?.takeIf { it.isNotBlank() }?.let { vm.markAlertRead(it) }
@@ -266,7 +266,7 @@ fun InvestmentRadarUi(
                         }
                     },
                     actions = {
-                        IconButton(onClick = { budgetDialog = true }) { Icon(Icons.Default.Edit, contentDescription = "Budget ändern") }
+                        IconButton(onClick = { selectedDetailId = null; showSavingsPlans = false; tab = 4 }) { Icon(Icons.Default.AccountBalanceWallet, contentDescription = "Geldverwaltung öffnen") }
                         TextButton(onClick = {
                             if (availableUpdate != null) updateDialogVisible = true else updateCheckRequested++
                         }) {
@@ -287,6 +287,7 @@ fun InvestmentRadarUi(
                     NavigationBarItem(selected = tab == 1, onClick = { selectedDetailId = null; showSavingsPlans = false; tab = 1 }, icon = { Icon(Icons.Default.Search, null) }, label = { Text("Radar") })
                     NavigationBarItem(selected = tab == 2, onClick = { selectedDetailId = null; showSavingsPlans = false; tab = 2 }, icon = { Icon(Icons.Default.Favorite, null) }, label = { Text("Portfolio") })
                     NavigationBarItem(selected = tab == 3, onClick = { selectedDetailId = null; showSavingsPlans = false; tab = 3 }, icon = { Icon(Icons.Default.Notifications, null) }, label = { Text("Alarme") })
+                    NavigationBarItem(selected = tab == 4, onClick = { selectedDetailId = null; showSavingsPlans = false; tab = 4 }, icon = { Icon(Icons.Default.AccountBalanceWallet, null) }, label = { Text("Geld") })
                 }
             }
         ) { padding ->
@@ -388,7 +389,7 @@ fun InvestmentRadarUi(
                                 onEditCustom = { editingCustomAsset = it },
                                 onRemoveCustom = vm::removeCustomInvestment
                             )
-                            else -> AlertsScreen(
+                            3 -> AlertsScreen(
                                 alerts = alerts,
                                 preferences = alertPreferences,
                                 advisorById = advisorById,
@@ -441,6 +442,39 @@ fun InvestmentRadarUi(
                                 onDelete = vm::deleteAlert,
                                 onClear = vm::clearAlerts,
                                 onPreferencesChange = vm::updateAlertPreferences
+                            )
+                            else -> MoneyManagementScreen(
+                                current = budgetState,
+                                actionCenter = moneyActionCenter,
+                                onOpenBudgetEditor = { budgetDialog = true },
+                                onExecuteAction = { action ->
+                                    when (action.type) {
+                                        ActionType.BUY_MORE, ActionType.OPEN_POSITION -> {
+                                            val item = itemsById[action.instrumentId]
+                                            if (item != null) {
+                                                investmentDialogEntryType = "BUY"
+                                                investmentDialogItem = item
+                                            } else {
+                                                missingAlertItemMessage = "Das Wertpapier ist nicht im aktuellen Radar enthalten."
+                                            }
+                                        }
+                                        ActionType.SELL, ActionType.REDUCE -> {
+                                            val item = itemsById[action.instrumentId]
+                                            if (item != null) {
+                                                investmentDialogEntryType = "SELL"
+                                                investmentDialogItem = item
+                                            } else {
+                                                missingAlertItemMessage = "Das Wertpapier ist nicht im aktuellen Radar enthalten."
+                                            }
+                                        }
+                                        ActionType.REVIEW_SAVINGS_PLAN, ActionType.KEEP_SAVINGS_PLAN -> {
+                                            selectedDetailId = null
+                                            showSavingsPlans = true
+                                            tab = 2
+                                        }
+                                        ActionType.HOLD_CASH -> Unit
+                                    }
+                                }
                             )
                         }
                     }
@@ -1360,6 +1394,151 @@ private fun NeonStatStrip(entries: List<Pair<String, String>>, accent: Color) {
 }
 
 @Composable
+private fun MoneyManagementScreen(
+    current: InvestmentBudgetViewState,
+    actionCenter: DepotActionCenterState,
+    onOpenBudgetEditor: () -> Unit,
+    onExecuteAction: (DepotActionCenterItem) -> Unit
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            NeonPanel(accent = RadarGreen) {
+                Text("GELDVERWALTUNG · ${current.monthLabel}", color = RadarGreen, fontWeight = FontWeight.Black)
+                Text("Dein echtes verfügbares Geld", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
+                Text(formatMoney(current.availableEur), style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Black, color = RadarGreen)
+                Text(
+                    "Käufe werden erst nach deiner Bestätigung abgezogen. Verkäufe werden erst nach deiner Bestätigung gutgeschrieben.",
+                    color = RadarMuted,
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Button(
+                    onClick = onOpenBudgetEditor,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = RadarGreen, contentColor = Color(0xFF05150E))
+                ) {
+                    Icon(Icons.Default.Edit, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Budget & Geld bearbeiten", fontWeight = FontWeight.Black)
+                }
+            }
+        }
+
+        item {
+            NeonStatStrip(
+                entries = listOf(
+                    "Verfügbar" to formatMoney(current.availableEur),
+                    "Monatsbudget" to formatMoney(current.monthlyBudgetEur),
+                    "Rest Vormonate" to formatMoney(current.carryoverEur),
+                    "Zusätzlich" to formatMoney(current.extraFundingEur),
+                    "Depot-Einstand" to formatMoney(current.investedEur),
+                    "Kontostand" to formatMoney(current.cashBalanceEur),
+                    "Reserviert" to formatMoney(current.reservedEur)
+                ),
+                accent = RadarBlue
+            )
+        }
+
+        item {
+            NeonPanel(accent = if (actionCenter.isEmpty) RadarMuted else RadarCyan) {
+                Text("WAS SOLL ICH JETZT TUN?", color = RadarCyan, fontWeight = FontWeight.Black)
+                Text(
+                    if (actionCenter.isEmpty)
+                        "Aktuell gibt es keine belastbare Kauf- oder Verkaufsaktion. Dein Geld bleibt als Cash verfügbar."
+                    else
+                        "Hier stehen nur konkrete Aktionen aus dem aktuellen Investment-Plan. Keine Order wird automatisch ausgeführt.",
+                    color = RadarMuted,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        }
+
+        if (!actionCenter.isEmpty) {
+            items(actionCenter.items.take(6)) { action ->
+                val accent = when (action.type) {
+                    ActionType.SELL -> RadarRed
+                    ActionType.REDUCE, ActionType.REVIEW_SAVINGS_PLAN -> RadarYellow
+                    ActionType.BUY_MORE, ActionType.OPEN_POSITION -> RadarGreen
+                    ActionType.KEEP_SAVINGS_PLAN -> RadarBlue
+                    ActionType.HOLD_CASH -> RadarMuted
+                }
+                NeonPanel(accent = accent) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(action.instrumentName, fontWeight = FontWeight.Black)
+                            if (action.reason.isNotBlank()) {
+                                Text(action.reason, color = RadarMuted, style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                        Text(action.cashImpactText, color = accent, fontWeight = FontWeight.Black)
+                    }
+                    if (action.actionText.isNotBlank() && action.actionText != action.cashImpactText) {
+                        Text(action.actionText, color = RadarText, style = MaterialTheme.typography.bodySmall)
+                    }
+                    if (action.executable) {
+                        FilledTonalButton(
+                            onClick = { onExecuteAction(action) },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                when (action.type) {
+                                    ActionType.BUY_MORE, ActionType.OPEN_POSITION -> "Kauf bestätigen"
+                                    ActionType.SELL, ActionType.REDUCE -> "Verkauf bestätigen"
+                                    ActionType.REVIEW_SAVINGS_PLAN, ActionType.KEEP_SAVINGS_PLAN -> "Sparplan prüfen"
+                                    ActionType.HOLD_CASH -> "Cash halten"
+                                },
+                                fontWeight = FontWeight.Black
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
+            Text("Geldverlauf", color = RadarCyan, fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
+            Text(
+                "So kannst du jederzeit nachvollziehen, warum sich dein verfügbarer Betrag geändert hat.",
+                color = RadarMuted,
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+
+        if (current.history.isEmpty()) {
+            item { Text("Noch keine Geldbewegungen vorhanden.", color = RadarMuted) }
+        } else {
+            items(current.history.take(30)) { entry ->
+                val accent = if (entry.isCredit) RadarGreen else RadarBlue
+                NeonPanel(accent = accent) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(entry.title, fontWeight = FontWeight.Black)
+                            Text(entry.date, color = RadarMuted, style = MaterialTheme.typography.bodySmall)
+                        }
+                        Text(formatSignedMoney(entry.amountEur), color = accent, fontWeight = FontWeight.Black)
+                    }
+                    val details = listOf(entry.itemId, entry.note).filter { it.isNotBlank() }.joinToString(" · ")
+                    if (details.isNotBlank()) Text(details, color = RadarMuted, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+
+        item { Spacer(Modifier.height(84.dp)) }
+    }
+}
+
+@Composable
 private fun BudgetDialog(
     current: InvestmentBudgetViewState,
     actionCenter: DepotActionCenterState,
@@ -1389,7 +1568,7 @@ private fun BudgetDialog(
                     entries = listOf(
                         "Verfügbar" to formatMoney(current.availableEur),
                         "Monatsbudget" to formatMoney(current.monthlyBudgetEur),
-                        "Diesen Monat investiert" to formatMoney(current.investedEur),
+                        "Depot-Einstand" to formatMoney(current.investedEur),
                         "Zusätzlich eingezahlt" to formatMoney(current.extraFundingEur),
                         "Rest Vormonate" to formatMoney(current.carryoverEur),
                         "Kontostand" to formatMoney(current.cashBalanceEur),
