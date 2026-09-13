@@ -95,14 +95,27 @@ object DepotActionCenterMapper {
                 amountEur = displayAmount,
                 buyBlocked = buyBlocked
             )
+            val cashImpact = cashImpactText(action, effectiveType, buyBlocked, projectedCash)
+            val primaryActionText = if (
+                !buyBlocked && effectiveType in setOf(
+                    ActionType.SELL,
+                    ActionType.REDUCE,
+                    ActionType.BUY_MORE,
+                    ActionType.OPEN_POSITION
+                )
+            ) {
+                cashImpact
+            } else {
+                actionText(action, effectiveType, buyBlocked, analysisIncomplete)
+            }
 
             DepotActionCenterItem(
                 actionId = action.actionId,
                 type = effectiveType,
                 instrumentId = action.instrumentId,
                 instrumentName = item?.name ?: if (action.instrumentId == "cash") "Cash" else action.instrumentId,
-                actionText = actionText(action, effectiveType, buyBlocked, analysisIncomplete),
-                cashImpactText = cashImpactText(action, effectiveType, buyBlocked, projectedCash),
+                actionText = primaryActionText,
+                cashImpactText = cashImpact,
                 projectedCashEur = projectedCash,
                 reason = action.reason,
                 priority = action.priority,
