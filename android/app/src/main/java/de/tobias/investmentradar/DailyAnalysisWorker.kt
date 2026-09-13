@@ -77,7 +77,10 @@ class DailyAnalysisWorker(
                 monthlySavingsEur = monthlySavings[item.id] ?: 0
             )
         }
-        val budget = dashboard?.budget?.coerceAtLeast(0) ?: 100
+        InvestmentBudgetStore.ensureInitialized(applicationContext)
+        InvestmentBudgetStore.ensureCurrentMonth(applicationContext)
+        InvestmentBudgetStore.reconcileCurrentMonthPortfolio(applicationContext, positions)
+        val budget = InvestmentBudgetStore.summary(applicationContext)
         val previousPlan = PortfolioAdvisorStore.latest(applicationContext)?.plan
         val plan = PortfolioAdvisorEngine.allocate(candidates, budget)
         val planEvents = AdvisorChangePolicy.planEvents(previousPlan, plan, today)

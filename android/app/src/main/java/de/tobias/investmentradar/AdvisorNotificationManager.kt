@@ -120,6 +120,28 @@ object AdvisorNotificationManager {
         persistIds(prefs, ADVISOR_IDS, existing, successfullyNotified)
     }
 
+    fun publishExitTriggers(context:Context,triggers:List<ExitStrategyTrigger>,displayNames:Map<String,String> = emptyMap()){
+        if(triggers.isEmpty()) return
+        val preferences=AlertPreferencesStore.read(context)
+        triggers.distinctBy{it.eventId}.forEach{trigger->
+            val name=displayNames[trigger.itemId]?.takeIf{it.isNotBlank()}?:trigger.itemId.uppercase(Locale.GERMANY)
+            val title=if(trigger.kind==ExitTriggerKind.TAKE_PROFIT) "Gewinnziel erreicht" else "Verlustgrenze erreicht"
+            val body=buildString{
+                append("$name: ${trigger.reason}. Vollständigen Verkauf prüfen")
+                trigger.currentValueEur?.let{append(" · aktueller Positionswert ");append(String.format(Locale.GERMANY,"%.2f €",it))}
+            }
+            val alert=SignalAlert(trigger.eventId,trigger.itemId,"SELL",title,body,java.time.LocalDateTime.now().toString())
+            if(AlertPolicy.shouldStore(alert,preferences)) AlertStore.add(context,alert)
+            if(AlertPolicy.shouldNotify(alert,preferences)) show(
+                context,trigger.eventId.hashCode(),title,body,
+                Intent(context,MainActivity::class.java).apply{
+                    putExtra("openAlerts",true);putExtra("openItemId",trigger.itemId);putExtra("openAlertId",trigger.eventId)
+                    flags=Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                }
+            )
+        }
+    }
+
     fun publishDueSavingsPlans(
         context: Context,
         executions: List<SavingsPlanExecution>,
@@ -227,7 +249,7 @@ object AdvisorNotificationManager {
         AdvisorSignal.NACHKAUFEN -> "BUY"
         AdvisorSignal.HALTEN -> "WATCH"
         AdvisorSignal.REDUZIEREN,
-        AdvisorSignal.VERKAUFEN,
         AdvisorSignal.KEINE_BELASTBARE_BEWERTUNG -> "REVIEW"
+        AdvisorSignal.VERKAUFEN -> "SELL"
     }
 }

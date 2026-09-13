@@ -70,6 +70,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        DailyAnalysisScheduler.schedule(this)
+        ExitStrategyScheduler.schedule(this)
         if (FirebaseBootstrap.isConfigured()) {
             FirebaseMessaging.getInstance().subscribeToTopic("investment-alerts")
             PortfolioStore.read(this).forEach { itemId ->
@@ -127,6 +129,7 @@ fun InvestmentRadarUi(
     val holdingIds by vm.holdingIds.collectAsState()
     val positions by vm.positions.collectAsState()
     val customItems by vm.customItems.collectAsState()
+    val exitStrategies by vm.exitStrategies.collectAsState()
     val watchlistIds by vm.watchlistIds.collectAsState()
     val alerts by vm.alerts.collectAsState()
     val alertPreferences by vm.alertPreferences.collectAsState()
@@ -317,10 +320,18 @@ fun InvestmentRadarUi(
                         val advisorPlan = PortfolioAdvisorEngine.allocate(advisorCandidates, budgetState.advisorBudgetEur)
                         val advisorById = advisorPlan.candidates.associateBy { it.itemId }
                         val itemsById = s.data.items.associateBy { it.id }
-                        val liveActionPlan = ActionPlanEngine.build(
+                        val currentPricesEur = itemsById.mapValues { (_, item) -> euroComparablePrice(item) }
+                        val baseActionPlan = ActionPlanEngine.build(
                             analysisDay = s.data.generatedAt.take(10).ifBlank { "current" },
-                            advisorPlan = advisorPlan
+                            advisorPlan = advisorPlan,
+                            currentPricesEur = currentPricesEur
                         ).copy(availableBudgetEur = budgetState.availableEur)
+                        val liveActionPlan = ExitStrategyActionOverlay.apply(
+                            plan = baseActionPlan,
+                            positions = positions,
+                            currentPricesEur = currentPricesEur,
+                            strategies = exitStrategies
+                        )
                         val currentMoneyActionCenter = DepotActionCenterMapper.build(
                             actionPlan = liveActionPlan,
                             advisorById = advisorById,
@@ -345,7 +356,9 @@ fun InvestmentRadarUi(
                                 onBack = { selectedDetailId = null; tab = detailReturnTab },
                                 onToggleWatchlist = vm::toggleWatchlist,
                                 onEditPosition = { investmentDialogItem = it },
-                                onOpenPortfolio = { selectedDetailId = null; tab = 2 }
+                                onOpenPortfolio = { selectedDetailId = null; tab = 2 },
+                                exitStrategy = exitStrategies[detailId] ?: ExitStrategy(detailId),
+                                onSaveExitStrategy = vm::saveExitStrategy
                             )
                         } else when (tab) {
                             0 -> DashboardScreen(

@@ -19,11 +19,16 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -43,7 +48,9 @@ fun InvestmentDetailScreen(
     onBack: () -> Unit,
     onToggleWatchlist: (String) -> Unit,
     onEditPosition: (InvestmentItem) -> Unit,
-    onOpenPortfolio: () -> Unit
+    onOpenPortfolio: () -> Unit,
+    exitStrategy: ExitStrategy? = null,
+    onSaveExitStrategy: (ExitStrategy) -> Boolean = { false }
 ) {
     val context = LocalContext.current
     val effectiveItem = detailItem(item, customItem)
@@ -276,6 +283,15 @@ fun InvestmentDetailScreen(
                     DetailValueRow("Gesamt G/V", portfolioPosition.totalProfitLoss(comparablePrice)?.let(::detailSignedMoney) ?: "Gesamt G/V nicht berechenbar")
                 }
             }
+            item {
+                ExitStrategyCard(
+                    itemId = effectiveItem.id,
+                    position = portfolioPosition,
+                    currentPriceEur = comparablePrice,
+                    strategy = exitStrategy ?: ExitStrategy(effectiveItem.id),
+                    onSave = onSaveExitStrategy
+                )
+            }
         }
 
         item {
@@ -313,6 +329,47 @@ fun InvestmentDetailScreen(
         }
     }
 }
+
+@Composable
+private fun ExitStrategyCard(itemId:String, position:PortfolioPosition, currentPriceEur:Double?, strategy:ExitStrategy, onSave:(ExitStrategy)->Boolean){
+    var enabled by remember(strategy){ mutableStateOf(strategy.enabled) }
+    var takeText by remember(strategy){ mutableStateOf(strategy.takeProfitPct?.let(::detailEditablePercent).orEmpty()) }
+    var stopText by remember(strategy){ mutableStateOf(strategy.stopLossPct?.let(::detailEditablePercent).orEmpty()) }
+    var message by remember(strategy){ mutableStateOf<String?>(null) }
+    val take=parseDetailPercent(takeText)
+    val stop=parseDetailPercent(stopText)
+    val evaluation=ExitStrategyEngine.evaluate(position,currentPriceEur,ExitStrategy(itemId,enabled,take,stop))
+    DetailCard {
+        Text("Ausstiegsplan", style=MaterialTheme.typography.titleMedium, fontWeight=FontWeight.Black)
+        Text("Die App prüft aktivierte Ziele stündlich. Es wird nie automatisch verkauft.", color=MaterialTheme.colorScheme.onSurfaceVariant, style=MaterialTheme.typography.bodySmall)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.SpaceBetween, verticalAlignment=Alignment.CenterVertically){
+            Column(Modifier.weight(1f)){
+                Text(if(enabled) "Überwachung aktiv" else "Überwachung aus", fontWeight=FontWeight.Bold)
+                Text(when(evaluation.kind){
+                    ExitTriggerKind.TAKE_PROFIT -> "GEWINNZIEL ERREICHT · Verkauf prüfen"
+                    ExitTriggerKind.STOP_LOSS -> "VERLUSTGRENZE ERREICHT · Verkauf prüfen"
+                    null -> evaluation.reason
+                }, color=when(evaluation.kind){
+                    ExitTriggerKind.TAKE_PROFIT -> MaterialTheme.colorScheme.primary
+                    ExitTriggerKind.STOP_LOSS -> MaterialTheme.colorScheme.error
+                    null -> MaterialTheme.colorScheme.onSurfaceVariant
+                }, style=MaterialTheme.typography.bodySmall)
+            }
+            Switch(checked=enabled,onCheckedChange={enabled=it;message=null})
+        }
+        DetailValueRow("Aktuell G/V",evaluation.currentProfitLossPct?.let{String.format(Locale.GERMANY,"%+.2f %%",it)}?:"Einstand/Kurs fehlt")
+        OutlinedTextField(takeText,{takeText=sanitizeDetailPercent(it);message=null},label={Text("Gewinnziel %")},supportingText={Text("Beispiel: 15 = bei +15 % melden")},singleLine=true,modifier=Modifier.fillMaxWidth())
+        OutlinedTextField(stopText,{stopText=sanitizeDetailPercent(it);message=null},label={Text("Verlustgrenze %")},supportingText={Text("Beispiel: 10 = bei −10 % melden")},singleLine=true,modifier=Modifier.fillMaxWidth())
+        Button(onClick={
+            message=if(onSave(ExitStrategy(itemId,enabled,take,stop))) "Ausstiegsplan gespeichert." else "Ausstiegsplan konnte nicht gespeichert werden."
+        },enabled=!enabled||take!=null||stop!=null,modifier=Modifier.fillMaxWidth()){Text("Ausstiegsplan speichern")}
+        message?.let{Text(it,color=MaterialTheme.colorScheme.onSurfaceVariant,style=MaterialTheme.typography.bodySmall)}
+        Text("Advisor „Verkaufen“ bleibt unabhängig aktiv und kann ebenfalls einen vollständigen Ausstieg empfehlen.",color=MaterialTheme.colorScheme.onSurfaceVariant,style=MaterialTheme.typography.bodySmall)
+    }
+}
+private fun sanitizeDetailPercent(v:String)=v.filter{it.isDigit()||it==','||it=='.'}.take(8)
+private fun parseDetailPercent(v:String)=v.replace(',','.').toDoubleOrNull()?.takeIf{it.isFinite()&&it>0.0&&it<=1000.0}
+private fun detailEditablePercent(v:Double)=String.format(Locale.GERMANY,"%.2f",v).trimEnd('0').trimEnd(',')
 
 @Composable
 private fun DetailCard(content: @Composable ColumnScope.() -> Unit) {
