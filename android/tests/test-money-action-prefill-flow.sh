@@ -9,10 +9,11 @@ fail() {
 }
 
 # Eine konkrete Aktion aus der Geldverwaltung muss ihren empfohlenen Betrag
-# bis in die manuelle Kauf-/Verkaufsmaske mitnehmen. Der Aktionscenter-Mapper
-# liefert dafür den bereits geprüften/anzeigbaren Betrag.
+# bis in die manuelle Kauf-/Verkaufsmaske mitnehmen. Die neue Vorbelegung
+# übernimmt weiterhin action.displayAmountEur und ergänzt daraus die Stückzahl.
 grep -Fq 'var pendingActionAmountEur by remember { mutableStateOf<Double?>(null) }' "$UI" || fail 'Empfohlener Aktionsbetrag wird nicht als UI-Zustand gehalten.'
-grep -Fq 'pendingActionAmountEur = action.displayAmountEur' "$UI" || fail 'Aktionsbetrag wird beim Öffnen der Transaktionsmaske nicht übernommen.'
+grep -Fq 'amountEur = action.displayAmountEur' "$UI" || fail 'Empfohlener Aktionsbetrag wird nicht an die Vorbelegung übergeben.'
+grep -Fq 'pendingActionAmountEur = prefill.amountEur.takeIf { it > 0.0 }' "$UI" || fail 'Berechneter Aktionsbetrag wird beim Öffnen der Transaktionsmaske nicht übernommen.'
 grep -Fq 'initialAmountEur = pendingActionAmountEur' "$UI" || fail 'Transaktionsdialog erhält den empfohlenen Aktionsbetrag nicht.'
 grep -Fq 'initialAmountEur: Double? = null' "$UI" || fail 'PurchaseHistoryDialog unterstützt keinen empfohlenen Startbetrag.'
 grep -Fq 'mutableStateOf(initialAmountEur?.takeIf { it > 0.0 }?.let(::formatEditableNumber).orEmpty())' "$UI" || fail 'Empfohlener Betrag wird nicht sichtbar vorbefüllt.'
