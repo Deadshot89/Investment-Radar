@@ -114,8 +114,8 @@ class ActionPlanEngineTest {
 
         val sell = actionPlan.actions.single { it.type == ActionType.SELL }
         assertEquals("weak", sell.instrumentId)
-        assertEquals(100.0, sell.amountEur, 0.001)
-        assertEquals(4.0, sell.plannedShares!!, 0.001)
+        assertEquals(500.0, sell.amountEur, 0.001)
+        assertEquals(20.0, sell.plannedShares!!, 0.001)
         assertEquals("weak", sell.fromInstrumentId)
         assertNull(sell.toInstrumentId)
         assertTrue(actionPlan.actions.none { it.type == ActionType.OPEN_POSITION })

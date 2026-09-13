@@ -130,8 +130,8 @@ object ActionPlanEngine {
                 val sourceValue = candidate.currentValueEur?.takeIf { it.isFinite() && it > 0.0 }
                     ?: return@forEach
                 val amount = when (candidate.action) {
-                    PortfolioAdvisorAction.REDUZIEREN -> floor(min(sourceValue * 0.25, 50.0))
-                    PortfolioAdvisorAction.VERKAUFEN -> floor(min(sourceValue * 0.50, 100.0))
+                    PortfolioAdvisorAction.REDUZIEREN -> floor(sourceValue * 0.25)
+                    PortfolioAdvisorAction.VERKAUFEN -> sourceValue
                     else -> 0.0
                 }
                 if (amount <= 0.0) return@forEach

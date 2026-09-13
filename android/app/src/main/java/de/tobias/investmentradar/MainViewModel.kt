@@ -48,6 +48,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _customItems = MutableStateFlow(CustomInvestmentStore.read(app))
     val customItems: StateFlow<List<CustomInvestment>> = _customItems.asStateFlow()
 
+    private val _exitStrategies = MutableStateFlow(ExitStrategyStore.readAll(app))
+    val exitStrategies: StateFlow<Map<String, ExitStrategy>> = _exitStrategies.asStateFlow()
+
     private val _watchlistIds = MutableStateFlow(WatchlistStore.read(app))
     val watchlistIds: StateFlow<Set<String>> = _watchlistIds.asStateFlow()
 
@@ -411,9 +414,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         refresh(silent = true)
     }
 
+    fun saveExitStrategy(strategy: ExitStrategy): Boolean = runCatching {
+        val app = getApplication<Application>()
+        ExitStrategyStore.save(app, strategy)
+        _exitStrategies.value = ExitStrategyStore.readAll(app)
+    }.isSuccess
+
     fun removeHolding(itemId: String) {
         val app = getApplication<Application>()
         PortfolioStore.remove(app, itemId)
+        ExitStrategyStore.remove(app, itemId)
+        _exitStrategies.value = ExitStrategyStore.readAll(app)
         reloadPortfolio(app)
         if (FirebaseBootstrap.isConfigured()) {
             FirebaseMessaging.getInstance().unsubscribeFromTopic(holdingTopic(itemId))
