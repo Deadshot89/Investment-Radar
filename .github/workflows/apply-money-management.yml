@@ -16,17 +16,18 @@ jobs:
         with:
           ref: main
       - name: Patch MainActivity
-        shell: python {0}
+        shell: bash
         run: |
+          python - <<'PY'
           from pathlib import Path
 
           path = Path('android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt')
           text = path.read_text()
 
-          old = '''    var budgetDialog by remember { mutableStateOf(false) }
+          replacements = []
+          replacements.append(('''    var budgetDialog by remember { mutableStateOf(false) }
     var investmentDialogItem by remember { mutableStateOf<InvestmentItem?>(null) }
-'''
-          new = '''    var budgetDialog by remember { mutableStateOf(false) }
+''', '''    var budgetDialog by remember { mutableStateOf(false) }
     var moneyActionCenter by remember {
         mutableStateOf(
             DepotActionCenterState(
@@ -37,16 +38,12 @@ jobs:
     }
     var moneyActionItemsById by remember { mutableStateOf<Map<String, InvestmentItem>>(emptyMap()) }
     var investmentDialogItem by remember { mutableStateOf<InvestmentItem?>(null) }
-'''
-          assert old in text, 'state anchor missing'
-          text = text.replace(old, new, 1)
-
-          old = '''                        val advisorPlan = PortfolioAdvisorEngine.allocate(advisorCandidates, budgetState.advisorBudgetEur)
+'''))
+          replacements.append(('''                        val advisorPlan = PortfolioAdvisorEngine.allocate(advisorCandidates, budgetState.advisorBudgetEur)
                         val advisorById = advisorPlan.candidates.associateBy { it.itemId }
                         val itemsById = s.data.items.associateBy { it.id }
                         val detailId = selectedDetailId
-'''
-          new = '''                        val advisorPlan = PortfolioAdvisorEngine.allocate(advisorCandidates, budgetState.advisorBudgetEur)
+''', '''                        val advisorPlan = PortfolioAdvisorEngine.allocate(advisorCandidates, budgetState.advisorBudgetEur)
                         val advisorById = advisorPlan.candidates.associateBy { it.itemId }
                         val itemsById = s.data.items.associateBy { it.id }
                         val liveActionPlan = ActionPlanEngine.build(
@@ -64,19 +61,15 @@ jobs:
                             if (moneyActionItemsById != itemsById) moneyActionItemsById = itemsById
                         }
                         val detailId = selectedDetailId
-'''
-          assert old in text, 'ready anchor missing'
-          text = text.replace(old, new, 1)
-
-          old = '''        BudgetDialog(
+'''))
+          replacements.append(('''        BudgetDialog(
             current = budgetState,
             onDismiss = { budgetDialog = false },
             onSaveMonthly = vm::setMonthlyBudget,
             onAddExtra = { amount -> vm.addExtraFunding(amount) },
             onAdjustment = { amount, credit, note -> vm.addBudgetAdjustment(amount, credit, note) }
         )
-'''
-          new = '''        BudgetDialog(
+''', '''        BudgetDialog(
             current = budgetState,
             actionCenter = moneyActionCenter,
             onDismiss = { budgetDialog = false },
@@ -113,19 +106,15 @@ jobs:
                 }
             }
         )
-'''
-          assert old in text, 'dialog call anchor missing'
-          text = text.replace(old, new, 1)
-
-          old = '''private fun BudgetDialog(
+'''))
+          replacements.append(('''private fun BudgetDialog(
     current: InvestmentBudgetViewState,
     onDismiss: () -> Unit,
     onSaveMonthly: (Double) -> Boolean,
     onAddExtra: (Double) -> Boolean,
     onAdjustment: (Double, Boolean, String) -> Boolean
 ) {
-'''
-          new = '''private fun BudgetDialog(
+''', '''private fun BudgetDialog(
     current: InvestmentBudgetViewState,
     actionCenter: DepotActionCenterState,
     onDismiss: () -> Unit,
@@ -134,13 +123,9 @@ jobs:
     onAdjustment: (Double, Boolean, String) -> Boolean,
     onExecuteAction: (DepotActionCenterItem) -> Unit
 ) {
-'''
-          assert old in text, 'dialog signature anchor missing'
-          text = text.replace(old, new, 1)
-
-          text = text.replace('title = { Text("Investmentbudget") },', 'title = { Text("Geldverwaltung") },', 1)
-
-          old = '''                Text("Budget-Cockpit · ${current.monthLabel}", color = RadarBlue, fontWeight = FontWeight.Black)
+'''))
+          replacements.append(('title = { Text("Investmentbudget") },', 'title = { Text("Geldverwaltung") },'))
+          replacements.append(('''                Text("Budget-Cockpit · ${current.monthLabel}", color = RadarBlue, fontWeight = FontWeight.Black)
                 NeonStatStrip(
                     entries = listOf(
                         "Monatsbudget" to formatMoney(current.monthlyBudgetEur),
@@ -153,8 +138,7 @@ jobs:
                     ),
                     accent = RadarBlue
                 )
-'''
-          new = '''                Text("GELDVERWALTUNG · ${current.monthLabel}", color = RadarBlue, fontWeight = FontWeight.Black)
+''', '''                Text("GELDVERWALTUNG · ${current.monthLabel}", color = RadarBlue, fontWeight = FontWeight.Black)
                 Text("Verfügbar: ${formatMoney(current.availableEur)}", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black, color = RadarGreen)
                 NeonStatStrip(
                     entries = listOf(
@@ -168,18 +152,14 @@ jobs:
                     ),
                     accent = RadarBlue
                 )
-'''
-          assert old in text, 'cockpit anchor missing'
-          text = text.replace(old, new, 1)
-
-          old = '''                if (current.feesEur > 0.0) {
+'''))
+          replacements.append(('''                if (current.feesEur > 0.0) {
                     Text("Diesen Monat in Transaktionen ausgewiesene Gebühren: ${formatMoney(current.feesEur)}", color = RadarYellow, style = MaterialTheme.typography.bodySmall)
                 }
 
                 HorizontalDivider(color = RadarSurface2)
                 Text("Monatsbudget ändern", fontWeight = FontWeight.Black)
-'''
-          new = '''                if (current.feesEur > 0.0) {
+''', '''                if (current.feesEur > 0.0) {
                     Text("Diesen Monat in Transaktionen ausgewiesene Gebühren: ${formatMoney(current.feesEur)}", color = RadarYellow, style = MaterialTheme.typography.bodySmall)
                 }
 
@@ -222,45 +202,31 @@ jobs:
 
                 HorizontalDivider(color = RadarSurface2)
                 Text("Monatsbudget ändern", fontWeight = FontWeight.Black)
-'''
-          assert old in text, 'action section anchor missing'
-          text = text.replace(old, new, 1)
-
-          old = '''                Text("Zusatzgeld / Wechselgeld", fontWeight = FontWeight.Black)
+'''))
+          replacements.append(('''                Text("Zusatzgeld / Wechselgeld", fontWeight = FontWeight.Black)
                 Text("Zusatzgeld erhöht den Kontostand zusätzlich zum Monatsbudget. Es wird nur einmal gebucht.", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
                 OutlinedTextField(
-'''
-          new = '''                Text("Wechselgeld / zusätzliches Geld", fontWeight = FontWeight.Black)
+''', '''                Text("Wechselgeld / zusätzliches Geld", fontWeight = FontWeight.Black)
                 Text("Zusatzgeld erhöht den Kontostand zusätzlich zum Monatsbudget. Es wird nur einmal gebucht.", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    AssistChip(
-                        onClick = { message = if (onAddExtra(5.0)) "5 € Wechselgeld hinzugefügt." else "Zusatzgeld konnte nicht gespeichert werden." },
-                        label = { Text("+ 5 €") }
-                    )
-                    AssistChip(
-                        onClick = { message = if (onAddExtra(10.0)) "10 € Wechselgeld hinzugefügt." else "Zusatzgeld konnte nicht gespeichert werden." },
-                        label = { Text("+ 10 €") }
-                    )
-                    AssistChip(
-                        onClick = { message = if (onAddExtra(20.0)) "20 € zusätzliches Geld hinzugefügt." else "Zusatzgeld konnte nicht gespeichert werden." },
-                        label = { Text("+ 20 €") }
-                    )
+                    AssistChip(onClick = { message = if (onAddExtra(5.0)) "5 € Wechselgeld hinzugefügt." else "Zusatzgeld konnte nicht gespeichert werden." }, label = { Text("+ 5 €") })
+                    AssistChip(onClick = { message = if (onAddExtra(10.0)) "10 € Wechselgeld hinzugefügt." else "Zusatzgeld konnte nicht gespeichert werden." }, label = { Text("+ 10 €") })
+                    AssistChip(onClick = { message = if (onAddExtra(20.0)) "20 € zusätzliches Geld hinzugefügt." else "Zusatzgeld konnte nicht gespeichert werden." }, label = { Text("+ 20 €") })
                 }
                 OutlinedTextField(
-'''
-          assert old in text, 'extra funding anchor missing'
-          text = text.replace(old, new, 1)
-
-          old = '''                Text("BUDGET-HISTORIE", color = RadarCyan, fontWeight = FontWeight.Black, style = MaterialTheme.typography.labelLarge)
+'''))
+          replacements.append(('''                Text("BUDGET-HISTORIE", color = RadarCyan, fontWeight = FontWeight.Black, style = MaterialTheme.typography.labelLarge)
                 Text("Hier siehst du jede budgetwirksame Veränderung und warum sich dein verfügbarer Betrag geändert hat.", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
-'''
-          new = '''                Text("Geldverlauf", color = RadarCyan, fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
+''', '''                Text("Geldverlauf", color = RadarCyan, fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
                 Text("Jede Einzahlung, jeder Kauf, Verkauf und jede Korrektur erklärt nachvollziehbar, warum sich dein verfügbares Geld verändert hat.", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
-'''
-          assert old in text, 'history anchor missing'
-          text = text.replace(old, new, 1)
+'''))
+
+          for index, (old, new) in enumerate(replacements, start=1):
+              assert old in text, f'anchor {index} missing'
+              text = text.replace(old, new, 1)
 
           path.write_text(text)
+          PY
       - name: Commit approved UI
         shell: bash
         run: |
