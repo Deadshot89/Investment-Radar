@@ -214,6 +214,20 @@ object InvestmentBudgetStore {
         if (next != existing) saveEntries(context, next) else refreshRuntime(context)
     }
 
+    fun reconcileCurrentMonthPortfolio(
+        context: Context,
+        positions: Map<String, PortfolioPosition>,
+        today: LocalDate = LocalDate.now()
+    ) {
+        val existing = readEntries(context)
+        val next = InvestmentBudgetMigration.reconcileCurrentMonthTransactions(
+            existing = existing,
+            positions = positions,
+            today = today
+        )
+        if (next != existing) saveEntries(context, next) else refreshRuntime(context)
+    }
+
     fun refreshRuntime(context: Context) {
         InvestmentBudgetRuntime.refresh(summary(context))
     }
