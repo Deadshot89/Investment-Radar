@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Final Integration Contract für Investment Radar 2.5.2 / Android 2.5.2.
+# Final Integration Contract für Investment Radar 2.5.3 / Android 2.5.3.
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 GRADLE_FILE="$ROOT/android/app/build.gradle.kts"
 WORKFLOW_FILE="$ROOT/.github/workflows/android-build.yml"
@@ -14,16 +14,16 @@ fail() {
   exit 1
 }
 
-grep -Fq 'versionCode = 72' "$GRADLE_FILE" || fail 'Android versionCode muss 72 sein.'
-grep -Fq 'versionName = "2.5.2"' "$GRADLE_FILE" || fail 'Android versionName muss 2.5.2 sein.'
-grep -Fq 'Release candidate: Investment Radar 2.5.2' "$GRADLE_FILE" || fail 'Release-Kandidat muss 2.5.2 benennen.'
+grep -Fq 'versionCode = 73' "$GRADLE_FILE" || fail 'Android versionCode muss 73 sein.'
+grep -Fq 'versionName = "2.5.3"' "$GRADLE_FILE" || fail 'Android versionName muss 2.5.3 sein.'
+grep -Fq 'Release candidate: Investment Radar 2.5.3' "$GRADLE_FILE" || fail 'Release-Kandidat muss 2.5.3 benennen.'
 grep -Fq 'EXPECTED_BACKEND_VERSION: "2.1.0"' "$WORKFLOW_FILE" || fail 'Backend-Vertrag muss bei 2.1.0 bleiben.'
 
-if grep -Fq 'versionCode = 71' "$GRADLE_FILE"; then
-  fail 'Alter versionCode 71 darf im Release-Kandidaten nicht mehr aktiv sein.'
+if grep -Fq 'versionCode = 72' "$GRADLE_FILE"; then
+  fail 'Alter versionCode 72 darf im Release-Kandidaten nicht mehr aktiv sein.'
 fi
-if grep -Fq 'versionName = "2.5.1"' "$GRADLE_FILE"; then
-  fail 'Alte versionName 2.5.1 darf im Release-Kandidaten nicht mehr aktiv sein.'
+if grep -Fq 'versionName = "2.5.2"' "$GRADLE_FILE"; then
+  fail 'Alte versionName 2.5.2 darf im Release-Kandidaten nicht mehr aktiv sein.'
 fi
 for temp_workflow in "$TEMP_NAV_WORKFLOW" "$TEMP_DETAIL_WORKFLOW" "$TEMP_TASK10_WORKFLOW"; do
   if [ -e "$temp_workflow" ]; then
@@ -31,4 +31,4 @@ for temp_workflow in "$TEMP_NAV_WORKFLOW" "$TEMP_DETAIL_WORKFLOW" "$TEMP_TASK10_
   fi
 done
 
-echo 'PASS: Android 2.5.2/code72 mit Backend-Vertrag 2.1.0 und bereinigtem Release-Branch.'
+echo 'PASS: Android 2.5.3/code73 mit Backend-Vertrag 2.1.0 und bereinigtem Release-Branch.'
