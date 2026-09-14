@@ -33,3 +33,46 @@ test('radar item exposes coverageBreakdown missingData providerStatus and analys
   assert.ok(Array.isArray(out.analysisWarnings));
   assert.ok(out.analysisWarnings.some((warning) => warning.includes('Fundamentaldaten')));
 });
+
+test('radar page automatically repairs missing history and fundamentals when slow-data cache is empty', async () => {
+  const item = {
+    id: 'abbv', type: 'AKTIE', name: 'AbbVie', ticker: 'ABBV', isin: 'US00287Y1091',
+    region: 'NORTH_AMERICA', country: 'US', sector: 'Healthcare', risk: 2,
+    universeActive: true, portfolioOnly: false, tradeRepublicEligible: true
+  };
+  const historyRefreshCalls = [];
+  const fundamentalRefreshCalls = [];
+
+  const result = await queryRadar({ page: 1, pageSize: 1 }, {
+    loadUniverse: async () => [item],
+    loadQuotes: async () => new Map([['abbv', { price: 220, currency: 'USD', percentChange: 1.8, source: 'Twelve Data' }]]),
+    loadHistory: async (_items, options = {}) => {
+      historyRefreshCalls.push(Boolean(options.refresh));
+      if (!options.refresh) return new Map();
+      return new Map([['abbv', {
+        m1: 2, m3: 5, m6: 8, m12: 13, score: 72, coveragePct: 100, source: 'Yahoo Finance'
+      }]]);
+    },
+    loadFundamentals: async (_items, options = {}) => {
+      fundamentalRefreshCalls.push(Boolean(options.refresh));
+      if (!options.refresh) return new Map();
+      return new Map([['abbv', {
+        coveragePct: 100,
+        source: 'Twelve Data + SEC Companyfacts',
+        metrics: {
+          pe: 18, priceToSales: 5, evToEbitda: 14, freeCashFlowYield: 0.05,
+          revenueGrowth: 0.08, epsGrowth: 0.10, operatingMargin: 0.31, netMargin: 0.24,
+          roe: 0.55, roic: 0.16, debtToEquity: 3.5, marketCap: 390000000000
+        }
+      }]]);
+    },
+    loadEurRateDetails: async () => new Map([['USD', { rate: 0.9 }]])
+  });
+
+  assert.deepEqual(historyRefreshCalls, [false, true]);
+  assert.deepEqual(fundamentalRefreshCalls, [false, true]);
+  assert.equal(result.items[0].diagnostics.historySource, 'Yahoo Finance');
+  assert.equal(result.items[0].diagnostics.fundamentalSource, 'Twelve Data + SEC Companyfacts');
+  assert.ok(!result.items[0].dataQuality.missingBlocks.includes('history'));
+  assert.ok(!result.items[0].dataQuality.missingBlocks.includes('fundamentals'));
+});
