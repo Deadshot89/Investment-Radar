@@ -183,6 +183,7 @@ jobs:
         env:
           BASE_URL: ${{ vars.INVESTMENT_API_BASE_URL }}
           EXPECTED_BACKEND_VERSION: "2.1.0"
+          EXPECTED_API_SCHEMA: "2026-09-14.1"
         shell: bash
         run: |
           set -euo pipefail
@@ -191,6 +192,9 @@ jobs:
           RADAR_URL="${BASE_URL%/}/api/radar?page=1&pageSize=1&tradeRepublicVerified=true"
           ok=false
           last_version=""
+          last_revision=""
+          last_deploy_id=""
+          last_schema=""
           last_universe="0"
           health_status="000"
           radar_status="000"
@@ -199,19 +203,22 @@ jobs:
             radar_status=$(curl --silent --show-error --max-time 30 --output /tmp/android-radar.json --write-out "%{http_code}" "$RADAR_URL" || true)
             if [ "$health_status" = "200" ]; then
               last_version=$(node -e 'const fs=require("fs"); try { const j=JSON.parse(fs.readFileSync("/tmp/android-health.json","utf8")); process.stdout.write(String(j.backendVersion ?? "")); } catch { process.stdout.write(""); }')
+              last_revision=$(node -e 'const fs=require("fs"); try { const j=JSON.parse(fs.readFileSync("/tmp/android-health.json","utf8")); process.stdout.write(String(j.sourceRevision ?? "")); } catch { process.stdout.write(""); }')
+              last_deploy_id=$(node -e 'const fs=require("fs"); try { const j=JSON.parse(fs.readFileSync("/tmp/android-health.json","utf8")); process.stdout.write(String(j.deployId ?? "")); } catch { process.stdout.write(""); }')
+              last_schema=$(node -e 'const fs=require("fs"); try { const j=JSON.parse(fs.readFileSync("/tmp/android-health.json","utf8")); process.stdout.write(String(j.apiSchemaVersion ?? "")); } catch { process.stdout.write(""); }')
             fi
             if [ "$radar_status" = "200" ]; then
               last_universe=$(node -e 'const fs=require("fs"); try { const j=JSON.parse(fs.readFileSync("/tmp/android-radar.json","utf8")); process.stdout.write(String(j.universeTotal ?? 0)); } catch { process.stdout.write("0"); }')
             fi
-            echo "Radar gate attempt $attempt/24: health=$health_status backend=${last_version:-<fehlt>} radar=$radar_status universe=${last_universe:-0}"
-            if [ "$health_status" = "200" ] && [ "$radar_status" = "200" ] && [ "$last_version" = "$EXPECTED_BACKEND_VERSION" ] && [ "${last_universe:-0}" -ge 2000 ]; then
+            echo "Radar gate attempt $attempt/24: health=$health_status backend=${last_version:-<fehlt>} schema=${last_schema:-<fehlt>} revision=${last_revision:-<fehlt>} deploy=${last_deploy_id:-<fehlt>} radar=$radar_status universe=${last_universe:-0}"
+            if [ "$health_status" = "200" ] && [ "$radar_status" = "200" ] && [ "$last_version" = "$EXPECTED_BACKEND_VERSION" ] && [ "$last_schema" = "$EXPECTED_API_SCHEMA" ] && [ -n "$last_revision" ] && [ "$last_revision" != "development" ] && [ -n "$last_deploy_id" ] && [ "$last_deploy_id" != "development" ] && [ "${last_universe:-0}" -ge 2000 ]; then
               ok=true
               break
             fi
             sleep 15
           done
           if [ "$ok" != "true" ]; then
-            echo "❌ Android-Publish blockiert: health=$health_status, Backend ${last_version:-<fehlt>}, radar=$radar_status, Radar ${last_universe:-0}/2000." >> "$GITHUB_STEP_SUMMARY"
+            echo "❌ Android-Publish blockiert: health=$health_status, Backend ${last_version:-<fehlt>}, Schema ${last_schema:-<fehlt>}, Revision ${last_revision:-<fehlt>}, Deploy ${last_deploy_id:-<fehlt>}, radar=$radar_status, Radar ${last_universe:-0}/2000." >> "$GITHUB_STEP_SUMMARY"
             echo "Health-Antwort:" >> "$GITHUB_STEP_SUMMARY"
             cat /tmp/android-health.json >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
             echo "" >> "$GITHUB_STEP_SUMMARY"
@@ -219,7 +226,7 @@ jobs:
             cat /tmp/android-radar.json >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
             exit 1
           fi
-          echo "✅ Backend $EXPECTED_BACKEND_VERSION live; Radar ${last_universe} Werte; Android-Publish freigegeben." >> "$GITHUB_STEP_SUMMARY"
+          echo "✅ Backend $EXPECTED_BACKEND_VERSION mit API-Schema $EXPECTED_API_SCHEMA und echter Deploy-Identität live; Radar ${last_universe} Werte; Android-Publish freigegeben." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Publish APK for in-app updates
         if: success() && github.ref == 'refs/heads/main'
@@ -233,7 +240,7 @@ jobs:
           test -n "$VERSION_NAME"
           TAG="v$VERSION_NAME"
           RELEASE_APK="$RUNNER_TEMP/investment-radar.apk"
-          RELEASE_NOTES="Investment Radar $VERSION_NAME: nachvollziehbare Geldverwaltung mit Monatswechsel, Restbudget, Wechselgeld, Gebühren, Korrekturen und historischen Depotbuchungen ohne Doppelzählung. Keine automatischen Trades."
+          RELEASE_NOTES="Investment Radar $VERSION_NAME: Release-Härtung für zuverlässige Aktualisierung, sichtbare Datenfehler, geschützte lokale Finanzdaten und strengere Backend-Kompatibilitätsprüfung. Keine automatischen Trades."
           cp "$APK" "$RELEASE_APK"
           if gh release view "$TAG" >/dev/null 2>&1; then
             git fetch --no-tags origin "refs/tags/$TAG:refs/tags/$TAG"
