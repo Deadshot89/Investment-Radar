@@ -1663,6 +1663,7 @@ private fun MoneyManagementScreen(
                         )
                     }
                     Switch(
+                        modifier = Modifier.testTag("moneyUseCashFirstSwitch"),
                         checked = useCashFirst,
                         onCheckedChange = {
                             useCashFirst = it
