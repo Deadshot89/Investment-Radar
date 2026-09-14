@@ -20,7 +20,7 @@ fail() {
   exit 1
 }
 
-grep -Fq 'versionCode = 80' "$GRADLE_FILE" || fail 'Android versionCode muss 79 sein.'
+grep -Fq 'versionCode = 80' "$GRADLE_FILE" || fail 'Android versionCode muss 80 sein.'
 grep -Fq 'versionName = "2.5.10"' "$GRADLE_FILE" || fail 'Android versionName muss 2.5.10 sein.'
 grep -Fq 'Release candidate: Investment Radar 2.5.10' "$GRADLE_FILE" || fail 'Release-Kandidat muss 2.5.10 benennen.'
 grep -Fq 'EXPECTED_BACKEND_VERSION: "2.1.0"' "$WORKFLOW_FILE" || fail 'Backend-Vertrag muss bei 2.1.0 bleiben.'
@@ -37,4 +37,4 @@ for temp_artifact in "$TEMP_NAV_WORKFLOW" "$TEMP_DETAIL_WORKFLOW" "$TEMP_TASK10_
   fi
 done
 
-echo 'PASS: Android 2.5.10/code79 mit Backend-Vertrag 2.1.0 und bereinigtem Release-Branch.'
+echo 'PASS: Android 2.5.10/code80 mit Backend-Vertrag 2.1.0 und bereinigtem Release-Branch.'
