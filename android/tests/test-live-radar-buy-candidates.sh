@@ -14,10 +14,11 @@ grep -q 'map { it.asInvestmentItem() }' "$VM"
 grep -q 'topPickId = radarBuyItems.firstOrNull()?.id ?: dashboard.topPickId' "$VM"
 grep -q 'items = (radarBuyItems + dashboard.items + customQuotes).distinctBy { it.id }' "$VM"
 
-# A Radar outage must not take the whole Live dashboard down.
-grep -q 'runCatching {' "$VM"
+# A Radar outage must not take the whole Live dashboard down, while cancellation stays cooperative.
+grep -q 'val radarBuyDeferred = async' "$VM"
 grep -q 'ApiClient.loadRadarPage' "$VM"
-grep -q 'getOrNull()' "$VM"
+grep -q 'catch (error: CancellationException)' "$VM"
+grep -q 'catch (_: Exception)' "$VM"
 
 # Final 2.0.6 release verification trigger for this regression contract.
 echo "PASS Live uses verified Radar BUY candidates"
