@@ -10,7 +10,8 @@
 
     <application
         android:name=".InvestmentRadarApp"
-        android:allowBackup="true"
+        android:allowBackup="false"
+        android:fullBackupContent="false"
         android:icon="@drawable/ic_launcher"
         android:label="Investment Radar"
         android:roundIcon="@drawable/ic_launcher"
