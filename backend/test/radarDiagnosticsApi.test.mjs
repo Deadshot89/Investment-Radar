@@ -48,14 +48,20 @@ test('radar page automatically repairs missing history and fundamentals when slo
     loadQuotes: async () => new Map([['abbv', { price: 220, currency: 'USD', percentChange: 1.8, source: 'Twelve Data' }]]),
     loadHistory: async (_items, options = {}) => {
       historyRefreshCalls.push(Boolean(options.refresh));
-      if (!options.refresh) return new Map();
+      if (!options.refresh) return new Map([['abbv', {
+        score: 50, coveragePct: 0, source: '', stale: false,
+        error: 'Historie wird im Hintergrund geladen'
+      }]]);
       return new Map([['abbv', {
         m1: 2, m3: 5, m6: 8, m12: 13, score: 72, coveragePct: 100, source: 'Yahoo Finance'
       }]]);
     },
     loadFundamentals: async (_items, options = {}) => {
       fundamentalRefreshCalls.push(Boolean(options.refresh));
-      if (!options.refresh) return new Map();
+      if (!options.refresh) return new Map([['abbv', {
+        coveragePct: 0, source: '', stale: false, metrics: {},
+        error: 'Fundamentaldaten werden im Hintergrund geladen'
+      }]]);
       return new Map([['abbv', {
         coveragePct: 100,
         source: 'Twelve Data + SEC Companyfacts',
