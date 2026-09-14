@@ -90,7 +90,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 val dashboardDeferred = async { ApiClient.loadDashboard() }
                 val radarBuyDeferred = async {
-                    runCatching {
+                    try {
                         ApiClient.loadRadarPage(
                             RadarQuery(
                                 recommendation = "BUY",
@@ -100,7 +100,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                                 tradeRepublicVerified = true
                             )
                         )
-                    }.getOrNull()
+                    } catch (error: CancellationException) {
+                        throw error
+                    } catch (_: Exception) {
+                        null
+                    }
                 }
                 val dashboard = dashboardDeferred.await()
                 val radarBuyItems = radarBuyDeferred.await()?.items.orEmpty()
@@ -110,8 +114,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 promoteCustomPortfolioAssets(application, (radarBuyItems + dashboard.items).distinctBy { it.id })
                 val customQuotes = _customItems.value.map { custom ->
                     async {
-                        runCatching { ApiClient.loadCustomQuote(custom) }
-                            .getOrElse { custom.fallbackItem(it.message ?: "Kursdaten fehlen", custom.manualPriceEur) }
+                        try {
+                            ApiClient.loadCustomQuote(custom)
+                        } catch (error: CancellationException) {
+                            throw error
+                        } catch (error: Exception) {
+                            custom.fallbackItem(error.message ?: "Kursdaten fehlen", custom.manualPriceEur)
+                        }
                     }
                 }.awaitAll()
                 val nextDashboard = dashboard.copy(
