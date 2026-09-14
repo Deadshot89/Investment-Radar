@@ -70,7 +70,10 @@ export async function queryRadar(query = {}, overrides = {}) {
   const page = clampInt(query.page ?? 1, 1, Math.max(1, Math.ceil(sorted.length / pageSize)));
   const start = (page - 1) * pageSize;
   const pageItems = sorted.slice(start, start + pageSize);
-  const analyzed = await analyzeSummaries(pageItems, overrides, { refreshSlowData: refreshRequested });
+  let analyzed = await analyzeSummaries(pageItems, overrides, { refreshSlowData: refreshRequested });
+  if (!refreshRequested) {
+    analyzed = await repairMissingSlowData(pageItems, analyzed, overrides);
+  }
 
   return buildResponse({
     active,
@@ -81,6 +84,26 @@ export async function queryRadar(query = {}, overrides = {}) {
     hasMore: start + pageSize < sorted.length,
     counts
   });
+}
+
+async function repairMissingSlowData(items, analyzed, overrides) {
+  const missingIds = new Set(
+    analyzed
+      .filter((summary) => {
+        const missing = new Set(Array.isArray(summary?.dataQuality?.missingBlocks) ? summary.dataQuality.missingBlocks : []);
+        return missing.has("history") || (upper(summary?.type) !== "ETF" && missing.has("fundamentals"));
+      })
+      .map((summary) => summary.id)
+  );
+  if (missingIds.size === 0) return analyzed;
+
+  const itemById = new Map(items.map((item) => [item.id, item]));
+  const repairItems = [...missingIds].map((id) => itemById.get(id)).filter(Boolean);
+  if (repairItems.length === 0) return analyzed;
+
+  const repaired = await analyzeSummaries(repairItems, overrides, { refreshSlowData: true });
+  const repairedById = new Map(repaired.map((summary) => [summary.id, summary]));
+  return analyzed.map((summary) => repairedById.get(summary.id) ?? summary);
 }
 
 function buildResponse({ active, page, pageSize, total, items, hasMore, counts = null }) {
