@@ -11,6 +11,7 @@ import { getRadarAnalysisSnapshot, radarAnalysisKey } from "./radarAnalysisCache
 
 const DEFAULT_PAGE_SIZE = 40;
 const MAX_PAGE_SIZE = 100;
+const BACKGROUND_LOADING_PATTERN = /im Hintergrund (?:geladen|aktualisiert)/i;
 
 export async function queryRadar(query = {}, overrides = {}) {
   const loadUniverse = overrides.loadUniverse ?? defaultLoadUniverse;
@@ -70,7 +71,10 @@ export async function queryRadar(query = {}, overrides = {}) {
   const page = clampInt(query.page ?? 1, 1, Math.max(1, Math.ceil(sorted.length / pageSize)));
   const start = (page - 1) * pageSize;
   const pageItems = sorted.slice(start, start + pageSize);
-  const analyzed = await analyzeSummaries(pageItems, overrides, { refreshSlowData: refreshRequested });
+  let analyzed = await analyzeSummaries(pageItems, overrides, { refreshSlowData: refreshRequested });
+  if (!refreshRequested) {
+    analyzed = await repairMissingSlowData(pageItems, analyzed, overrides);
+  }
 
   return buildResponse({
     active,
@@ -81,6 +85,28 @@ export async function queryRadar(query = {}, overrides = {}) {
     hasMore: start + pageSize < sorted.length,
     counts
   });
+}
+
+async function repairMissingSlowData(items, analyzed, overrides) {
+  const missingIds = new Set(
+    analyzed
+      .filter((summary) => {
+        const historyError = String(summary?.providerStatus?.history?.error ?? "");
+        const fundamentalError = String(summary?.providerStatus?.fundamentals?.error ?? "");
+        return BACKGROUND_LOADING_PATTERN.test(historyError)
+          || (upper(summary?.type) !== "ETF" && BACKGROUND_LOADING_PATTERN.test(fundamentalError));
+      })
+      .map((summary) => summary.id)
+  );
+  if (missingIds.size === 0) return analyzed;
+
+  const itemById = new Map(items.map((item) => [item.id, item]));
+  const repairItems = [...missingIds].map((id) => itemById.get(id)).filter(Boolean);
+  if (repairItems.length === 0) return analyzed;
+
+  const repaired = await analyzeSummaries(repairItems, overrides, { refreshSlowData: true });
+  const repairedById = new Map(repaired.map((summary) => [summary.id, summary]));
+  return analyzed.map((summary) => repairedById.get(summary.id) ?? summary);
 }
 
 function buildResponse({ active, page, pageSize, total, items, hasMore, counts = null }) {
