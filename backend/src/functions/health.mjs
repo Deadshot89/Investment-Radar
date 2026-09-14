@@ -1,5 +1,6 @@
 import { app } from "@azure/functions";
 import { getFirebaseEnvDiagnostics } from "../lib/envDiagnostics.mjs";
+import { loadBuildInfo } from "../lib/buildInfo.mjs";
 
 app.http("health", {
   methods: ["GET"],
@@ -7,12 +8,16 @@ app.http("health", {
   route: "health",
   handler: async () => {
     const firebaseDiagnostics = getFirebaseEnvDiagnostics(process.env);
+    const buildInfo = loadBuildInfo();
     return {
       status: 200,
       jsonBody: {
         ok: true,
         service: "investment-radar-live",
         backendVersion: "2.1.0",
+        sourceRevision: buildInfo.sourceRevision,
+        deployId: buildInfo.deployId,
+        apiSchemaVersion: buildInfo.apiSchemaVersion,
         marketDataConfigured: Boolean(process.env.TWELVE_DATA_API_KEY),
         fundamentalDataConfigured: Boolean(process.env.TWELVE_DATA_API_KEY),
         pushConfigured: Boolean(process.env.FIREBASE_SERVICE_ACCOUNT_JSON?.trim()),
