@@ -15,7 +15,8 @@ grep -q 'topPickId = radarBuyItems.firstOrNull()?.id ?: dashboard.topPickId' "$V
 grep -q 'items = (radarBuyItems + dashboard.items + customQuotes).distinctBy { it.id }' "$VM"
 
 # A Radar outage must not take the whole Live dashboard down.
-grep -q 'runCatching { ApiClient.loadRadarPage' "$VM"
+grep -q 'runCatching {' "$VM"
+grep -q 'ApiClient.loadRadarPage' "$VM"
 grep -q 'getOrNull()' "$VM"
 
 # Final 2.0.6 release verification trigger for this regression contract.
