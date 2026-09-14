@@ -224,6 +224,10 @@ object ApiClient {
             scoreBreakdown = o.optJSONObject("scoreBreakdown")?.let(::parseRadarScoreBreakdown),
             forecast = o.optJSONObject("forecast")?.let(::parseRadarForecast),
             diagnostics = o.optJSONObject("diagnostics")?.let(::parseRadarDiagnostics),
+            coverageBreakdown = o.optJSONObject("coverageBreakdown")?.let(::parseRadarCoverageBreakdown),
+            missingData = o.optJSONArray("missingData").toStrings(),
+            providerStatus = o.optJSONObject("providerStatus")?.let(::parseRadarProviderStatus),
+            analysisWarnings = o.optJSONArray("analysisWarnings").toStrings(),
             momentum = o.optJSONObject("momentum")?.let(::parseMomentum),
             fundamentals = o.optJSONObject("fundamentals")?.let(::parseFundamentals)
         )
@@ -268,6 +272,30 @@ object ApiClient {
         asOf = o.nullableString("asOf")
     )
 
+    private fun parseRadarCoverageBreakdown(o: JSONObject): RadarCoverageBreakdown = RadarCoverageBreakdown(
+        quote = o.optInt("quote", 0),
+        history = o.optInt("history", 0),
+        fundamentals = o.optInt("fundamentals", 0),
+        forecastInputs = o.optInt("forecastInputs", 0),
+        overall = o.optInt("overall", 0)
+    )
+
+    private fun parseRadarProviderBlockStatus(o: JSONObject?): RadarProviderBlockStatus? = o?.let {
+        RadarProviderBlockStatus(
+            status = it.optString("status", ""),
+            source = it.optString("source", ""),
+            asOf = it.nullableString("asOf"),
+            stale = it.optBoolean("stale", false),
+            error = it.nullableString("error")
+        )
+    }
+
+    private fun parseRadarProviderStatus(o: JSONObject): RadarProviderStatus = RadarProviderStatus(
+        quote = parseRadarProviderBlockStatus(o.optJSONObject("quote")),
+        history = parseRadarProviderBlockStatus(o.optJSONObject("history")),
+        fundamentals = parseRadarProviderBlockStatus(o.optJSONObject("fundamentals"))
+    )
+
     private fun parseRadarDiagnostics(o: JSONObject): RadarDiagnostics = RadarDiagnostics(
         quoteSource = o.optString("quoteSource", ""),
         historySource = o.optString("historySource", ""),
@@ -275,7 +303,8 @@ object ApiClient {
         missingBlocks = o.optJSONArray("missingBlocks").toStrings(),
         criticalConflicts = o.optJSONArray("criticalConflicts").toStrings(),
         historyStale = o.optBoolean("historyStale", false),
-        fundamentalsStale = o.optBoolean("fundamentalsStale", false)
+        fundamentalsStale = o.optBoolean("fundamentalsStale", false),
+        providerStatus = o.optJSONObject("providerStatus")?.let(::parseRadarProviderStatus)
     )
 
     private fun JSONArray?.toInvestmentItems(): List<InvestmentItem> {
@@ -306,7 +335,11 @@ object ApiClient {
             dataQuality = o.optJSONObject("dataQuality")?.let(::parseRadarDataQuality),
             scoreBreakdown = o.optJSONObject("scoreBreakdown")?.let(::parseRadarScoreBreakdown),
             forecast = o.optJSONObject("forecast")?.let(::parseRadarForecast),
-            diagnostics = o.optJSONObject("diagnostics")?.let(::parseRadarDiagnostics)
+            diagnostics = o.optJSONObject("diagnostics")?.let(::parseRadarDiagnostics),
+            coverageBreakdown = o.optJSONObject("coverageBreakdown")?.let(::parseRadarCoverageBreakdown),
+            missingData = o.optJSONArray("missingData").toStrings(),
+            providerStatus = o.optJSONObject("providerStatus")?.let(::parseRadarProviderStatus),
+            analysisWarnings = o.optJSONArray("analysisWarnings").toStrings()
         )
     }
 
