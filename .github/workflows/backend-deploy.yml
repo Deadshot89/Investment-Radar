@@ -60,15 +60,18 @@ jobs:
         run: |
           set -euo pipefail
           DEPLOY_ID="${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          export DEPLOY_ID
+          BACKEND_REVISION="$(git rev-parse HEAD:backend)"
+          export DEPLOY_ID BACKEND_REVISION
           echo "DEPLOY_ID=$DEPLOY_ID" >> "$GITHUB_ENV"
+          echo "BACKEND_REVISION=$BACKEND_REVISION" >> "$GITHUB_ENV"
           echo "=== Backend evidence before packaging ==="
           echo "Commit: $GITHUB_SHA"
+          echo "Backend tree revision: $BACKEND_REVISION"
           echo "Deploy ID: $DEPLOY_ID"
           echo "package.json version: $(node -p "require('./backend/package.json').version")"
           echo "health.mjs backendVersion: $(grep -o 'backendVersion: "[^"]*"' backend/src/functions/health.mjs | head -1 || true)"
           printf '%s\n' "$DEPLOY_ID" > backend/.deploy-id
-          node -e 'const fs=require("fs"); fs.writeFileSync("backend/build-info.json", JSON.stringify({sourceRevision: process.env.GITHUB_SHA, deployId: process.env.DEPLOY_ID}, null, 2))'
+          node -e 'const fs=require("fs"); fs.writeFileSync("backend/build-info.json", JSON.stringify({sourceRevision: process.env.BACKEND_REVISION, deployId: process.env.DEPLOY_ID}, null, 2))'
           rm -f backend-deploy.zip
           (cd backend && zip -qr ../backend-deploy.zip . -x 'node_modules/*')
           echo "Deploy package SHA-256:"
@@ -119,7 +122,7 @@ jobs:
               LAST_DEPLOY_ID=$(node -e 'const fs=require("fs"); try { const j=JSON.parse(fs.readFileSync("/tmp/health-body.json","utf8")); process.stdout.write(String(j.deployId ?? "")); } catch { process.stdout.write(""); }')
               LAST_SCHEMA=$(node -e 'const fs=require("fs"); try { const j=JSON.parse(fs.readFileSync("/tmp/health-body.json","utf8")); process.stdout.write(String(j.apiSchemaVersion ?? "")); } catch { process.stdout.write(""); }')
               echo "Live backendVersion: ${LAST_VERSION:-<missing>} revision=${LAST_REVISION:-<missing>} deploy=${LAST_DEPLOY_ID:-<missing>} schema=${LAST_SCHEMA:-<missing>}"
-              if [ "$LAST_VERSION" = "$EXPECTED_BACKEND_VERSION" ] && [ "$LAST_REVISION" = "$GITHUB_SHA" ] && [ "$LAST_DEPLOY_ID" = "$DEPLOY_ID" ] && [ "$LAST_SCHEMA" = "$EXPECTED_API_SCHEMA" ]; then
+              if [ "$LAST_VERSION" = "$EXPECTED_BACKEND_VERSION" ] && [ "$LAST_REVISION" = "$BACKEND_REVISION" ] && [ "$LAST_DEPLOY_ID" = "$DEPLOY_ID" ] && [ "$LAST_SCHEMA" = "$EXPECTED_API_SCHEMA" ]; then
                 HEALTH_OK=true
                 break
               fi
@@ -130,7 +133,7 @@ jobs:
           if [ "$HEALTH_OK" != "true" ]; then
             echo "❌ /api/health ist erreichbar, aber nicht mit Backend-Version $EXPECTED_BACKEND_VERSION." >> "$GITHUB_STEP_SUMMARY"
             echo "Gefundene Version: ${LAST_VERSION:-<fehlt>}" >> "$GITHUB_STEP_SUMMARY"
-            echo "Erwartete Revision: $GITHUB_SHA / live: ${LAST_REVISION:-<fehlt>}" >> "$GITHUB_STEP_SUMMARY"
+            echo "Erwartete Backend-Revision: $BACKEND_REVISION / live: ${LAST_REVISION:-<fehlt>}" >> "$GITHUB_STEP_SUMMARY"
             echo "Erwartete Deploy-ID: ${DEPLOY_ID:-<fehlt>} / live: ${LAST_DEPLOY_ID:-<fehlt>}" >> "$GITHUB_STEP_SUMMARY"
             echo "Erwartetes API-Schema: $EXPECTED_API_SCHEMA / live: ${LAST_SCHEMA:-<fehlt>}" >> "$GITHUB_STEP_SUMMARY"
             echo "Azure hat das Deployment akzeptiert, liefert aber weiterhin einen anderen Backend-Stand aus." >> "$GITHUB_STEP_SUMMARY"
@@ -174,6 +177,6 @@ jobs:
 
           echo "## Backend Deploy" >> "$GITHUB_STEP_SUMMARY"
           echo "✅ Backend-Version $EXPECTED_BACKEND_VERSION ist live: ${BASE_URL%/}" >> "$GITHUB_STEP_SUMMARY"
-          echo "✅ Exakter Backend-Commit $GITHUB_SHA und Deploy-ID $DEPLOY_ID sind live; API-Schema $EXPECTED_API_SCHEMA." >> "$GITHUB_STEP_SUMMARY"
+          echo "✅ Exakte Backend-Inhaltsrevision $BACKEND_REVISION und Deploy-ID $DEPLOY_ID sind live; API-Schema $EXPECTED_API_SCHEMA." >> "$GITHUB_STEP_SUMMARY"
           echo "✅ Push-Test-Route /api/test-push ist registriert und geschützt (HTTP 401 ohne Admin-Key)." >> "$GITHUB_STEP_SUMMARY"
           echo "✅ Eigene-Werte-Route /api/custom-quote ist registriert." >> "$GITHUB_STEP_SUMMARY"
