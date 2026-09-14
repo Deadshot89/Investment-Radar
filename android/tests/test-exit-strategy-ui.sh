@@ -8,6 +8,7 @@ SCHEDULER="android/app/src/main/java/de/tobias/investmentradar/ExitStrategySched
 DAILY="android/app/src/main/java/de/tobias/investmentradar/DailyAnalysisWorker.kt"
 ACTION="android/app/src/main/java/de/tobias/investmentradar/ActionPlanEngine.kt"
 NOTIFY="android/app/src/main/java/de/tobias/investmentradar/AdvisorNotificationManager.kt"
+COPY="android/app/src/main/java/de/tobias/investmentradar/AdvisorNotificationCopy.kt"
 fail(){ echo "FAIL: $1" >&2; exit 1; }
 grep -Fq 'DailyAnalysisScheduler.schedule(this)' "$MAIN" || fail daily
 grep -Fq 'ExitStrategyScheduler.schedule(this)' "$MAIN" || fail scheduler
@@ -21,5 +22,6 @@ grep -Fq 'REPEAT_HOURS=1L' "$SCHEDULER" || fail hourly
 grep -Fq 'publishExitTriggers' "$WORKER" || fail publish
 grep -Fq 'InvestmentBudgetStore.summary(applicationContext)' "$DAILY" || fail budget
 grep -Fq 'PortfolioAdvisorAction.VERKAUFEN -> sourceValue' "$ACTION" || fail fullsell
-grep -Fq 'AdvisorSignal.VERKAUFEN -> "SELL"' "$NOTIFY" || fail sellalert
+grep -Fq 'AdvisorSignal.VERKAUFEN -> Action("🔴", "VERKAUFEN", "SELL")' "$COPY" || fail sellalert
+grep -Fq 'val title="🔴 VERKAUFEN – $name"' "$NOTIFY" || fail exitsellcopy
 echo "PASS exit strategy wiring"

@@ -44,59 +44,21 @@ object AdvisorNotificationManager {
         events.distinctBy { it.id }.filter { it.id in unseenIds }.forEach { event ->
             val name = displayNames[event.instrumentId]?.takeIf { it.isNotBlank() }
                 ?: event.instrumentId.uppercase(Locale.GERMANY)
-            val reason = event.reasons.firstOrNull().orEmpty()
-            val title: String
-            val body: String
-            val level: String
-
-            when (event.kind) {
-                AdvisorNotificationEventKind.NEW_STRONG_OPPORTUNITY -> {
-                    title = "Neue starke Radar-Chance"
-                    body = buildString {
-                        append("$name erfüllt die Schwelle für eine neue starke Chance")
-                        if (reason.isNotBlank()) append(". $reason")
-                    }
-                    level = "BUY"
-                }
-                AdvisorNotificationEventKind.REALLOCATION -> {
-                    val fromName = event.fromItemId?.let { displayNames[it] ?: it.uppercase(Locale.GERMANY) } ?: name
-                    val toName = event.toItemId?.let { displayNames[it] ?: it.uppercase(Locale.GERMANY) }.orEmpty()
-                    val amount = event.amountEur ?: 0
-                    title = "Umschichtung prüfen"
-                    body = buildString {
-                        append("$amount € von $fromName")
-                        if (toName.isNotBlank()) append(" nach $toName")
-                        append(" umschichten")
-                        if (reason.isNotBlank()) append(". $reason")
-                    }
-                    level = "REVIEW"
-                }
-                AdvisorNotificationEventKind.RELIABILITY_LOST -> {
-                    title = "Bewertung nicht mehr belastbar"
-                    body = buildString {
-                        append("$name: Datenbasis reicht für die bisherige Bewertung nicht mehr aus")
-                        if (reason.isNotBlank()) append(". $reason")
-                    }
-                    level = "REVIEW"
-                }
-                AdvisorNotificationEventKind.SIGNAL_CHANGE -> {
-                    val previous = event.previousSignal?.userLabel() ?: "Neue Bewertung"
-                    val current = event.newSignal.userLabel()
-                    title = "Depot-Empfehlung geändert"
-                    body = buildString {
-                        append("$name: $previous → $current")
-                        if (reason.isNotBlank()) append(". $reason")
-                    }
-                    level = event.newSignal.alertLevel()
-                }
-            }
+            val fromName = event.fromItemId?.let { displayNames[it] ?: it.uppercase(Locale.GERMANY) }
+            val toName = event.toItemId?.let { displayNames[it] ?: it.uppercase(Locale.GERMANY) }
+            val copy = AdvisorNotificationCopy.format(
+                event = event,
+                displayName = name,
+                fromDisplayName = fromName,
+                toDisplayName = toName
+            )
 
             val alert = SignalAlert(
                 id = event.id,
                 itemId = event.instrumentId,
-                level = level,
-                title = title,
-                message = body,
+                level = copy.level,
+                title = copy.title,
+                message = copy.body,
                 createdAt = event.analysisDay
             )
             AlertStore.add(context, alert)
@@ -104,8 +66,8 @@ object AdvisorNotificationManager {
             if (show(
                     context = context,
                     notificationId = event.id.hashCode(),
-                    title = title,
-                    body = body,
+                    title = copy.title,
+                    body = copy.body,
                     intent = Intent(context, MainActivity::class.java).apply {
                         putExtra("openAlerts", true)
                         putExtra("openItemId", event.instrumentId)
@@ -125,9 +87,9 @@ object AdvisorNotificationManager {
         val preferences=AlertPreferencesStore.read(context)
         triggers.distinctBy{it.eventId}.forEach{trigger->
             val name=displayNames[trigger.itemId]?.takeIf{it.isNotBlank()}?:trigger.itemId.uppercase(Locale.GERMANY)
-            val title=if(trigger.kind==ExitTriggerKind.TAKE_PROFIT) "Gewinnziel erreicht" else "Verlustgrenze erreicht"
+            val title="🔴 VERKAUFEN – $name"
             val body=buildString{
-                append("$name: ${trigger.reason}. Vollständigen Verkauf prüfen")
+                append("Entscheidung: VERKAUFEN · ${trigger.reason}")
                 trigger.currentValueEur?.let{append(" · aktueller Positionswert ");append(String.format(Locale.GERMANY,"%.2f €",it))}
             }
             val alert=SignalAlert(trigger.eventId,trigger.itemId,"SELL",title,body,java.time.LocalDateTime.now().toString())
@@ -235,21 +197,5 @@ object AdvisorNotificationManager {
             .takeLast(MAX_LEDGER_IDS)
             .toSet()
         prefs.edit().putStringSet(key, next).apply()
-    }
-
-    private fun AdvisorSignal.userLabel(): String = when (this) {
-        AdvisorSignal.NACHKAUFEN -> "Nachkaufen"
-        AdvisorSignal.HALTEN -> "Halten"
-        AdvisorSignal.REDUZIEREN -> "Reduzieren"
-        AdvisorSignal.VERKAUFEN -> "Verkaufen"
-        AdvisorSignal.KEINE_BELASTBARE_BEWERTUNG -> "Bewertung prüfen"
-    }
-
-    private fun AdvisorSignal.alertLevel(): String = when (this) {
-        AdvisorSignal.NACHKAUFEN -> "BUY"
-        AdvisorSignal.HALTEN -> "WATCH"
-        AdvisorSignal.REDUZIEREN,
-        AdvisorSignal.KEINE_BELASTBARE_BEWERTUNG -> "REVIEW"
-        AdvisorSignal.VERKAUFEN -> "SELL"
     }
 }

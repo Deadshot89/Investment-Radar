@@ -34,7 +34,7 @@ test("missing price never becomes zero for hard review threshold", () => {
     hardReviewBelow: 100, price: null, percentChange: null
   }];
   const signals = evaluateSignals(items, new Map());
-  assert.equal(signals.some((signal) => signal.title.includes("Kurs-Schwelle")), false);
+  assert.equal(signals.some((signal) => signal.message.includes("Prüfschwelle")), false);
 });
 
 test("missing prior score does not become zero", () => {
@@ -46,13 +46,34 @@ test("missing prior score does not become zero", () => {
 test("absolute price threshold is categorized as THRESHOLD", () => {
   const items = [{ id: "x", name: "Asset X", recommendation: "WATCH", hardReviewBelow: 100, price: 90, currency: "EUR" }];
   const signals = evaluateSignals(items, new Map());
-  assert.ok(signals.some((signal) => signal.level === "THRESHOLD" && signal.title.includes("Kurs-Schwelle")));
+  assert.ok(signals.some((signal) => signal.level === "THRESHOLD" && signal.message.includes("Prüfschwelle")));
 });
 
-test("daily drop threshold is categorized as THRESHOLD", () => {
+test("daily drop threshold with WATCH recommendation says HALTEN clearly", () => {
   const items = [{ id: "x", name: "Asset X", recommendation: "WATCH", reviewDrop1dPct: 7, percentChange: -8 }];
   const signals = evaluateSignals(items, new Map());
-  assert.ok(signals.some((signal) => signal.level === "THRESHOLD" && signal.title.includes("Tagesverlust") && signal.message.includes("-8.00 %")));
+  const signal = signals.find((candidate) => candidate.message.includes("-8.00 %"));
+  assert.ok(signal);
+  assert.equal(signal.title, "🟡 HALTEN – Asset X");
+  assert.ok(signal.message.startsWith("Entscheidung: HALTEN"));
+});
+
+test("daily drop threshold with BUY recommendation says NACHKAUFEN clearly", () => {
+  const items = [{ id: "x", name: "Asset X", recommendation: "BUY", reviewDrop1dPct: 7, percentChange: -8 }];
+  const signals = evaluateSignals(items, new Map());
+  const signal = signals.find((candidate) => candidate.message.includes("-8.00 %"));
+  assert.ok(signal);
+  assert.equal(signal.title, "🟢 NACHKAUFEN – Asset X");
+  assert.ok(signal.message.startsWith("Entscheidung: NACHKAUFEN"));
+});
+
+test("daily drop threshold with SELL recommendation says VERKAUFEN clearly", () => {
+  const items = [{ id: "x", name: "Asset X", recommendation: "SELL", reviewDrop1dPct: 7, percentChange: -8 }];
+  const signals = evaluateSignals(items, new Map());
+  const signal = signals.find((candidate) => candidate.message.includes("-8.00 %"));
+  assert.ok(signal);
+  assert.equal(signal.title, "🔴 VERKAUFEN – Asset X");
+  assert.ok(signal.message.startsWith("Entscheidung: VERKAUFEN"));
 });
 
 test("fundamental deterioration requires fresh sufficient data", () => {

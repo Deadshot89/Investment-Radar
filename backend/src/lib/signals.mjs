@@ -31,10 +31,26 @@ export function evaluateSignals(items, quotes = new Map(), context = {}) {
     const dropThreshold = Math.abs(Number(item.reviewDrop1dPct ?? 0));
     if (percentChange != null && dropThreshold > 0 && percentChange <= -dropThreshold) {
       const momentumReason = movementReason(item, percentChange);
-      result.push(make(item, "THRESHOLD", `${item.name}: ungewöhnlicher Tagesverlust`, `Tagesbewegung ${percentChange.toFixed(2)} %. Schwelle: -${dropThreshold.toFixed(2)} %. Warum: ${momentumReason}`, now, `drop-threshold-${dropThreshold}`));
+      const decision = decisionFor(item);
+      result.push(make(
+        item,
+        "THRESHOLD",
+        `${decision.emoji} ${decision.label} – ${item.name}`,
+        `Entscheidung: ${decision.label} · Tagesbewegung ${percentChange.toFixed(2)} %. Schwelle: -${dropThreshold.toFixed(2)} %. Warum: ${momentumReason}`,
+        now,
+        `drop-threshold-${dropThreshold}`
+      ));
     } else if (percentChange != null && dropThreshold > 0 && percentChange >= dropThreshold) {
       const momentumReason = movementReason(item, percentChange);
-      result.push(make(item, "THRESHOLD", `${item.name}: ungewöhnlicher Tagesanstieg`, `Tagesbewegung +${percentChange.toFixed(2)} %. Schwelle: +${dropThreshold.toFixed(2)} %. Warum: ${momentumReason}`, now, `rise-threshold-${dropThreshold}`));
+      const decision = decisionFor(item);
+      result.push(make(
+        item,
+        "THRESHOLD",
+        `${decision.emoji} ${decision.label} – ${item.name}`,
+        `Entscheidung: ${decision.label} · Tagesbewegung +${percentChange.toFixed(2)} %. Schwelle: +${dropThreshold.toFixed(2)} %. Warum: ${momentumReason}`,
+        now,
+        `rise-threshold-${dropThreshold}`
+      ));
     }
 
     const currentForecast = forecast12m(item);
@@ -85,6 +101,14 @@ export function evaluateSignals(items, quotes = new Map(), context = {}) {
     }
   }
   return dedupeByFingerprint(result);
+}
+
+function decisionFor(item) {
+  const recommendation = String(item?.recommendation ?? item?.status ?? "").trim().toUpperCase();
+  if (["SELL", "VERKAUFEN"].includes(recommendation)) return { emoji: "🔴", label: "VERKAUFEN" };
+  if (["REDUCE", "REDUZIEREN"].includes(recommendation)) return { emoji: "🟠", label: "REDUZIEREN" };
+  if (["BUY", "KAUFEN", "NACHKAUFEN"].includes(recommendation)) return { emoji: "🟢", label: "NACHKAUFEN" };
+  return { emoji: "🟡", label: "HALTEN" };
 }
 
 function movementReason(item, percentChange) {
