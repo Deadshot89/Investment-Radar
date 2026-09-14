@@ -1,5 +1,9 @@
 name: Android Instrumented UI Tests
 
+concurrency:
+  group: android-ui-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   workflow_dispatch:
   push:
