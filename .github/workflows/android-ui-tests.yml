@@ -81,7 +81,8 @@ jobs:
             }
 
             echo "=== Compact phone + large text ==="
-            adb shell wm size 360x800
+            # 945x2100 px at 420 dpi ~= 360x800 dp
+            adb shell wm size 945x2100
             adb shell wm density 420
             adb shell settings put system font_scale 1.3
             run_ui_test
