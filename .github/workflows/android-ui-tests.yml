@@ -64,34 +64,14 @@ jobs:
           profile: pixel_2
           disable-animations: true
           script: |
-            set -eu
-            cd android
-            run_ui_test() {
-              gradle --no-daemon :app:connectedDebugAndroidTest \
-                -PINVESTMENT_API_BASE_URL="$API_URL" \
-                -PFIREBASE_APP_ID="$FB_APP_ID" \
-                -PFIREBASE_API_KEY="$FB_API_KEY" \
-                -PFIREBASE_PROJECT_ID="$FB_PROJECT_ID" \
-                -PFIREBASE_SENDER_ID="$FB_SENDER_ID" \
-                -PGITHUB_REPOSITORY="$REPOSITORY_SLUG" \
-                -PANDROID_KEYSTORE_PATH="$ANDROID_KEYSTORE_PATH" \
-                -PANDROID_KEYSTORE_PASSWORD="$KEYSTORE_PASSWORD" \
-                -PANDROID_KEY_ALIAS="$KEY_ALIAS" \
-                -PANDROID_KEY_PASSWORD="$KEY_PASSWORD"
-            }
-
-            echo "=== Compact phone + large text ==="
-            # 945x2100 px at 420 dpi ~= 360x800 dp
             adb shell wm size 945x2100
             adb shell wm density 420
             adb shell settings put system font_scale 1.3
-            run_ui_test
-
-            echo "=== Tablet-like landscape ==="
+            cd android && gradle --no-daemon :app:connectedDebugAndroidTest -PINVESTMENT_API_BASE_URL="$API_URL" -PFIREBASE_APP_ID="$FB_APP_ID" -PFIREBASE_API_KEY="$FB_API_KEY" -PFIREBASE_PROJECT_ID="$FB_PROJECT_ID" -PFIREBASE_SENDER_ID="$FB_SENDER_ID" -PGITHUB_REPOSITORY="$REPOSITORY_SLUG" -PANDROID_KEYSTORE_PATH="$ANDROID_KEYSTORE_PATH" -PANDROID_KEYSTORE_PASSWORD="$KEYSTORE_PASSWORD" -PANDROID_KEY_ALIAS="$KEY_ALIAS" -PANDROID_KEY_PASSWORD="$KEY_PASSWORD"
             adb shell wm size 1280x800
             adb shell wm density 240
             adb shell settings put system font_scale 1.0
-            run_ui_test
-
+            cd android && gradle --no-daemon --rerun-tasks :app:connectedDebugAndroidTest -PINVESTMENT_API_BASE_URL="$API_URL" -PFIREBASE_APP_ID="$FB_APP_ID" -PFIREBASE_API_KEY="$FB_API_KEY" -PFIREBASE_PROJECT_ID="$FB_PROJECT_ID" -PFIREBASE_SENDER_ID="$FB_SENDER_ID" -PGITHUB_REPOSITORY="$REPOSITORY_SLUG" -PANDROID_KEYSTORE_PATH="$ANDROID_KEYSTORE_PATH" -PANDROID_KEYSTORE_PASSWORD="$KEYSTORE_PASSWORD" -PANDROID_KEY_ALIAS="$KEY_ALIAS" -PANDROID_KEY_PASSWORD="$KEY_PASSWORD"
             adb shell wm size reset
             adb shell wm density reset
+            adb shell settings put system font_scale 1.0
