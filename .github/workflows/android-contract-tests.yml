@@ -1,5 +1,9 @@
 name: Android Contract Tests
 
+concurrency:
+  group: android-contracts-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   workflow_dispatch:
   push:
