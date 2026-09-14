@@ -49,10 +49,16 @@ if grep -q -- '--clobber' "$WF"; then
 fi
 
 grep -Fq 'git fetch --no-tags origin "refs/tags/$TAG:refs/tags/$TAG"' "$WF"
-grep -Fq 'CURRENT_APP_TREE=$(git rev-parse "HEAD:android/app")' "$WF"
-grep -Fq 'RELEASE_APP_TREE=$(git rev-parse "$TAG:android/app")' "$WF"
-grep -q 'Release $TAG existiert bereits mit anderem App-Code' "$WF"
-grep -q 'App-Code ist identisch' "$WF"
+grep -Fq 'app_runtime_fingerprint()' "$WF"
+grep -Fq 'git rev-parse "$ref:android/app/src/main"' "$WF"
+grep -Fq 'git rev-parse "$ref:android/app/build.gradle.kts"' "$WF"
+grep -Fq 'git rev-parse "$ref:android/build.gradle.kts"' "$WF"
+grep -Fq 'git rev-parse "$ref:android/gradle.properties"' "$WF"
+grep -Fq 'git rev-parse "$ref:android/settings.gradle.kts"' "$WF"
+grep -Fq 'CURRENT_APP_RUNTIME=$(app_runtime_fingerprint HEAD)' "$WF"
+grep -Fq 'RELEASE_APP_RUNTIME=$(app_runtime_fingerprint "$TAG")' "$WF"
+grep -q 'Release $TAG existiert bereits mit anderem release-relevantem App-Code' "$WF"
+grep -q 'release-relevanter App-Code ist identisch' "$WF"
 grep -q 'Version erhöhen' "$WF"
 
 if grep -q 'sha256sum "$RELEASE_APK"' "$WF"; then
@@ -77,5 +83,5 @@ test "$gate_line" -lt "$publish_line"
 echo "PASS Android candidate and main validate backend 2.1.0, schema 2026-09-14.1, real deploy identity and >=2000 radar instruments"
 echo "PASS Android in-app publishing remains restricted to main"
 echo "PASS Android app release is monotonic at 2.5.10 / code 80"
-echo "PASS existing releases are immutable by android/app tree"
+echo "PASS existing releases are immutable by release-relevant Android runtime inputs while test-only changes stay allowed"
 echo "PASS Android release notes follow VERSION_NAME instead of stale 2.1 copy"
