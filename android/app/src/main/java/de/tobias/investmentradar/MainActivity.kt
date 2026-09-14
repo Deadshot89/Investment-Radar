@@ -125,6 +125,7 @@ fun InvestmentRadarUi(
     pushNavigationRequest: Long = 0L
 ) {
     val state by vm.state.collectAsState()
+    val refreshNotice by vm.refreshNotice.collectAsState()
     val budgetState by vm.budgetState.collectAsState()
     val holdingIds by vm.holdingIds.collectAsState()
     val positions by vm.positions.collectAsState()
@@ -577,6 +578,25 @@ fun InvestmentRadarUi(
                                 }
                             )
                         }
+                    }
+                }
+
+                refreshNotice?.let { notice ->
+                    Surface(
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        color = RadarYellow.copy(alpha = 0.96f),
+                        tonalElevation = 6.dp
+                    ) {
+                        Text(
+                            text = notice,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                            color = Color(0xFF201703),
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }
