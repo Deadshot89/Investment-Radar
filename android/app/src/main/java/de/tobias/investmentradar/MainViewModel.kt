@@ -12,6 +12,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -130,6 +131,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 persistAdvisorPlan(application, nextDashboard)
                 _refreshNotice.value = null
                 _state.value = UiState.Ready(nextDashboard)
+            } catch (error: CancellationException) {
+                throw error
             } catch (error: Exception) {
                 val message = error.message ?: "Verbindung zum Server fehlgeschlagen."
                 if (hadReadyData) {
