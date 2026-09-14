@@ -340,6 +340,8 @@ fun RadarScreenV2(
                     RadarForecastDetail(detail)
                     Text(detail.tradeRepublicStatusLabel(), style = MaterialTheme.typography.bodySmall)
                     detail.recommendationReasons.take(4).forEach { Text("• $it", style = MaterialTheme.typography.bodySmall) }
+                    detail.missingData.take(4).forEach { Text("Fehlt: $it", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+                    detail.analysisWarnings.take(4).forEach { Text("Datenhinweis: $it", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
                     detail.dataError?.takeIf { it.isNotBlank() }?.let { Text("Datenhinweis: $it", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
                 }
             },
@@ -506,6 +508,12 @@ private fun RadarForecastDetail(summary: RadarSummaryItem) {
 private fun radarDataGapReasons(summary: RadarSummaryItem): List<String> {
     val known = setOf("Kurs fehlt", "Historie fehlt", "Fundamentaldaten fehlen", "Analyse fehlt", "Analyse veraltet", "Datenabdeckung unzureichend")
     val gaps = summary.recommendationReasons.filter { it in known }.toMutableList()
+    summary.missingData.forEach { label ->
+        if (label !in gaps) gaps += label
+    }
+    summary.analysisWarnings.forEach { warning ->
+        if (warning !in gaps) gaps += warning
+    }
     summary.dataQuality?.missingBlocks.orEmpty().forEach { block ->
         val label = when (block) {
             "quote" -> "Kurs fehlt"
@@ -550,7 +558,9 @@ private fun InvestmentItem.toRadarFallback(): RadarSummaryItem = RadarSummaryIte
     recommendationReasons = recommendationReasons, purchaseEligible = recommendation == "BUY" && !portfolioOnly,
     dataSource = dataSource, dataDelayed = dataDelayed, dataError = dataError, analysisAsOf = analysisAsOf,
     momentum = momentum, fundamentals = fundamentals,
-    dataQuality = dataQuality, scoreBreakdown = scoreBreakdown, forecast = forecast, diagnostics = diagnostics
+    dataQuality = dataQuality, scoreBreakdown = scoreBreakdown, forecast = forecast, diagnostics = diagnostics,
+    coverageBreakdown = coverageBreakdown, missingData = missingData, providerStatus = providerStatus,
+    analysisWarnings = analysisWarnings
 )
 
 private fun RadarSortMode.sortLabel(): String = when (this) {

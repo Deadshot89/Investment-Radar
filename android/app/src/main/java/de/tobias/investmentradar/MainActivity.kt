@@ -25,10 +25,10 @@ import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.ShowChart
+import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -37,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -125,6 +126,7 @@ fun InvestmentRadarUi(
     pushNavigationRequest: Long = 0L
 ) {
     val state by vm.state.collectAsState()
+    val refreshNotice by vm.refreshNotice.collectAsState()
     val budgetState by vm.budgetState.collectAsState()
     val holdingIds by vm.holdingIds.collectAsState()
     val positions by vm.positions.collectAsState()
@@ -292,7 +294,7 @@ fun InvestmentRadarUi(
             },
             bottomBar = {
                 NavigationBar(containerColor = RadarSurface) {
-                    NavigationBarItem(selected = tab == 0, onClick = { selectedDetailId = null; showSavingsPlans = false; tab = 0 }, icon = { Icon(Icons.Default.ShowChart, null) }, label = { Text("Live") })
+                    NavigationBarItem(selected = tab == 0, onClick = { selectedDetailId = null; showSavingsPlans = false; tab = 0 }, icon = { Icon(Icons.AutoMirrored.Filled.ShowChart, null) }, label = { Text("Live") })
                     NavigationBarItem(selected = tab == 1, onClick = { selectedDetailId = null; showSavingsPlans = false; tab = 1 }, icon = { Icon(Icons.Default.Search, null) }, label = { Text("Radar") })
                     NavigationBarItem(selected = tab == 2, onClick = { selectedDetailId = null; showSavingsPlans = false; tab = 2 }, icon = { Icon(Icons.Default.Favorite, null) }, label = { Text("Portfolio") })
                     NavigationBarItem(selected = tab == 3, onClick = { selectedDetailId = null; showSavingsPlans = false; tab = 3 }, icon = { Icon(Icons.Default.Notifications, null) }, label = { Text("Alarme") })
@@ -577,6 +579,25 @@ fun InvestmentRadarUi(
                                 }
                             )
                         }
+                    }
+                }
+
+                refreshNotice?.let { notice ->
+                    Surface(
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        color = RadarYellow.copy(alpha = 0.96f),
+                        tonalElevation = 6.dp
+                    ) {
+                        Text(
+                            text = notice,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                            color = Color(0xFF201703),
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }
@@ -887,12 +908,12 @@ private fun DashboardScreen(
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(containerColor = RadarGreen, contentColor = Color(0xFF05150E))
                     ) {
-                        Icon(Icons.Default.OpenInNew, null)
+                        Icon(Icons.AutoMirrored.Filled.OpenInNew, null)
                         Spacer(Modifier.width(6.dp))
                         Text("Trade Republic öffnen", fontWeight = FontWeight.Bold)
                     }
                     OutlinedButton(onClick = { openMarketQuote(context, top) }, modifier = Modifier.weight(1f)) {
-                        Icon(Icons.Default.ShowChart, null)
+                        Icon(Icons.AutoMirrored.Filled.ShowChart, null)
                         Spacer(Modifier.width(6.dp))
                         Text("Kurs")
                     }
@@ -1395,7 +1416,7 @@ private fun RecommendationRow(
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(if (amount > 0) "$amount €" else "0 €", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium, color = if (amount > 0) RadarGreen else RadarMuted)
-                Icon(Icons.Default.OpenInNew, null, tint = RadarCyan, modifier = Modifier.size(18.dp))
+                Icon(Icons.AutoMirrored.Filled.OpenInNew, null, tint = RadarCyan, modifier = Modifier.size(18.dp))
             }
         }
         LiveForecastSummary(item, compact = true)
@@ -1556,7 +1577,9 @@ private fun MoneyManagementScreen(
         }
     }
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .testTag("moneyManagementList"),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {

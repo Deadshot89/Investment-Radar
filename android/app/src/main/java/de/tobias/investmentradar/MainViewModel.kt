@@ -2,6 +2,8 @@ package de.tobias.investmentradar
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.async
@@ -10,6 +12,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -29,6 +33,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _state = MutableStateFlow<UiState>(UiState.Loading)
     val state: StateFlow<UiState> = _state.asStateFlow()
+
+    private val _refreshNotice = MutableStateFlow<String?>(null)
+    val refreshNotice: StateFlow<String?> = _refreshNotice.asStateFlow()
+
+    private var refreshJob: Job? = null
 
     private val initialPositions = PortfolioStore.readPositions(app)
     private val _budgetState = MutableStateFlow(
@@ -65,28 +74,37 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             while (isActive) {
                 delay(60_000)
-                refresh(silent = true)
+                if (ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+                    refresh(silent = true)
+                }
             }
         }
     }
 
     fun refresh(silent: Boolean = false) {
-        viewModelScope.launch {
+        if (refreshJob?.isActive == true) return
+        refreshJob = viewModelScope.launch {
             val previousState = _state.value
             val hadReadyData = previousState is UiState.Ready
             if (!silent && !hadReadyData) _state.value = UiState.Loading
-            runCatching {
+            try {
                 val dashboardDeferred = async { ApiClient.loadDashboard() }
                 val radarBuyDeferred = async {
-                    runCatching { ApiClient.loadRadarPage(
-                        RadarQuery(
-                            recommendation = "BUY",
-                            sort = "SCORE_DESC",
-                            page = 1,
-                            pageSize = 20,
-                            tradeRepublicVerified = true
+                    try {
+                        ApiClient.loadRadarPage(
+                            RadarQuery(
+                                recommendation = "BUY",
+                                sort = "SCORE_DESC",
+                                page = 1,
+                                pageSize = 20,
+                                tradeRepublicVerified = true
+                            )
                         )
-                    ) }.getOrNull()
+                    } catch (error: CancellationException) {
+                        throw error
+                    } catch (_: Exception) {
+                        null
+                    }
                 }
                 val dashboard = dashboardDeferred.await()
                 val radarBuyItems = radarBuyDeferred.await()?.items.orEmpty()
@@ -96,29 +114,44 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 promoteCustomPortfolioAssets(application, (radarBuyItems + dashboard.items).distinctBy { it.id })
                 val customQuotes = _customItems.value.map { custom ->
                     async {
-                        runCatching { ApiClient.loadCustomQuote(custom) }
-                            .getOrElse { custom.fallbackItem(it.message ?: "Kursdaten fehlen", custom.manualPriceEur) }
+                        try {
+                            ApiClient.loadCustomQuote(custom)
+                        } catch (error: CancellationException) {
+                            throw error
+                        } catch (error: Exception) {
+                            custom.fallbackItem(error.message ?: "Kursdaten fehlen", custom.manualPriceEur)
+                        }
                     }
                 }.awaitAll()
-                dashboard.copy(
+                val nextDashboard = dashboard.copy(
                     topPickId = radarBuyItems.firstOrNull()?.id ?: dashboard.topPickId,
                     items = (radarBuyItems + dashboard.items + customQuotes).distinctBy { it.id }
                 )
+
+                val relevantAlerts = nextDashboard.alerts.filter { alert ->
+                    AlertPolicy.isRelevantForPortfolio(alert, _holdingIds.value)
+                }
+                val mergedAlerts = AlertStore.mergeRemote(application, relevantAlerts)
+                _alerts.value = AlertCenterState.reconcileCurrentAnalysis(
+                    mergedAlerts,
+                    nextDashboard.items.associateBy { item -> item.id }
+                )
+                refreshBudgetState(application)
+                persistAdvisorPlan(application, nextDashboard)
+                _refreshNotice.value = null
+                _state.value = UiState.Ready(nextDashboard)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                val message = error.message ?: "Verbindung zum Server fehlgeschlagen."
+                if (hadReadyData) {
+                    _refreshNotice.value = "Aktualisierung fehlgeschlagen. Vorhandene Daten werden weiter angezeigt."
+                } else {
+                    _state.value = UiState.Error("$message Bitte erneut versuchen.")
+                }
+            } finally {
+                refreshJob = null
             }
-                .onSuccess {
-                    val application = getApplication<Application>()
-                    val relevantAlerts = it.alerts.filter { alert -> AlertPolicy.isRelevantForPortfolio(alert, _holdingIds.value) }
-                    val mergedAlerts = AlertStore.mergeRemote(application, relevantAlerts)
-                    _alerts.value = AlertCenterState.reconcileCurrentAnalysis(mergedAlerts, it.items.associateBy { item -> item.id })
-                    refreshBudgetState(application)
-                    persistAdvisorPlan(application, it)
-                    _state.value = UiState.Ready(it)
-                }
-                .onFailure { e ->
-                    if (!hadReadyData) {
-                        _state.value = UiState.Error(e.message ?: "Verbindung zum Server fehlgeschlagen. Bitte erneut versuchen.")
-                    }
-                }
         }
     }
 
