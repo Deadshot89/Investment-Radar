@@ -68,7 +68,7 @@ jobs:
           echo "package.json version: $(node -p "require('./backend/package.json').version")"
           echo "health.mjs backendVersion: $(grep -o 'backendVersion: "[^"]*"' backend/src/functions/health.mjs | head -1 || true)"
           printf '%s\n' "$DEPLOY_ID" > backend/.deploy-id
-          node -e 'const fs=require("fs"); fs.writeFileSync("backend/build-info.json", JSON.stringify({sourceRevision: process.env.GITHUB_SHA, deployId: process.env.DEPLOY_ID}, null, 2) + "\\n")'
+          node -e 'const fs=require("fs"); fs.writeFileSync("backend/build-info.json", JSON.stringify({sourceRevision: process.env.GITHUB_SHA, deployId: process.env.DEPLOY_ID}, null, 2))'
           rm -f backend-deploy.zip
           (cd backend && zip -qr ../backend-deploy.zip . -x 'node_modules/*')
           echo "Deploy package SHA-256:"
