@@ -3,16 +3,18 @@ import assert from "node:assert/strict";
 import { evaluateSignals } from "../src/lib/signals.mjs";
 import { updateAnalysisMemory } from "../src/lib/marketWatchState.mjs";
 
-test("large positive daily move creates an explained threshold alert", () => {
+test("large positive daily move creates an explained action-first threshold alert", () => {
   const item = {
     id: "move", name: "Move AG", recommendation: "WATCH", scoreTotal: 62,
     reviewDrop1dPct: 7, percentChange: 8.4, currency: "EUR",
     momentum: { m1: 6.2, m3: 4.0, m6: 2.0, m12: 3.0 }
   };
   const signals = evaluateSignals([item], new Map());
-  const alert = signals.find((signal) => signal.title.includes("Tagesanstieg"));
+  const alert = signals.find((signal) => signal.message.includes("+8.40 %"));
   assert.ok(alert);
   assert.equal(alert.level, "THRESHOLD");
+  assert.equal(alert.title, "🟡 HALTEN – Move AG");
+  assert.match(alert.message, /^Entscheidung: HALTEN/);
   assert.match(alert.message, /\+8\.40 %/);
   assert.match(alert.message, /Warum:/);
 });
