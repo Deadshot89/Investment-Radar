@@ -80,7 +80,11 @@ data class InvestmentItem(
     val dataQuality: RadarDataQuality? = null,
     val scoreBreakdown: RadarScoreBreakdown? = null,
     val forecast: RadarForecast? = null,
-    val diagnostics: RadarDiagnostics? = null
+    val diagnostics: RadarDiagnostics? = null,
+    val coverageBreakdown: RadarCoverageBreakdown? = null,
+    val missingData: List<String> = emptyList(),
+    val providerStatus: RadarProviderStatus? = null,
+    val analysisWarnings: List<String> = emptyList()
 )
 
 data class SignalAlert(
