@@ -22,7 +22,9 @@ grep -Fq 'deployId: buildInfo.deployId' "$HEALTH" || fail 'Healthcheck liefert k
 grep -Fq 'apiSchemaVersion: buildInfo.apiSchemaVersion' "$HEALTH" || fail 'Healthcheck liefert keine API-Schemaversion.'
 grep -Fq 'API_SCHEMA_VERSION = "2026-09-14.1"' "$BUILD_INFO" || fail 'API-Schema ist nicht versioniert.'
 grep -Fq 'EXPECTED_API_SCHEMA: "2026-09-14.1"' "$ANDROID_WF" || fail 'Android Release Gate prüft API-Schema nicht.'
-grep -Fq 'LAST_REVISION' "$BACKEND_WF" || fail 'Backend Deploy prüft den exakten live Commit nicht.'
+grep -Fq 'BACKEND_REVISION="$(git rev-parse HEAD:backend)"' "$BACKEND_WF" || fail 'Backend Deploy berechnet keine exakte Backend-Inhaltsrevision.'
+grep -Fq 'LAST_REVISION' "$BACKEND_WF" || fail 'Backend Deploy prüft die exakte live Backend-Inhaltsrevision nicht.'
+grep -Fq 'EXPECTED_BACKEND_REVISION="$(git rev-parse HEAD:backend)"' "$ANDROID_WF" || fail 'Android Release Gate ist nicht an die exakte Backend-Inhaltsrevision gebunden.'
 grep -Fq 'LAST_DEPLOY_ID' "$BACKEND_WF" || fail 'Backend Deploy prüft die exakte Deploy-ID nicht.'
 
 echo "PASS: Lifecycle-Refresh, sichtbare Stale-Daten-Warnung, Backup-Schutz und Deployment-Provenienz sind verdrahtet."
