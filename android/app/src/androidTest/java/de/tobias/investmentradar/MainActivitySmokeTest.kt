@@ -32,12 +32,14 @@ class MainActivitySmokeTest {
         openMoneyScreen()
 
         composeRule.onNodeWithText("GELDVERWALTUNG", substring = true).assertIsDisplayed()
+        composeRule.onNodeWithTag("moneyManagementList").performScrollToIndex(2)
         composeRule.onNodeWithText("ICH BRAUCHE GELD").assertIsDisplayed()
     }
 
     @Test
     fun liquidityNeedPresetAndCashFirstSwitchUpdatePlan() {
         openMoneyScreen()
+        composeRule.onNodeWithTag("moneyManagementList").performScrollToIndex(2)
 
         composeRule.onNodeWithText("100 €").performClick()
         composeRule.onNodeWithText("Benötigt:", substring = true).performScrollTo().assertIsDisplayed()
@@ -58,7 +60,5 @@ class MainActivitySmokeTest {
                 .fetchSemanticsNodes()
                 .isNotEmpty()
         }
-        composeRule.onNodeWithTag("moneyManagementList").performScrollToIndex(2)
-        composeRule.onNodeWithText("ICH BRAUCHE GELD").assertIsDisplayed()
     }
 }
