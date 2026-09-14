@@ -75,6 +75,28 @@ data class RadarForecast(
     val asOf: String? = null
 )
 
+data class RadarCoverageBreakdown(
+    val quote: Int = 0,
+    val history: Int = 0,
+    val fundamentals: Int = 0,
+    val forecastInputs: Int = 0,
+    val overall: Int = 0
+)
+
+data class RadarProviderBlockStatus(
+    val status: String = "",
+    val source: String = "",
+    val asOf: String? = null,
+    val stale: Boolean = false,
+    val error: String? = null
+)
+
+data class RadarProviderStatus(
+    val quote: RadarProviderBlockStatus? = null,
+    val history: RadarProviderBlockStatus? = null,
+    val fundamentals: RadarProviderBlockStatus? = null
+)
+
 data class RadarDiagnostics(
     val quoteSource: String = "",
     val historySource: String = "",
@@ -82,7 +104,8 @@ data class RadarDiagnostics(
     val missingBlocks: List<String> = emptyList(),
     val criticalConflicts: List<String> = emptyList(),
     val historyStale: Boolean = false,
-    val fundamentalsStale: Boolean = false
+    val fundamentalsStale: Boolean = false,
+    val providerStatus: RadarProviderStatus? = null
 )
 
 data class RadarSummaryItem(
@@ -122,6 +145,10 @@ data class RadarSummaryItem(
     val scoreBreakdown: RadarScoreBreakdown? = null,
     val forecast: RadarForecast? = null,
     val diagnostics: RadarDiagnostics? = null,
+    val coverageBreakdown: RadarCoverageBreakdown? = null,
+    val missingData: List<String> = emptyList(),
+    val providerStatus: RadarProviderStatus? = null,
+    val analysisWarnings: List<String> = emptyList(),
     val momentum: MomentumSnapshot? = null,
     val fundamentals: FundamentalSnapshot? = null
 ) {
@@ -168,7 +195,11 @@ data class RadarSummaryItem(
         dataQuality = dataQuality,
         scoreBreakdown = scoreBreakdown,
         forecast = forecast,
-        diagnostics = diagnostics
+        diagnostics = diagnostics,
+        coverageBreakdown = coverageBreakdown,
+        missingData = missingData,
+        providerStatus = providerStatus,
+        analysisWarnings = analysisWarnings
     )
 }
 
