@@ -4,7 +4,9 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNode
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -41,7 +43,7 @@ class MainActivitySmokeTest {
         composeRule.onNodeWithText("100 €").performClick()
         composeRule.onNodeWithText("Benötigt:", substring = true).performScrollTo().assertIsDisplayed()
 
-        composeRule.onNodeWithTag("moneyUseCashFirstSwitch").assertIsOn().performClick().assertIsOff()
+        composeRule.onNode(isToggleable()).assertIsOn().performClick().assertIsOff()
         composeRule.onNodeWithText("Der komplette Betrag wird über Verkäufe geplant.")
             .performScrollTo()
             .assertIsDisplayed()
