@@ -29,6 +29,103 @@ jobs:
         working-directory: backend
         run: npm test
 
+      - name: Targeted live hard refresh for remaining gaps
+        if: startsWith(github.ref, 'refs/heads/audit/targeted-hard-refresh-rerun')
+        shell: bash
+        env:
+          BASE_URL: ${{ vars.INVESTMENT_API_BASE_URL }}
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const base=String(process.env.BASE_URL||'').replace(/\/$/,'');
+          if(!base.startsWith('https://')) throw new Error('INVESTMENT_API_BASE_URL missing');
+          const fetchJson=async(url,ms=60000)=>{
+            const r=await fetch(url,{headers:{Accept:'application/json'},signal:AbortSignal.timeout(ms)});
+            const t=await r.text();let j;try{j=JSON.parse(t)}catch{throw new Error('non-JSON '+r.status+' '+t.slice(0,200))}
+            if(!r.ok) throw new Error('HTTP '+r.status+' '+JSON.stringify(j).slice(0,300));
+            return j;
+          };
+          const scan=async()=>{
+            const rows=[];let page=1,total=null;
+            while(page<=30){
+              const j=await fetchJson(base+'/api/radar?page='+page+'&pageSize=100&sort=NAME',90000);
+              total??=Number(j.total||0);
+              const xs=Array.isArray(j.items)?j.items:[];
+              rows.push(...xs);
+              if(!j.hasMore||xs.length===0) break;
+              page++;
+            }
+            return {total,items:[...new Map(rows.map(x=>[x.id,x])).values()]};
+          };
+          const q=(x,k)=>Number(x?.dataQuality?.[k]);
+          const isEtf=x=>String(x?.type||'').toUpperCase()==='ETF';
+          const gap=x=>(q(x,'historyCoverage')<70)||(!isEtf(x)&&q(x,'fundamentalCoverage')<60);
+          const summarize=(items)=>({
+            count:items.length,
+            quote100:items.filter(x=>q(x,'quoteCoverage')===100).length,
+            historyBelow70:items.filter(x=>q(x,'historyCoverage')<70).length,
+            fundamentalsStocksBelow60:items.filter(x=>!isEtf(x)&&q(x,'fundamentalCoverage')<60).length,
+            overallBelow70:items.filter(x=>q(x,'overallCoverage')<70).length,
+            purchaseEligible:items.filter(x=>x?.purchaseEligible===true).length,
+            avgOverall:Number((items.reduce((s,x)=>s+(Number.isFinite(q(x,'overallCoverage'))?q(x,'overallCoverage'):0),0)/Math.max(1,items.length)).toFixed(1)),
+            avgHistory:Number((items.reduce((s,x)=>s+(Number.isFinite(q(x,'historyCoverage'))?q(x,'historyCoverage'):0),0)/Math.max(1,items.length)).toFixed(1)),
+            avgFundamentalsStocks:Number((items.filter(x=>!isEtf(x)).reduce((s,x)=>s+(Number.isFinite(q(x,'fundamentalCoverage'))?q(x,'fundamentalCoverage'):0),0)/Math.max(1,items.filter(x=>!isEtf(x)).length)).toFixed(1))
+          });
+          const before=await scan();
+          const candidates=before.items.filter(gap);
+          console.log('TARGET_REFRESH_START '+JSON.stringify({total:before.items.length,candidates:candidates.length,before:summarize(before.items)}));
+          let cursor=0,success=0,failed=0;
+          const failures=[];
+          const worker=async()=>{
+            while(true){
+              const i=cursor++;
+              if(i>=candidates.length) return;
+              const item=candidates[i];
+              try{
+                const d=await fetchJson(base+'/api/instrument/'+encodeURIComponent(item.id),90000);
+                if(d?.id===item.id) success++; else throw new Error('identity mismatch');
+              }catch(e){
+                failed++;failures.push({id:item.id,name:item.name,error:String(e?.message||e)});
+              }
+              const done=success+failed;
+              if(done%10===0||done===candidates.length) console.log('TARGET_REFRESH_PROGRESS '+done+'/'+candidates.length+' success='+success+' failed='+failed);
+            }
+          };
+          await Promise.all([worker(),worker()]);
+          const after=await scan();
+          const beforeById=new Map(before.items.map(x=>[x.id,x]));
+          const remaining=after.items.filter(gap);
+          const improved=after.items
+            .map(x=>{const b=beforeById.get(x.id);return b?{
+              id:x.id,name:x.name,type:x.type,
+              beforeOverall:q(b,'overallCoverage'),afterOverall:q(x,'overallCoverage'),
+              beforeHistory:q(b,'historyCoverage'),afterHistory:q(x,'historyCoverage'),
+              beforeFundamentals:q(b,'fundamentalCoverage'),afterFundamentals:q(x,'fundamentalCoverage'),
+              beforeEligible:Boolean(b.purchaseEligible),afterEligible:Boolean(x.purchaseEligible)
+            }:null})
+            .filter(x=>x&&(x.afterOverall>x.beforeOverall||x.afterHistory>x.beforeHistory||x.afterFundamentals>x.beforeFundamentals||x.afterEligible!==x.beforeEligible))
+            .sort((a,b)=>(b.afterOverall-b.beforeOverall)-(a.afterOverall-a.beforeOverall));
+          const remainingSummary=remaining.map(x=>({
+            id:x.id,name:x.name,type:x.type,country:x.country,
+            overall:q(x,'overallCoverage'),history:q(x,'historyCoverage'),fundamentals:q(x,'fundamentalCoverage'),
+            forecast:q(x,'forecastInputCoverage'),missing:x?.dataQuality?.missingBlocks||[],
+            historySource:x?.providerStatus?.history?.source||null,
+            historyError:x?.providerStatus?.history?.error||null,
+            fundamentalSource:x?.providerStatus?.fundamentals?.source||null,
+            fundamentalError:x?.providerStatus?.fundamentals?.error||null,
+            recommendation:x.recommendation,purchaseEligible:Boolean(x.purchaseEligible)
+          }));
+          console.log('TARGET_REFRESH_RESULT '+JSON.stringify({
+            refreshed:{attempted:candidates.length,success,failed,failures},
+            before:summarize(before.items),
+            after:summarize(after.items),
+            improvedCount:improved.length,
+            improved:improved.slice(0,80),
+            remainingCount:remaining.length,
+            remaining:remainingSummary
+          }));
+          NODE
+
       - name: Check Azure configuration
         if: github.ref == 'refs/heads/main'
         id: azure_config
