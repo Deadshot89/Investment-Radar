@@ -7,7 +7,7 @@ import { evaluateDataQuality } from "./dataQuality.mjs";
 import { buildAnalysisDiagnostics } from "./analysisDiagnostics.mjs";
 import { scoreInvestment } from "./scoring.mjs";
 import { forecast12m } from "./forecast12m.mjs";
-import { getRadarAnalysisSnapshot, radarAnalysisKey } from "./radarAnalysisCache.mjs";
+import { getRadarAnalysisSnapshot, radarAnalysisKey, resetRadarAnalysisCache } from "./radarAnalysisCache.mjs";
 
 const DEFAULT_PAGE_SIZE = 40;
 const MAX_PAGE_SIZE = 100;
@@ -36,7 +36,7 @@ export async function queryRadar(query = {}, overrides = {}) {
       key: baseKey,
       now,
       ttlMs: overrides.analysisTtlMs,
-      forceReload: refreshRequested,
+      forceReload: false,
       load: () => analyzeSummaries(verifiedActive, overrides, { refreshSlowData: refreshRequested })
     });
     const filteredIds = new Set(filtered.map((item) => item.id));
@@ -56,12 +56,24 @@ export async function queryRadar(query = {}, overrides = {}) {
     const matching = sortSummaries([...matchingVerified, ...matchingUnverified], query.sort);
     const page = clampInt(query.page ?? 1, 1, Math.max(1, Math.ceil(matching.length / pageSize)));
     const start = (page - 1) * pageSize;
+    const pageMatches = matching.slice(start, start + pageSize);
+    let responseItems = pageMatches;
+    if (refreshRequested && pageMatches.length > 0) {
+      const activeById = new Map(active.map((item) => [item.id, item]));
+      const refreshItems = pageMatches.map((summary) => activeById.get(summary.id)).filter(Boolean);
+      if (refreshItems.length > 0) {
+        const refreshed = await analyzeSummaries(refreshItems, overrides, { refreshSlowData: true });
+        const refreshedById = new Map(refreshed.map((summary) => [summary.id, summary]));
+        responseItems = pageMatches.map((summary) => refreshedById.get(summary.id) ?? summary);
+        resetRadarAnalysisCache();
+      }
+    }
     return buildResponse({
       active,
       page,
       pageSize,
       total: matching.length,
-      items: matching.slice(start, start + pageSize),
+      items: responseItems,
       hasMore: start + pageSize < matching.length,
       counts
     });

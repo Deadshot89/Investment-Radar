@@ -22,7 +22,6 @@ app.http("radar", {
         page: params.page,
         pageSize: params.pageSize,
         tradeRepublicVerified: params.tradeRepublicVerified,
-        includeCounts: params.includeCounts,
         refresh: params.refresh
       };
 
