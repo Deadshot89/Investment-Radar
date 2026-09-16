@@ -52,7 +52,7 @@ function mergeFallbackResults(yahoo, sec) {
 }
 
 async function loadYahooFundamentals(item, fetchImpl) {
-  const symbol = String(item?.yahooSymbol || item?.ticker || '').trim();
+  const symbol = String(item?.yahooSymbol || item?.providerSymbols?.yahoo || (item?.providerSymbolUnresolved === true ? '' : item?.ticker) || '').trim();
   if (!symbol) return empty('Yahoo Finance', 'Kein Yahoo-Symbol verfügbar');
   try {
     const url = new URL(`${YAHOO_BASE}/${encodeURIComponent(symbol)}`);
