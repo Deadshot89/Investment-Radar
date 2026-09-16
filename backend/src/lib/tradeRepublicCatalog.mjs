@@ -67,14 +67,14 @@ export function normalizeTradeRepublicResult(raw, requestedType = "stock") {
     raw.instrument?.shortName,
     isin
   );
-  const ticker = firstString(
+  const explicitTicker = firstString(
     raw.ticker,
     raw.symbol,
     raw.symbolAtExchange,
     raw.instrument?.ticker,
-    raw.instrument?.symbol,
-    isin.slice(0, 8)
+    raw.instrument?.symbol
   ).toUpperCase();
+  const ticker = explicitTicker || isin;
   const type = requestedType === "fund" || /\bETF\b/i.test(firstString(raw.type, raw.typeId, raw.instrument?.typeId))
     ? "ETF"
     : "AKTIE";
@@ -93,8 +93,9 @@ export function normalizeTradeRepublicResult(raw, requestedType = "stock") {
     ticker,
     isin,
     tradeRepublicName: name,
-    marketSymbol: ticker,
+    marketSymbol: explicitTicker,
     yahooSymbol: "",
+    providerSymbolUnresolved: !explicitTicker,
     risk,
     region,
     country,
@@ -245,3 +246,4 @@ function finitePositiveInt(value) {
   const number = Math.round(Number(value));
   return Number.isFinite(number) && number > 0 ? number : null;
 }
+
