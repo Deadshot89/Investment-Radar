@@ -1,12 +1,26 @@
-const YAHOO_BASE = 'https://query1.finance.yahoo.com/v10/finance/quoteSummary';
+const YAHOO_SUMMARY_BASE = 'https://query2.finance.yahoo.com/v10/finance/quoteSummary';
+const YAHOO_SEARCH_BASE = 'https://query1.finance.yahoo.com/v1/finance/search';
+const YAHOO_CRUMB_URL = 'https://query1.finance.yahoo.com/v1/test/getcrumb';
+const YAHOO_COOKIE_URL = 'https://fc.yahoo.com';
 const SEC_BASE = 'https://data.sec.gov/api/xbrl/companyfacts';
+const YAHOO_SESSION_TTL_MS = 20 * 60 * 1000;
+const YAHOO_SYMBOL_TTL_MS = 24 * 60 * 60 * 1000;
+const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 InvestmentRadar/2.5';
+
 const PROVIDER_FIELDS = [
   'pe', 'priceToSales', 'evToEbitda', 'freeCashFlowYield', 'revenueGrowth', 'epsGrowth',
   'operatingMargin', 'netMargin', 'roe', 'roic', 'debtToEquity', 'marketCap'
 ];
 
-export async function loadFundamentalFallback(item, { fetchImpl = fetch } = {}) {
-  const yahoo = await loadYahooFundamentals(item, fetchImpl);
+const yahooSessionCache = new WeakMap();
+const yahooSymbolCache = new Map();
+
+export async function loadFundamentalFallback(item, {
+  fetchImpl = fetch,
+  getYahooSession = defaultGetYahooSession,
+  resolveYahooSymbol = defaultResolveYahooSymbol
+} = {}) {
+  const yahoo = await loadYahooFundamentals(item, { fetchImpl, getYahooSession, resolveYahooSymbol });
   const sec = await loadSecFundamentals(item, fetchImpl);
   const merged = mergeFallbackResults(yahoo, sec);
 
@@ -51,36 +65,42 @@ function mergeFallbackResults(yahoo, sec) {
   };
 }
 
-async function loadYahooFundamentals(item, fetchImpl) {
-  const symbol = String(item?.yahooSymbol || item?.providerSymbols?.yahoo || (item?.providerSymbolUnresolved === true ? '' : item?.ticker) || '').trim();
-  if (!symbol) return empty('Yahoo Finance', 'Kein Yahoo-Symbol verfügbar');
+async function loadYahooFundamentals(item, { fetchImpl, getYahooSession, resolveYahooSymbol }) {
+  const symbol = await resolveYahooSymbol(item, fetchImpl);
+  if (!symbol) return empty('Yahoo Finance', 'Kein verifiziertes Yahoo-Symbol verfügbar');
+
   try {
-    const url = new URL(`${YAHOO_BASE}/${encodeURIComponent(symbol)}`);
-    url.searchParams.set('modules', 'summaryDetail,defaultKeyStatistics,financialData');
-    const response = await fetchImpl(url, {
-      headers: { Accept: 'application/json', 'User-Agent': 'Mozilla/5.0 InvestmentRadar/2.4' },
-      signal: AbortSignal.timeout(12_000)
-    });
+    let session = await getYahooSession(fetchImpl, { forceRefresh: false });
+    let response = await fetchYahooSummary(symbol, fetchImpl, session);
+
+    if (response.status === 401 || response.status === 403) {
+      session = await getYahooSession(fetchImpl, { forceRefresh: true });
+      response = await fetchYahooSummary(symbol, fetchImpl, session);
+    }
+
     if (!response.ok) return empty('Yahoo Finance', `Yahoo HTTP ${response.status}`);
     const json = await response.json();
     const row = json?.quoteSummary?.result?.[0];
-    if (!row) return empty('Yahoo Finance', json?.quoteSummary?.error?.description || 'Yahoo Fundamentaldaten leer');
+    if (!row) {
+      return empty('Yahoo Finance', json?.quoteSummary?.error?.description || 'Yahoo Fundamentaldaten leer');
+    }
+
     const s = row.summaryDetail ?? {};
     const k = row.defaultKeyStatistics ?? {};
     const f = row.financialData ?? {};
-    const marketCap = rawNumber(s.marketCap);
+    const marketCap = firstFinite(rawNumber(s.marketCap), rawNumber(k.marketCap));
     const freeCashFlow = rawNumber(f.freeCashflow);
     const raw = {
       pe: firstFinite(rawNumber(k.forwardPE), rawNumber(s.trailingPE)),
-      priceToSales: rawNumber(s.priceToSalesTrailing12Months),
+      priceToSales: firstFinite(rawNumber(s.priceToSalesTrailing12Months), rawNumber(k.priceToSalesTrailing12Months)),
       evToEbitda: rawNumber(k.enterpriseToEbitda),
       freeCashFlowYield: finite(freeCashFlow) && finite(marketCap) && marketCap !== 0 ? freeCashFlow / marketCap : null,
       revenueGrowth: rawNumber(f.revenueGrowth),
-      epsGrowth: rawNumber(f.earningsGrowth),
+      epsGrowth: firstFinite(rawNumber(f.earningsGrowth), rawNumber(k.earningsQuarterlyGrowth)),
       operatingMargin: rawNumber(f.operatingMargins),
       netMargin: rawNumber(f.profitMargins),
       roe: rawNumber(f.returnOnEquity),
-      roic: null,
+      roic: rawNumber(f.returnOnAssets),
       debtToEquity: normalizeYahooDebtToEquity(rawNumber(f.debtToEquity)),
       marketCap
     };
@@ -88,6 +108,105 @@ async function loadYahooFundamentals(item, fetchImpl) {
   } catch (error) {
     return empty('Yahoo Finance', error instanceof Error ? error.message : 'Yahoo Fundamentaldatenfehler');
   }
+}
+
+async function fetchYahooSummary(symbol, fetchImpl, session) {
+  const url = new URL(`${YAHOO_SUMMARY_BASE}/${encodeURIComponent(symbol)}`);
+  url.searchParams.set('modules', 'summaryDetail,defaultKeyStatistics,financialData');
+  url.searchParams.set('crumb', session.crumb);
+  return fetchImpl(url, {
+    headers: {
+      Accept: 'application/json',
+      'User-Agent': USER_AGENT,
+      Cookie: session.cookie
+    },
+    signal: AbortSignal.timeout(12_000)
+  });
+}
+
+export async function defaultResolveYahooSymbol(item, fetchImpl = fetch) {
+  const explicit = firstString(item?.yahooSymbol, item?.providerSymbols?.yahoo);
+  if (explicit) return explicit.toUpperCase();
+
+  const ticker = String(item?.ticker ?? '').trim().toUpperCase();
+  const unresolved = item?.providerSymbolUnresolved === true || looksLikeIsin(ticker);
+  if (!unresolved && ticker) return ticker;
+
+  const isin = String(item?.isin ?? '').trim().toUpperCase();
+  if (!looksLikeIsin(isin)) return '';
+
+  const cached = yahooSymbolCache.get(isin);
+  if (cached && Date.now() - cached.cachedAt <= YAHOO_SYMBOL_TTL_MS) return cached.symbol;
+
+  try {
+    const url = new URL(YAHOO_SEARCH_BASE);
+    url.searchParams.set('q', isin);
+    url.searchParams.set('quotesCount', '8');
+    url.searchParams.set('newsCount', '0');
+    const response = await fetchImpl(url, {
+      headers: { Accept: 'application/json', 'User-Agent': USER_AGENT },
+      signal: AbortSignal.timeout(12_000)
+    });
+    if (!response.ok) return '';
+
+    const json = await response.json();
+    const candidates = Array.isArray(json?.quotes) ? json.quotes : [];
+    const expectedType = String(item?.type ?? '').toUpperCase() === 'ETF' ? 'ETF' : 'EQUITY';
+    const candidate = candidates.find((quote) =>
+      String(quote?.quoteType ?? '').toUpperCase() === expectedType &&
+      typeof quote?.symbol === 'string' &&
+      quote.symbol.trim()
+    );
+    const symbol = String(candidate?.symbol ?? '').trim().toUpperCase();
+    if (symbol) yahooSymbolCache.set(isin, { symbol, cachedAt: Date.now() });
+    return symbol;
+  } catch {
+    return '';
+  }
+}
+
+export async function defaultGetYahooSession(fetchImpl = fetch, { forceRefresh = false } = {}) {
+  const now = Date.now();
+  const existing = yahooSessionCache.get(fetchImpl);
+  if (!forceRefresh && existing && now - existing.createdAt <= YAHOO_SESSION_TTL_MS) return existing;
+
+  const warm = await fetchImpl(YAHOO_COOKIE_URL, {
+    headers: { 'User-Agent': USER_AGENT },
+    redirect: 'manual',
+    signal: AbortSignal.timeout(12_000)
+  });
+  const cookie = extractCookieHeader(warm?.headers);
+  if (!cookie) throw new Error('Yahoo Session-Cookie fehlt');
+
+  const crumbResponse = await fetchImpl(YAHOO_CRUMB_URL, {
+    headers: {
+      Accept: 'text/plain,*/*',
+      'User-Agent': USER_AGENT,
+      Cookie: cookie
+    },
+    signal: AbortSignal.timeout(12_000)
+  });
+  if (!crumbResponse.ok) throw new Error(`Yahoo Crumb HTTP ${crumbResponse.status}`);
+  const crumb = String(await crumbResponse.text()).trim();
+  if (!crumb || /Unauthorized|Too Many Requests/i.test(crumb)) throw new Error('Yahoo Crumb ungültig');
+
+  const session = { cookie, crumb, createdAt: now };
+  yahooSessionCache.set(fetchImpl, session);
+  return session;
+}
+
+function extractCookieHeader(headers) {
+  if (!headers) return '';
+  const many = typeof headers.getSetCookie === 'function' ? headers.getSetCookie() : [];
+  const raw = many.length
+    ? many
+    : typeof headers.get === 'function' && headers.get('set-cookie')
+      ? [headers.get('set-cookie')]
+      : [];
+  return raw
+    .map((value) => String(value ?? '').split(';')[0].trim())
+    .filter(Boolean)
+    .join('; ');
 }
 
 async function loadSecFundamentals(item, fetchImpl) {
@@ -98,7 +217,7 @@ async function loadSecFundamentals(item, fetchImpl) {
     const response = await fetchImpl(`${SEC_BASE}/CIK${cik}.json`, {
       headers: {
         Accept: 'application/json',
-        'User-Agent': 'InvestmentRadar/2.4 investment-radar@example.invalid'
+        'User-Agent': 'InvestmentRadar/2.5 investment-radar@example.invalid'
       },
       signal: AbortSignal.timeout(12_000)
     });
@@ -185,6 +304,15 @@ function rawNumber(value) {
   return Number.isFinite(n) ? n : null;
 }
 
+function firstString(...values) {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return '';
+}
+function looksLikeIsin(value) {
+  return /^[A-Z]{2}[A-Z0-9]{10}$/.test(String(value ?? '').trim().toUpperCase());
+}
 function firstFinite(...values) { return values.find((v) => finite(v)) ?? null; }
 function finite(value) {
   if (value == null || (typeof value === 'string' && value.trim() === '')) return false;
