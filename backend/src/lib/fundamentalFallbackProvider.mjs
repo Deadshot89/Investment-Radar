@@ -14,6 +14,8 @@ const PROVIDER_FIELDS = [
 
 const yahooSessionCache = new WeakMap();
 const yahooSymbolCache = new Map();
+let yahooThrottleChain = Promise.resolve();
+let yahooNextRequestAt = 0;
 
 export async function loadFundamentalFallback(item, {
   fetchImpl = fetch,
@@ -100,7 +102,7 @@ async function loadYahooFundamentals(item, { fetchImpl, getYahooSession, resolve
       operatingMargin: rawNumber(f.operatingMargins),
       netMargin: rawNumber(f.profitMargins),
       roe: rawNumber(f.returnOnEquity),
-      roic: rawNumber(f.returnOnAssets),
+      roic: null,
       debtToEquity: normalizeYahooDebtToEquity(rawNumber(f.debtToEquity)),
       marketCap
     };
@@ -111,6 +113,7 @@ async function loadYahooFundamentals(item, { fetchImpl, getYahooSession, resolve
 }
 
 async function fetchYahooSummary(symbol, fetchImpl, session) {
+  if (fetchImpl === globalThis.fetch) await throttleYahoo();
   const url = new URL(`${YAHOO_SUMMARY_BASE}/${encodeURIComponent(symbol)}`);
   url.searchParams.set('modules', 'summaryDetail,defaultKeyStatistics,financialData');
   url.searchParams.set('crumb', session.crumb);
@@ -143,6 +146,7 @@ export async function defaultResolveYahooSymbol(item, fetchImpl = fetch) {
     url.searchParams.set('q', isin);
     url.searchParams.set('quotesCount', '8');
     url.searchParams.set('newsCount', '0');
+    if (fetchImpl === globalThis.fetch) await throttleYahoo();
     const response = await fetchImpl(url, {
       headers: { Accept: 'application/json', 'User-Agent': USER_AGENT },
       signal: AbortSignal.timeout(12_000)
@@ -170,6 +174,7 @@ export async function defaultGetYahooSession(fetchImpl = fetch, { forceRefresh =
   const existing = yahooSessionCache.get(fetchImpl);
   if (!forceRefresh && existing && now - existing.createdAt <= YAHOO_SESSION_TTL_MS) return existing;
 
+  if (fetchImpl === globalThis.fetch) await throttleYahoo();
   const warm = await fetchImpl(YAHOO_COOKIE_URL, {
     headers: { 'User-Agent': USER_AGENT },
     redirect: 'manual',
@@ -178,6 +183,7 @@ export async function defaultGetYahooSession(fetchImpl = fetch, { forceRefresh =
   const cookie = extractCookieHeader(warm?.headers);
   if (!cookie) throw new Error('Yahoo Session-Cookie fehlt');
 
+  if (fetchImpl === globalThis.fetch) await throttleYahoo();
   const crumbResponse = await fetchImpl(YAHOO_CRUMB_URL, {
     headers: {
       Accept: 'text/plain,*/*',
@@ -193,6 +199,20 @@ export async function defaultGetYahooSession(fetchImpl = fetch, { forceRefresh =
   const session = { cookie, crumb, createdAt: now };
   yahooSessionCache.set(fetchImpl, session);
   return session;
+}
+
+async function throttleYahoo() {
+  const previous = yahooThrottleChain;
+  let release;
+  yahooThrottleChain = new Promise((resolve) => { release = resolve; });
+  await previous;
+  try {
+    const delay = Math.max(0, yahooNextRequestAt - Date.now());
+    if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
+    yahooNextRequestAt = Date.now() + 100;
+  } finally {
+    release();
+  }
 }
 
 function extractCookieHeader(headers) {
