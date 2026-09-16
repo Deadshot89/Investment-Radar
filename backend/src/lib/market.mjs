@@ -1,4 +1,5 @@
 import { convertPriceToEur, normalizeEcbDailyXml, normalizeYahooChart } from "./marketSupport.mjs";
+import { loadTradeRepublicQuotes as defaultLoadTradeRepublicQuotes } from "./tradeRepublicMarketData.mjs";
 
 const BASE = "https://api.twelvedata.com";
 const ECB_DAILY = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml";
@@ -7,25 +8,45 @@ const YAHOO_BASES = [
   "https://query2.finance.yahoo.com/v8/finance/chart"
 ];
 
-export async function loadQuotes(items) {
-  const key = process.env.TWELVE_DATA_API_KEY?.trim();
-  let quotes = key
-    ? await loadTwelveQuotes(items, key)
-    : fallbackQuotes(items, "TWELVE_DATA_API_KEY fehlt");
+export async function loadQuotes(items, { fetchImpl = fetch, loadTradeRepublicQuotes = defaultLoadTradeRepublicQuotes } = {}) {
+  let quotes = new Map();
+  try {
+    quotes = await loadTradeRepublicQuotes(items);
+  } catch {
+    quotes = new Map();
+  }
 
-  const unresolved = items.filter((item) => quotes.get(item.id)?.price == null && item.yahooSymbol);
-  if (unresolved.length > 0) {
-    const fallbacks = await Promise.all(unresolved.map(async (item) => [item.id, await loadYahooQuote(item.yahooSymbol)]));
+  const unresolvedAfterTradeRepublic = items.filter((item) => quotes.get(item.id)?.price == null);
+  const key = process.env.TWELVE_DATA_API_KEY?.trim();
+  const twelveEligible = unresolvedAfterTradeRepublic.filter((item) => String(item.marketSymbol ?? "").trim());
+  const twelve = twelveEligible.length === 0
+    ? new Map()
+    : key
+      ? await loadTwelveQuotes(twelveEligible, key, fetchImpl)
+      : fallbackQuotes(twelveEligible, "TWELVE_DATA_API_KEY fehlt");
+
+  for (const item of unresolvedAfterTradeRepublic) {
+    const previous = quotes.get(item.id);
+    const next = twelve.get(item.id);
+    if (next?.price != null) quotes.set(item.id, next);
+    else if (!previous) quotes.set(item.id, next ?? emptyQuote(item, "Kein Provider-Symbol verfügbar"));
+    else if (next?.error) quotes.set(item.id, { ...previous, error: mergeErrors(previous.error, next.error) });
+  }
+
+  const yahooEligible = items.filter((item) => quotes.get(item.id)?.price == null && String(item.yahooSymbol ?? "").trim());
+  if (yahooEligible.length > 0) {
+    const fallbacks = await Promise.all(yahooEligible.map(async (item) => [item.id, await loadYahooQuote(item.yahooSymbol, fetchImpl)]));
     for (const [id, quote] of fallbacks) {
       if (quote.price != null) quotes.set(id, quote);
       else {
         const previous = quotes.get(id);
-        quotes.set(id, {
-          ...previous,
-          error: [previous?.error, quote.error].filter(Boolean).join(" · ") || "Kein Kurs gefunden"
-        });
+        quotes.set(id, { ...(previous ?? quote), error: mergeErrors(previous?.error, quote.error) || "Kein Kurs gefunden" });
       }
     }
+  }
+
+  for (const item of items) {
+    if (!quotes.has(item.id)) quotes.set(item.id, emptyQuote(item, "Kein Kurs gefunden"));
   }
   return quotes;
 }
@@ -78,14 +99,14 @@ export function priceInEur(quote, ratesToEur) {
   return convertPriceToEur(quote?.price ?? null, quote?.currency ?? "", ratesToEur);
 }
 
-async function loadTwelveQuotes(items, key) {
+async function loadTwelveQuotes(items, key, fetchImpl = fetch) {
   const symbols = items.map((i) => i.marketSymbol).join(",");
   const url = new URL(`${BASE}/quote`);
   url.searchParams.set("symbol", symbols);
   url.searchParams.set("apikey", key);
 
   try {
-    const response = await fetch(url, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(12_000) });
+    const response = await fetchImpl(url, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(12_000) });
     if (!response.ok) throw new Error(`Twelve Data HTTP ${response.status}`);
     const json = await response.json();
     const map = new Map();
@@ -105,7 +126,7 @@ async function loadTwelveQuotes(items, key) {
   }
 }
 
-async function loadYahooQuote(symbol) {
+async function loadYahooQuote(symbol, fetchImpl = fetch) {
   const attempts = [
     { range: "1d", interval: "5m" },
     { range: "1d", interval: "5m" },
@@ -122,7 +143,7 @@ async function loadYahooQuote(symbol) {
     url.searchParams.set("interval", interval);
     url.searchParams.set("includePrePost", "false");
     try {
-      const response = await fetch(url, {
+      const response = await fetchImpl(url, {
         headers: { Accept: "application/json", "User-Agent": "Mozilla/5.0 InvestmentRadar/1.1" },
         signal: AbortSignal.timeout(10_000)
       });
@@ -214,4 +235,11 @@ function numberOrUndefined(value) {
 }
 function fallbackQuotes(items, error) {
   return new Map(items.map((item) => [item.id, { symbol: item.marketSymbol, price: null, currency: "", percentChange: null, marketOpen: null, source: "Twelve Data", delayed: false, error }]));
+}
+
+function emptyQuote(item, error) {
+  return { symbol: String(item?.ticker ?? item?.isin ?? ""), price: null, currency: "", percentChange: null, marketOpen: null, source: "", delayed: false, error };
+}
+function mergeErrors(...errors) {
+  return [...new Set(errors.filter(Boolean).map(String))].join(" · ");
 }
