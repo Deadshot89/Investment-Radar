@@ -74,3 +74,11 @@ test("accepts Trade Republic history for an unresolved provider ticker", async (
   assert.equal(result.get("mmm").source, "Trade Republic");
   assert.ok(result.get("mmm").coveragePct >= 70);
 });
+
+
+test("explicit history refresh bypasses an otherwise fresh cache", () => {
+  const localNow = Date.UTC(2026, 8, 16, 12, 0, 0);
+  const cached = { points: [{ time: localNow, close: 100 }], fetchedAt: new Date(localNow - 60_000).toISOString() };
+  assert.equal(shouldReuseFreshHistoryCache(cached, localNow, false), true);
+  assert.equal(shouldReuseFreshHistoryCache(cached, localNow, true), false);
+});
