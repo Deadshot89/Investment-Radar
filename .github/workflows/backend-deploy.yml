@@ -29,6 +29,51 @@ jobs:
         working-directory: backend
         run: npm test
 
+      - name: Live radar data quality audit
+        if: startsWith(github.ref, 'refs/heads/audit/')
+        shell: bash
+        env:
+          BASE_URL: ${{ vars.INVESTMENT_API_BASE_URL }}
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const base=String(process.env.BASE_URL||'').replace(/\/$/,'');
+          if(!base.startsWith('https://')) throw new Error('INVESTMENT_API_BASE_URL missing');
+          const get=async (url,ms=60000)=>{const r=await fetch(url,{signal:AbortSignal.timeout(ms),headers:{Accept:'application/json'}});const t=await r.text();let j;try{j=JSON.parse(t)}catch{throw new Error('non-JSON '+r.status+' '+t.slice(0,200))}if(!r.ok)throw new Error('HTTP '+r.status+' '+JSON.stringify(j).slice(0,300));return j};
+          const health=await get(base+'/api/health',30000);
+          const rows=[]; const pageErrors=[]; let page=1,total=null,universeTotal=null;
+          while(page<=30){
+            try{
+              const j=await get(base+'/api/radar?page='+page+'&pageSize=100&sort=NAME');
+              total ??= Number(j.total||0); universeTotal ??= Number(j.universeTotal||total||0);
+              const xs=Array.isArray(j.items)?j.items:[]; rows.push(...xs);
+              console.log('AUDIT_PAGE '+page+' items='+xs.length+' accumulated='+rows.length+'/'+total+' hasMore='+Boolean(j.hasMore));
+              if(!j.hasMore||xs.length===0) break; page++;
+            }catch(e){pageErrors.push({page,error:String(e?.message||e)});console.log('AUDIT_PAGE_ERROR '+page+' '+String(e?.message||e));break}
+          }
+          const byId=new Map(rows.filter(Boolean).map(x=>[x.id,x])); const all=[...byId.values()];
+          const n=v=>Number(v); const finite=v=>Number.isFinite(n(v)); const etf=x=>String(x?.type||'').toUpperCase()==='ETF';
+          const q=(x,k)=>n(x?.dataQuality?.[k]); const miss=(x,b)=>(x?.dataQuality?.missingBlocks||[]).includes(b);
+          const err=(x,b)=>x?.providerStatus?.[b]?.error||x?.diagnostics?.providerStatus?.[b]?.error||null;
+          const pct=(a,b)=>b?Number((100*a/b).toFixed(1)):0;
+          const avg=xs=>{xs=xs.map(n).filter(Number.isFinite);return xs.length?Number((xs.reduce((a,b)=>a+b,0)/xs.length).toFixed(1)):null};
+          const med=xs=>{xs=xs.map(n).filter(Number.isFinite).sort((a,b)=>a-b);if(!xs.length)return null;const m=Math.floor(xs.length/2);return xs.length%2?xs[m]:Number(((xs[m-1]+xs[m])/2).toFixed(1))};
+          const countBy=f=>{const o={};for(const x of all){const k=String(f(x)??'UNKNOWN');o[k]=(o[k]||0)+1}return Object.fromEntries(Object.entries(o).sort((a,b)=>b[1]-a[1]))};
+          const stocks=all.filter(x=>!etf(x));
+          const quote=all.filter(x=>!finite(q(x,'quoteCoverage'))||q(x,'quoteCoverage')<100||x.price==null||miss(x,'quote'));
+          const history=all.filter(x=>!finite(q(x,'historyCoverage'))||q(x,'historyCoverage')<70||miss(x,'history'));
+          const fundamentals=stocks.filter(x=>!finite(q(x,'fundamentalCoverage'))||q(x,'fundamentalCoverage')<60||miss(x,'fundamentals'));
+          const forecast=all.filter(x=>!finite(q(x,'forecastInputCoverage'))||q(x,'forecastInputCoverage')<70||miss(x,'forecast')||x?.forecast?.quality==='NICHT_BELASTBAR');
+          const overall70=all.filter(x=>!finite(q(x,'overallCoverage'))||q(x,'overallCoverage')<70);
+          const severe=all.filter(x=>!finite(q(x,'quoteCoverage'))||q(x,'quoteCoverage')<100||!finite(q(x,'historyCoverage'))||q(x,'historyCoverage')<50||(!etf(x)&&(!finite(q(x,'fundamentalCoverage'))||q(x,'fundamentalCoverage')<50))||!finite(q(x,'overallCoverage'))||q(x,'overallCoverage')<50);
+          const providerErrors=all.filter(x=>['quote','history','fundamentals'].some(b=>err(x,b)));
+          const conflicts=all.filter(x=>(x?.dataQuality?.criticalConflicts||[]).length>0);
+          const staleHistory=all.filter(x=>x?.diagnostics?.historyStale===true||x?.providerStatus?.history?.stale===true);
+          const staleFund=stocks.filter(x=>x?.diagnostics?.fundamentalsStale===true||x?.providerStatus?.fundamentals?.stale===true);
+          const worst=[...all].sort((a,b)=>(q(a,'overallCoverage')||0)-(q(b,'overallCoverage')||0)).slice(0,40).map(x=>({id:x.id,name:x.name,ticker:x.ticker,type:x.type,overall:x?.dataQuality?.overallCoverage??x.coverage??null,quote:x?.dataQuality?.quoteCoverage??null,history:x?.dataQuality?.historyCoverage??null,fundamentals:x?.dataQuality?.fundamentalCoverage??null,forecastInputs:x?.dataQuality?.forecastInputCoverage??null,missing:x?.dataQuality?.missingBlocks||[],quoteError:err(x,'quote'),historyError:err(x,'history'),fundamentalError:err(x,'fundamentals'),forecastQuality:x?.forecast?.quality??null,recommendation:x.recommendation,purchaseEligible:Boolean(x.purchaseEligible)}));
+          const report={auditedAt:new Date().toISOString(),health:{ok:health.ok,service:health.service,backendVersion:health.backendVersion,apiSchemaVersion:health.apiSchemaVersion,sourceRevision:health.sourceRevision,deployId:health.deployId,marketDataConfigured:health.marketDataConfigured,fundamentalDataConfigured:health.fundamentalDataConfigured,analysisModel:health.analysisModel,universeTarget:health.universeTarget},universe:{expectedTotal:total,universeTotal,fetched:all.length,duplicates:rows.length-all.length,pageErrors},types:countBy(x=>x.type),qualityTiers:countBy(x=>x?.dataQuality?.qualityTier||x?.dataQualityTier),recommendations:countBy(x=>x.recommendation),forecastQuality:countBy(x=>x?.forecast?.quality||'MISSING'),coverage:{overallAverage:avg(all.map(x=>q(x,'overallCoverage'))),overallMedian:med(all.map(x=>q(x,'overallCoverage'))),quoteAverage:avg(all.map(x=>q(x,'quoteCoverage'))),historyAverage:avg(all.map(x=>q(x,'historyCoverage'))),fundamentalStocksAverage:avg(stocks.map(x=>q(x,'fundamentalCoverage'))),forecastInputAverage:avg(all.map(x=>q(x,'forecastInputCoverage')))},gaps:{quote:{count:quote.length,pct:pct(quote.length,all.length)},history:{count:history.length,pct:pct(history.length,all.length)},fundamentalsStocks:{count:fundamentals.length,pct:pct(fundamentals.length,stocks.length)},forecast:{count:forecast.length,pct:pct(forecast.length,all.length)},overallBelow70:{count:overall70.length,pct:pct(overall70.length,all.length)},severe:{count:severe.length,pct:pct(severe.length,all.length)},providerErrors:{count:providerErrors.length,pct:pct(providerErrors.length,all.length)},criticalConflicts:{count:conflicts.length,pct:pct(conflicts.length,all.length)},historyStale:{count:staleHistory.length,pct:pct(staleHistory.length,all.length)},fundamentalsStaleStocks:{count:staleFund.length,pct:pct(staleFund.length,stocks.length)}},purchaseEligible:{count:all.filter(x=>x.purchaseEligible===true).length,pct:pct(all.filter(x=>x.purchaseEligible===true).length,all.length)},worstCoverage:worst,providerErrorSamples:providerErrors.slice(0,40).map(x=>({id:x.id,name:x.name,ticker:x.ticker,quote:err(x,'quote'),history:err(x,'history'),fundamentals:err(x,'fundamentals')}))};
+          console.log('LIVE_DATA_AUDIT_JSON_BEGIN'); console.log(JSON.stringify(report)); console.log('LIVE_DATA_AUDIT_JSON_END');
+          NODE
       - name: Check Azure configuration
         if: github.ref == 'refs/heads/main'
         id: azure_config
