@@ -265,3 +265,84 @@ test('Yahoo symbol resolution rejects non-equity search results for stocks', asy
   }, fetchImpl);
   assert.equal(symbol, '');
 });
+
+
+test('prefers a matching primary exchange symbol over an ISIN-linked regional listing', async () => {
+  const fetchImpl = async (url) => {
+    const q = new URL(String(url)).searchParams.get('q');
+    if (q === 'US91680M1071') {
+      return jsonResponse({ quotes: [{
+        symbol: 'US91680M1071.SG', quoteType: 'EQUITY', exchange: 'STU',
+        shortname: 'Upstart Holdings Inc.', longname: 'Upstart Holdings, Inc.', score: 20001
+      }] });
+    }
+    return jsonResponse({ quotes: [
+      {
+        symbol: 'UPST', quoteType: 'EQUITY', exchange: 'NMS',
+        shortname: 'Upstart Holdings, Inc.', longname: 'Upstart Holdings, Inc.', score: 34349
+      },
+      {
+        symbol: '855.DE', quoteType: 'EQUITY', exchange: 'GER',
+        shortname: 'Upstart Holdings Inc.', longname: 'Upstart Holdings, Inc.', score: 20001
+      }
+    ] });
+  };
+
+  const symbol = await defaultResolveYahooSymbol({
+    isin: 'US91680M1071',
+    ticker: 'US91680M1071',
+    name: 'Upstart Holdings',
+    tradeRepublicName: 'Upstart Holdings',
+    type: 'AKTIE',
+    providerSymbolUnresolved: true
+  }, fetchImpl);
+
+  assert.equal(symbol, 'UPST');
+});
+
+test('uses a strongly matching name search when ISIN search has no equity result', async () => {
+  const fetchImpl = async (url) => {
+    const q = new URL(String(url)).searchParams.get('q');
+    if (q === 'US7960542030') return jsonResponse({ quotes: [] });
+    return jsonResponse({ quotes: [{
+      symbol: '006400.KS', quoteType: 'EQUITY', exchange: 'KSC',
+      shortname: 'SAMSUNG SDI CO.,LTD.', longname: 'Samsung SDI Co., Ltd.', score: 20122
+    }] });
+  };
+
+  const symbol = await defaultResolveYahooSymbol({
+    isin: 'US7960542030',
+    ticker: 'US7960542030',
+    name: 'Samsung SDI',
+    type: 'AKTIE',
+    providerSymbolUnresolved: true
+  }, fetchImpl);
+
+  assert.equal(symbol, '006400.KS');
+});
+
+test('does not replace an ISIN-linked listing with an unrelated high-priority name result', async () => {
+  const fetchImpl = async (url) => {
+    const q = new URL(String(url)).searchParams.get('q');
+    if (q === 'DE0006219934') {
+      return jsonResponse({ quotes: [{
+        symbol: 'JUN3.DU', quoteType: 'EQUITY', exchange: 'DUS',
+        shortname: 'Jungheinrich AG', longname: 'Jungheinrich AG', score: 20008
+      }] });
+    }
+    return jsonResponse({ quotes: [{
+      symbol: 'MSFT', quoteType: 'EQUITY', exchange: 'NMS',
+      shortname: 'Microsoft Corporation', longname: 'Microsoft Corporation', score: 40000
+    }] });
+  };
+
+  const symbol = await defaultResolveYahooSymbol({
+    isin: 'DE0006219934',
+    ticker: 'DE0006219934',
+    name: 'Jungheinrich',
+    type: 'AKTIE',
+    providerSymbolUnresolved: true
+  }, fetchImpl);
+
+  assert.equal(symbol, 'JUN3.DU');
+});
