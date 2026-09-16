@@ -62,6 +62,27 @@ fun SavingsPlansScreen(
         SavingsPlanStore.upsertPlan(context, plan.copy(nextDueDate = next))
     }
 
+    fun executionService(): SavingsPlanExecutionService = SavingsPlanExecutionService(
+        quoteProvider = object : SavingsPlanQuoteProvider {
+            override fun currentPriceEur(itemId: String): Double? {
+                val item = itemById[itemId] ?: return null
+                return item.priceEur ?: item.price
+            }
+        },
+        portfolioWriter = object : SavingsPlanPortfolioWriter {
+            override fun persistPurchase(itemId: String, purchase: PortfolioPurchase): Boolean =
+                vm.upsertPurchase(itemId, purchase)
+        },
+        executionRepository = object : SavingsPlanExecutionRepository {
+            override fun getExecution(id: String): SavingsPlanExecution? =
+                SavingsPlanStore.readExecutions(context).firstOrNull { it.id == id }
+
+            override fun saveExecution(execution: SavingsPlanExecution) {
+                SavingsPlanStore.upsertExecution(context, execution)
+            }
+        }
+    )
+
     LaunchedEffect(Unit) { reload() }
 
     LazyColumn(
@@ -95,7 +116,7 @@ fun SavingsPlansScreen(
 
         items(plans, key = { it.id }) { plan ->
             val planExecutions = executions.filter { it.planId == plan.id }
-            val pending = planExecutions.firstOrNull { it.status == SavingsPlanExecutionStatus.PENDING }
+            val pendingExecutions = SavingsPlanPendingExecutionPolicy.pendingForPlan(executions, plan.id)
             SavingsPlanCard {
                 Text(plan.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
                 Text(
@@ -121,43 +142,27 @@ fun SavingsPlansScreen(
 
                 if (plan.itemId == null) {
                     Text(
-                        "Instrument noch nicht eindeutig zugeordnet. Dieser Private-Equity-Sparplan wird nicht automatisch deinem Depot zugerechnet.",
+                        "Instrument noch nicht eindeutig zugeordnet. Bestätigen bleibt möglich, sobald das Instrument dem Depot eindeutig zugeordnet ist.",
                         color = MaterialTheme.colorScheme.error,
                         fontWeight = FontWeight.Bold
                     )
                 }
 
-                if (pending != null) {
-                    Text("Fällige Ausführung · ${pending.scheduledDate}", fontWeight = FontWeight.Black)
+                pendingExecutions.forEach { pending ->
+                    HorizontalDivider()
+                    Text(
+                        "${SavingsPlanPendingExecutionPolicy.label(pending.scheduledDate, today)} · ${pending.scheduledDate}",
+                        fontWeight = FontWeight.Black
+                    )
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(
-                            enabled = plan.itemId != null,
+                            enabled = plan.itemId != null && SavingsPlanPendingExecutionPolicy.canConfirm(pending, today),
                             modifier = Modifier.weight(1f),
                             onClick = {
-                                val service = SavingsPlanExecutionService(
-                                    quoteProvider = object : SavingsPlanQuoteProvider {
-                                        override fun currentPriceEur(itemId: String): Double? {
-                                            val item = itemById[itemId] ?: return null
-                                            return item.priceEur ?: item.price
-                                        }
-                                    },
-                                    portfolioWriter = object : SavingsPlanPortfolioWriter {
-                                        override fun persistPurchase(itemId: String, purchase: PortfolioPurchase): Boolean =
-                                            vm.upsertPurchase(itemId, purchase)
-                                    },
-                                    executionRepository = object : SavingsPlanExecutionRepository {
-                                        override fun getExecution(id: String): SavingsPlanExecution? =
-                                            SavingsPlanStore.readExecutions(context).firstOrNull { it.id == id }
-
-                                        override fun saveExecution(execution: SavingsPlanExecution) {
-                                            SavingsPlanStore.upsertExecution(context, execution)
-                                        }
-                                    }
-                                )
-                                when (val result = service.confirm(plan, pending.id, today)) {
+                                when (val result = executionService().confirm(plan, pending.id, today)) {
                                     is SavingsPlanConfirmationResult.Confirmed -> {
-                                        advance(plan, pending.scheduledDate)
-                                        message = String.format(Locale.GERMANY, "Ausführung gebucht: %.6f Stück zu %.2f €", result.shares, result.priceEur)
+                                        if (plan.nextDueDate == pending.scheduledDate) advance(plan, pending.scheduledDate)
+                                        message = String.format(Locale.GERMANY, "Ausführung vom %s gebucht: %.6f Stück zu %.2f €", pending.scheduledDate, result.shares, result.priceEur)
                                     }
                                     is SavingsPlanConfirmationResult.AlreadyConfirmed -> message = "Diese Ausführung wurde bereits gebucht."
                                     SavingsPlanConfirmationResult.InstrumentMissing -> message = "Instrument ist noch nicht eindeutig zugeordnet."
@@ -171,21 +176,9 @@ fun SavingsPlansScreen(
                         OutlinedButton(
                             modifier = Modifier.weight(1f),
                             onClick = {
-                                val repo = object : SavingsPlanExecutionRepository {
-                                    override fun getExecution(id: String): SavingsPlanExecution? =
-                                        SavingsPlanStore.readExecutions(context).firstOrNull { it.id == id }
-                                    override fun saveExecution(execution: SavingsPlanExecution) {
-                                        SavingsPlanStore.upsertExecution(context, execution)
-                                    }
-                                }
-                                val service = SavingsPlanExecutionService(
-                                    quoteProvider = object : SavingsPlanQuoteProvider { override fun currentPriceEur(itemId: String): Double? = null },
-                                    portfolioWriter = object : SavingsPlanPortfolioWriter { override fun persistPurchase(itemId: String, purchase: PortfolioPurchase): Boolean = false },
-                                    executionRepository = repo
-                                )
-                                if (service.skip(pending.id)) {
-                                    advance(plan, pending.scheduledDate)
-                                    message = "Ausführung als nicht ausgeführt gespeichert."
+                                if (executionService().skip(pending.id)) {
+                                    if (plan.nextDueDate == pending.scheduledDate) advance(plan, pending.scheduledDate)
+                                    message = "Ausführung vom ${pending.scheduledDate} als nicht ausgeführt gespeichert."
                                 }
                                 reload()
                             }
