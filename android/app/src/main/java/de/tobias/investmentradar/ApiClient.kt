@@ -69,6 +69,7 @@ object ApiClient {
             add("pageSize" to query.pageSize.toString())
             add("includeCounts" to query.includeCounts.toString())
             if (query.tradeRepublicVerified) add("tradeRepublicVerified" to "true")
+            if (query.refresh) add("refresh" to "true")
         }.joinToString("&") { (key, value) -> "$key=${URLEncoder.encode(value, "UTF-8")}" }
         return getJson("$baseUrl/api/radar?$params", ::parseRadarPage)
     }

@@ -13,7 +13,8 @@ data class RadarQuery(
     val page: Int = 1,
     val pageSize: Int = 40,
     val tradeRepublicVerified: Boolean = false,
-    val includeCounts: Boolean = true
+    val includeCounts: Boolean = true,
+    val refresh: Boolean = false
 )
 
 data class RadarFacet(val value: String, val count: Int)

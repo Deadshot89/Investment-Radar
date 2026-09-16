@@ -149,3 +149,61 @@ test("includeCounts returns total stock ETF buy watch and review counts for the 
     review: 1
   });
 });
+
+
+test("refresh=true forces slow data providers while refresh=false does not", async () => {
+  const calls = [];
+  const overrides = {
+    loadUniverse: async () => [{ ...base[0], risk: 1 }],
+    loadQuotes: async (items) => new Map(items.map((item) => [item.id, { price: 100, currency: "EUR", percentChange: 0.5, source: "TEST" }])),
+    loadHistory: async (items, options = {}) => {
+      calls.push(["history", options.refresh === true]);
+      return new Map(items.map((item) => [item.id, strongMomentum]));
+    },
+    loadFundamentals: async (items, options = {}) => {
+      calls.push(["fundamentals", options.refresh === true]);
+      return new Map(items.map((item) => [item.id, strongFundamentals]));
+    },
+    loadEurRateDetails: async () => new Map()
+  };
+
+  await queryRadar({ refresh: "false" }, overrides);
+  assert.deepEqual(calls.slice(-2), [["history", false], ["fundamentals", false]]);
+
+  await queryRadar({ refresh: "true" }, overrides);
+  assert.deepEqual(calls.slice(-2), [["history", true], ["fundamentals", true]]);
+});
+
+
+test("recommendation hard refresh only forces slow providers for the visible page", async () => {
+  resetRadarAnalysisCache();
+  const candidates = [
+    { ...base[0], risk: 1 },
+    { ...base[1], risk: 2 },
+    { ...base[2], risk: 3, tradeRepublicEligible: true }
+  ];
+  const slowCalls = [];
+  const overrides = {
+    loadUniverse: async () => candidates,
+    loadQuotes: async (items) => new Map(items.map((item) => [item.id, { price: 100, currency: "EUR", percentChange: 0.5, source: "TEST" }])),
+    loadHistory: async (items, options = {}) => {
+      slowCalls.push(["history", items.length, options.refresh === true]);
+      return new Map(items.map((item) => [item.id, { ...strongMomentum, score: 45 }]));
+    },
+    loadFundamentals: async (items, options = {}) => {
+      slowCalls.push(["fundamentals", items.length, options.refresh === true]);
+      return new Map(items.map((item) => [item.id, { ...strongFundamentals, qualityScore: 55, valuationScore: 50, growthScore: 50 }]));
+    },
+    loadEurRateDetails: async () => new Map(),
+    now: 5_000,
+    analysisTtlMs: 60_000
+  };
+
+  await queryRadar({ recommendation: "WATCH", pageSize: 1 }, overrides);
+  slowCalls.length = 0;
+  await queryRadar({ recommendation: "WATCH", pageSize: 1, refresh: "true" }, { ...overrides, now: 6_000 });
+
+  const forced = slowCalls.filter(([, , refresh]) => refresh);
+  assert.ok(forced.length >= 2);
+  assert.ok(forced.every(([, count]) => count <= 1));
+});

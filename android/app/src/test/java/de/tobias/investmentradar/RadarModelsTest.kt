@@ -8,6 +8,12 @@ import org.junit.Test
 
 class RadarModelsTest {
     @Test
+    fun radarQueryDoesNotForceSlowDataRefreshUnlessExplicitlyRequested() {
+        assertFalse(RadarQuery().refresh)
+        assertTrue(RadarQuery(refresh = true).refresh)
+    }
+
+    @Test
     fun radarSummaryConvertsToInvestmentItemWithoutInventingPortfolioOnly() {
         val summary = RadarSummaryItem(
             id = "us-test",
