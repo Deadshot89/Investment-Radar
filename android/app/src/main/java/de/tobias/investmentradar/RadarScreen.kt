@@ -61,14 +61,25 @@ fun RadarScreenV2(
     var remoteDetailId by remember { mutableStateOf<String?>(null) }
     var remoteDetail by remember { mutableStateOf<RadarSummaryItem?>(null) }
     var detailLoading by remember { mutableStateOf(false) }
+    var refreshRequest by remember { mutableIntStateOf(0) }
+    var forceRefreshNext by remember { mutableStateOf(false) }
+    var hardRefreshing by remember { mutableStateOf(false) }
+    var refreshMessage by remember { mutableStateOf<String?>(null) }
 
     val queryKey = listOf(
         filters.query.trim(), filters.recommendation.name, filters.type.name, filters.dataQuality.name,
-        filters.risk.name, filters.sort.name, selectedRegion.orEmpty(), verifiedOnly.toString(), requestedPage.toString()
+        filters.risk.name, filters.sort.name, selectedRegion.orEmpty(), verifiedOnly.toString(), requestedPage.toString(),
+        refreshRequest.toString()
     ).joinToString("|")
 
     LaunchedEffect(queryKey) {
         if (filters.query.isNotBlank()) delay(300)
+        val hardRefresh = forceRefreshNext
+        if (hardRefresh) {
+            forceRefreshNext = false
+            hardRefreshing = true
+            refreshMessage = null
+        }
         loading = true
         error = null
         val query = RadarQuery(
@@ -100,15 +111,25 @@ fun RadarScreenV2(
             },
             page = requestedPage,
             pageSize = 40,
-            tradeRepublicVerified = verifiedOnly
+            tradeRepublicVerified = verifiedOnly,
+            refresh = hardRefresh
         )
         runCatching { ApiClient.loadRadarPage(query) }
             .onSuccess { page ->
                 radarPage = page
                 loaded = if (page.page <= 1) page.items else (loaded + page.items).distinctBy { it.id }
+                if (hardRefresh) {
+                    val incomplete = page.items.count { radarDataGapReasons(it).isNotEmpty() }
+                    refreshMessage = if (incomplete == 0) {
+                        "Datenquellen neu geladen · aktuell keine Datenlücken auf dieser Seite."
+                    } else {
+                        "Datenquellen neu geladen · $incomplete von ${page.items.size} Werten weiterhin unvollständig."
+                    }
+                }
             }
             .onFailure { failure ->
                 error = failure.message ?: "Radar konnte nicht geladen werden"
+                if (hardRefresh) refreshMessage = "Neuladen fehlgeschlagen: " + (failure.message ?: "Unbekannter Fehler")
                 if (filters.recommendation == RadarRecommendationFilter.ALL) {
                     if (loaded.isEmpty()) {
                         loaded = items.filter { !it.portfolioOnly }.map { it.toRadarFallback() }
@@ -119,6 +140,7 @@ fun RadarScreenV2(
                 }
             }
         loading = false
+        if (hardRefresh) hardRefreshing = false
     }
 
     LaunchedEffect(remoteDetailId) {
@@ -232,6 +254,24 @@ fun RadarScreenV2(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    OutlinedButton(
+                        onClick = {
+                            forceRefreshNext = true
+                            requestedPage = 1
+                            refreshRequest++
+                        },
+                        enabled = !loading && !hardRefreshing,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(if (hardRefreshing) "Fehlende Daten werden neu geladen…" else "Fehlende Daten neu laden")
+                    }
+                    refreshMessage?.let { message ->
+                        Text(
+                            message,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (message.startsWith("Neuladen fehlgeschlagen")) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
             }
         }

@@ -149,3 +149,27 @@ test("includeCounts returns total stock ETF buy watch and review counts for the 
     review: 1
   });
 });
+
+
+test("refresh=true forces slow data providers while refresh=false does not", async () => {
+  const calls = [];
+  const overrides = {
+    loadUniverse: async () => [{ ...base[0], risk: 1 }],
+    loadQuotes: async (items) => new Map(items.map((item) => [item.id, { price: 100, currency: "EUR", percentChange: 0.5, source: "TEST" }])),
+    loadHistory: async (items, options = {}) => {
+      calls.push(["history", options.refresh === true]);
+      return new Map(items.map((item) => [item.id, strongMomentum]));
+    },
+    loadFundamentals: async (items, options = {}) => {
+      calls.push(["fundamentals", options.refresh === true]);
+      return new Map(items.map((item) => [item.id, strongFundamentals]));
+    },
+    loadEurRateDetails: async () => new Map()
+  };
+
+  await queryRadar({ refresh: "false" }, overrides);
+  assert.deepEqual(calls.slice(-2), [["history", false], ["fundamentals", false]]);
+
+  await queryRadar({ refresh: "true" }, overrides);
+  assert.deepEqual(calls.slice(-2), [["history", true], ["fundamentals", true]]);
+});

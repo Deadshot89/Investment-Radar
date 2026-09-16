@@ -21,7 +21,9 @@ app.http("radar", {
         sort: params.sort,
         page: params.page,
         pageSize: params.pageSize,
-        tradeRepublicVerified: params.tradeRepublicVerified
+        tradeRepublicVerified: params.tradeRepublicVerified,
+        includeCounts: params.includeCounts,
+        refresh: params.refresh
       };
 
       const primary = await queryRadar(query);

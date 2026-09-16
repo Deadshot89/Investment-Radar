@@ -15,12 +15,12 @@ const BACKGROUND_LOADING_PATTERN = /im Hintergrund (?:geladen|aktualisiert)/i;
 
 export async function queryRadar(query = {}, overrides = {}) {
   const loadUniverse = overrides.loadUniverse ?? defaultLoadUniverse;
-  const refreshRequested = Boolean(query.refresh) || String(query.refresh) === "true";
+  const refreshRequested = query.refresh === true || String(query.refresh ?? "").toLowerCase() === "true";
   const universe = await loadUniverse({ refresh: refreshRequested, ...(overrides.universeOptions ?? {}) });
   const active = universe.filter((item) => item.universeActive !== false && !item.portfolioOnly);
   const filtered = applyFilters(active, query);
   const recommendation = upper(query.recommendation);
-  const includeCounts = query.includeCounts === true || String(query.includeCounts) === "true";
+  const includeCounts = query.includeCounts === true || String(query.includeCounts ?? "").toLowerCase() === "true";
   const pageSize = clampInt(query.pageSize ?? DEFAULT_PAGE_SIZE, 1, MAX_PAGE_SIZE);
   const needsSnapshot = Boolean(recommendation) || includeCounts;
 
