@@ -45,3 +45,32 @@ test("broad positive momentum scores above neutral", () => {
   const result = calculateMomentum(points, now);
   assert.ok(result.score > 50);
 });
+
+
+test("accepts Trade Republic history for an unresolved provider ticker", async () => {
+  const { loadHistory } = await import("../src/lib/history.mjs");
+  const localNow = Date.UTC(2026, 8, 16);
+  const series = marketLikeSeries(280);
+  const item = {
+    id: "mmm",
+    name: "3M",
+    ticker: "US88579Y1010",
+    isin: "US88579Y1010",
+    marketSymbol: "",
+    yahooSymbol: "",
+    providerSymbolUnresolved: true,
+    tradeRepublicEligible: true,
+    type: "AKTIE"
+  };
+  const loadTradeRepublicHistories = async () => new Map([[
+    "mmm",
+    { points: series, source: "Trade Republic", error: null }
+  ]]);
+  const result = await loadHistory([item], {
+    now: localNow,
+    refresh: true,
+    loadTradeRepublicHistories
+  });
+  assert.equal(result.get("mmm").source, "Trade Republic");
+  assert.ok(result.get("mmm").coveragePct >= 70);
+});

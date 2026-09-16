@@ -1,5 +1,6 @@
 import { calculateMomentum } from "./historySupport.mjs";
 import { isFresh, loadAnalysisCache, saveAnalysisCache } from "./analysisCache.mjs";
+import { loadTradeRepublicHistories as defaultLoadTradeRepublicHistories } from "./tradeRepublicMarketData.mjs";
 
 const TWELVE_BASE = "https://api.twelvedata.com/time_series";
 const YAHOO_BASES = [
@@ -9,7 +10,7 @@ const YAHOO_BASES = [
 const FRESH_MS = 6 * 60 * 60 * 1000;
 const MAX_STALE_MS = 7 * 24 * 60 * 60 * 1000;
 
-export async function loadHistory(items, { fetchImpl = fetch, now = Date.now(), refresh = true } = {}) {
+export async function loadHistory(items, { fetchImpl = fetch, now = Date.now(), refresh = true, loadTradeRepublicHistories = defaultLoadTradeRepublicHistories } = {}) {
   const cache = await loadAnalysisCache("history-cache");
   const key = process.env.TWELVE_DATA_API_KEY?.trim();
   const result = new Map();
@@ -42,7 +43,7 @@ export async function loadHistory(items, { fetchImpl = fetch, now = Date.now(), 
       return;
     }
 
-    const loaded = await loadProviderHistory(item, key, fetchImpl);
+    const loaded = await loadProviderHistory(item, key, fetchImpl, loadTradeRepublicHistories);
     if (loaded.points.length > 1) {
       cache[item.id] = { points: loaded.points, source: loaded.source, fetchedAt: new Date(now).toISOString() };
       changed = true;
@@ -62,7 +63,14 @@ export async function loadHistory(items, { fetchImpl = fetch, now = Date.now(), 
   return result;
 }
 
-async function loadProviderHistory(item, key, fetchImpl) {
+async function loadProviderHistory(item, key, fetchImpl, loadTradeRepublicHistories) {
+  if (item?.tradeRepublicEligible === true && item?.isin) {
+    try {
+      const tradeRepublic = await loadTradeRepublicHistories([item]);
+      const loaded = tradeRepublic.get(item.id);
+      if (loaded?.points?.length > 1) return loaded;
+    } catch {}
+  }
   if (key && item.marketSymbol) {
     const twelve = await loadTwelveHistory(item.marketSymbol, key, fetchImpl);
     if (twelve.points.length > 1) return twelve;
@@ -127,6 +135,7 @@ function resolveYahooHistorySymbol(item) {
   if (explicit) return explicit;
   const configured = String(item?.providerSymbols?.yahoo ?? item?.historySymbol ?? '').trim();
   if (configured) return configured;
+  if (item?.providerSymbolUnresolved === true) return "";
   const raw = String(item?.ticker ?? "").trim();
   if (!raw) return "";
   const market = String(item?.marketSymbol ?? "").toUpperCase();

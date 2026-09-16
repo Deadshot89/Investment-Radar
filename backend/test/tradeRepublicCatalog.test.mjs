@@ -81,3 +81,12 @@ test("a total target is split across stocks and ETFs instead of being exhausted 
   assert.ok(items.filter((item) => item.type === "AKTIE").length >= 5);
   assert.ok(items.filter((item) => item.type === "ETF").length >= 3);
 });
+
+
+test("does not invent an ISIN prefix as provider ticker when neonSearch has no symbol", () => {
+  const item = normalizeTradeRepublicResult({ isin: "US88579Y1010", name: "3M" }, "stock");
+  assert.equal(item.ticker, "US88579Y1010");
+  assert.equal(item.marketSymbol, "");
+  assert.equal(item.yahooSymbol, "");
+  assert.equal(item.providerSymbolUnresolved, true);
+});
