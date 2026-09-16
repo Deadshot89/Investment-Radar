@@ -29,6 +29,45 @@ jobs:
         working-directory: backend
         run: npm test
 
+      - name: Probe Yahoo fundamental fallback
+        if: startsWith(github.ref, 'refs/heads/audit/yahoo-fundamentals')
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
+          const headers={Accept:'application/json,text/plain,*/*','User-Agent':UA};
+          const search=async(q)=>{
+            const u=new URL('https://query1.finance.yahoo.com/v1/finance/search');
+            u.searchParams.set('q',q);u.searchParams.set('quotesCount','5');u.searchParams.set('newsCount','0');
+            const r=await fetch(u,{headers,signal:AbortSignal.timeout(15000)});
+            const j=await r.json().catch(()=>({}));
+            console.log('YAHOO_SEARCH',q,'status='+r.status,'quotes='+JSON.stringify((j.quotes||[]).map(x=>({symbol:x.symbol,shortname:x.shortname,longname:x.longname,quoteType:x.quoteType,exchange:x.exchange}))));
+            return j;
+          };
+          const warm=await fetch('https://fc.yahoo.com',{headers:{'User-Agent':UA},redirect:'manual',signal:AbortSignal.timeout(15000)}).catch(e=>null);
+          const setCookies=warm?.headers?.getSetCookie?.() ?? (warm?.headers?.get('set-cookie')?[warm.headers.get('set-cookie')]:[]);
+          const cookie=setCookies.map(v=>String(v).split(';')[0]).filter(Boolean).join('; ');
+          console.log('YAHOO_WARM status='+(warm?.status??'ERR')+' cookieNames='+setCookies.map(v=>String(v).split('=')[0]).join(','));
+          const crumbResp=await fetch('https://query1.finance.yahoo.com/v1/test/getcrumb',{headers:{...headers,Cookie:cookie},signal:AbortSignal.timeout(15000)});
+          const crumb=(await crumbResp.text()).trim();
+          console.log('YAHOO_CRUMB status='+crumbResp.status+' len='+crumb.length);
+          const doSummary=async(symbol)=>{
+            const u=new URL('https://query2.finance.yahoo.com/v10/finance/quoteSummary/'+encodeURIComponent(symbol));
+            u.searchParams.set('modules','summaryDetail,defaultKeyStatistics,financialData');
+            u.searchParams.set('crumb',crumb);
+            const r=await fetch(u,{headers:{...headers,Cookie:cookie},signal:AbortSignal.timeout(15000)});
+            const j=await r.json().catch(()=>({}));
+            const row=j?.quoteSummary?.result?.[0]||null;
+            console.log('YAHOO_SUMMARY',symbol,'status='+r.status,'hasRow='+Boolean(row),'error='+JSON.stringify(j?.quoteSummary?.error||null),'fields='+JSON.stringify(row?{trailingPE:row?.summaryDetail?.trailingPE?.raw,forwardPE:row?.defaultKeyStatistics?.forwardPE?.raw,priceToSales:row?.summaryDetail?.priceToSalesTrailing12Months?.raw,revenueGrowth:row?.financialData?.revenueGrowth?.raw,operatingMargins:row?.financialData?.operatingMargins?.raw,roe:row?.financialData?.returnOnEquity?.raw,marketCap:row?.summaryDetail?.marketCap?.raw}:null));
+          };
+          const mmm=await search('US88579Y1010');
+          await search('US00287Y1091');
+          const mmmSymbol=(mmm.quotes||[])[0]?.symbol||'MMM';
+          await doSummary(mmmSymbol);
+          await doSummary('ABBV');
+          NODE
+
       - name: Check Azure configuration
         if: github.ref == 'refs/heads/main'
         id: azure_config
