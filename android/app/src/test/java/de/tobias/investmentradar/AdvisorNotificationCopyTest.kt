@@ -37,7 +37,7 @@ class AdvisorNotificationCopyTest {
     }
 
     @Test
-    fun `reduce signal is unmistakably labeled as reduce`() {
+    fun `reduce signal is presented as a clear partial sell`() {
         val copy = AdvisorNotificationCopy.format(
             event = signalEvent(
                 previous = AdvisorSignal.HALTEN,
@@ -47,8 +47,8 @@ class AdvisorNotificationCopyTest {
             displayName = "Beispiel Aktie"
         )
 
-        assertEquals("🟠 REDUZIEREN – Beispiel Aktie", copy.title)
-        assertTrue(copy.body.startsWith("Entscheidung: REDUZIEREN"))
+        assertEquals("🔴 VERKAUFEN – Beispiel Aktie", copy.title)
+        assertTrue(copy.body.startsWith("Entscheidung: VERKAUFEN"))
     }
 
     @Test
@@ -67,7 +67,7 @@ class AdvisorNotificationCopyTest {
     }
 
     @Test
-    fun `unreliable analysis does not invent a trade action`() {
+    fun `unreliable analysis keeps the primary action at hold and adds a data warning`() {
         val event = AdvisorNotificationEvent(
             id = "risk|reliability|2026-09-14",
             instrumentId = "risk",
@@ -80,8 +80,9 @@ class AdvisorNotificationCopyTest {
 
         val copy = AdvisorNotificationCopy.format(event, "Beispiel Aktie")
 
-        assertEquals("⚠️ NICHT HANDELN – Beispiel Aktie", copy.title)
-        assertTrue(copy.body.startsWith("Entscheidung: NICHT HANDELN"))
+        assertEquals("🟡 HALTEN – Beispiel Aktie", copy.title)
+        assertTrue(copy.body.startsWith("Entscheidung: HALTEN"))
+        assertTrue(copy.body.contains("Datenwarnung:"))
         assertTrue(copy.body.contains("Marktdaten sind unvollständig"))
     }
 

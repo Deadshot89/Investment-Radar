@@ -459,17 +459,17 @@ private fun detailForecastScenario(targetPriceEur: Double?, changePct: Double): 
 private fun detailAdvisorActionLabel(action: PortfolioAdvisorAction): String = when (action) {
     PortfolioAdvisorAction.NACHKAUFEN -> "Nachkaufen"
     PortfolioAdvisorAction.HALTEN -> "Halten"
-    PortfolioAdvisorAction.REDUZIEREN -> "Reduzieren"
+    PortfolioAdvisorAction.REDUZIEREN -> "Verkaufen (Teilverkauf)"
     PortfolioAdvisorAction.VERKAUFEN -> "Verkaufen"
     PortfolioAdvisorAction.NEU_AUFNEHMEN -> "Neu aufnehmen"
     PortfolioAdvisorAction.NICHT_AUFNEHMEN -> "Nicht aufnehmen"
-    PortfolioAdvisorAction.KEINE_BELASTBARE_BEWERTUNG -> "Bewertung prüfen"
+    PortfolioAdvisorAction.KEINE_BELASTBARE_BEWERTUNG -> "Halten · Daten prüfen"
 }
 
 private fun detailAdvisorSignalLabel(signal: AdvisorSignal): String = when (signal) {
     AdvisorSignal.NACHKAUFEN -> "Nachkaufen"
     AdvisorSignal.HALTEN -> "Halten"
-    AdvisorSignal.REDUZIEREN -> "Reduzieren"
+    AdvisorSignal.REDUZIEREN -> "Verkaufen (Teilverkauf)"
     AdvisorSignal.VERKAUFEN -> "Verkaufen"
-    AdvisorSignal.KEINE_BELASTBARE_BEWERTUNG -> "Bewertung prüfen"
+    AdvisorSignal.KEINE_BELASTBARE_BEWERTUNG -> "Halten · Daten prüfen"
 }
