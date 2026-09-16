@@ -29,6 +29,38 @@ jobs:
         working-directory: backend
         run: npm test
 
+      - name: Probe Yahoo symbol ranking
+        if: startsWith(github.ref, 'refs/heads/audit/yahoo-symbol-ranking')
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const UA='Mozilla/5.0 InvestmentRadar/2.5';
+          const cases=[
+            ['US91680M1071','Upstart Holdings'],
+            ['US0567521085','Baidu'],
+            ['US7223041028','PDD Holdings'],
+            ['US3377381088','Fiserv'],
+            ['DE0006219934','Jungheinrich'],
+            ['DE000A3H2333','Hamborner REIT'],
+            ['NO0011202772','VAR Energi'],
+            ['US7960542030','Samsung SDI'],
+            ['US78392B1070','SK Hynix']
+          ];
+          const search=async(q)=>{
+            const u=new URL('https://query1.finance.yahoo.com/v1/finance/search');
+            u.searchParams.set('q',q);u.searchParams.set('quotesCount','12');u.searchParams.set('newsCount','0');
+            const r=await fetch(u,{headers:{Accept:'application/json','User-Agent':UA}});
+            const j=await r.json().catch(()=>({}));
+            return (j.quotes||[]).filter(x=>String(x.quoteType).toUpperCase()==='EQUITY').map(x=>({
+              symbol:x.symbol,exchange:x.exchange,exchDisp:x.exchDisp,shortname:x.shortname,longname:x.longname,score:x.score
+            }));
+          };
+          for(const [isin,name] of cases){
+            console.log('SYMBOL_RANK_PROBE',JSON.stringify({isin,name,byIsin:await search(isin),byName:await search(name)}));
+          }
+          NODE
+
       - name: Check Azure configuration
         if: github.ref == 'refs/heads/main'
         id: azure_config
