@@ -18,7 +18,7 @@ export async function loadHistory(items, { fetchImpl = fetch, now = Date.now(), 
 
   await mapLimit(items, 4, async (item) => {
     const cached = cache[item.id];
-    if (isFresh(cached, FRESH_MS, now) && Array.isArray(cached.points)) {
+    if (shouldReuseFreshHistoryCache(cached, now, refresh)) {
       result.set(item.id, { ...calculateMomentum(cached.points, now), source: cached.source || "Cache", stale: false });
       return;
     }
@@ -61,6 +61,10 @@ export async function loadHistory(items, { fetchImpl = fetch, now = Date.now(), 
 
   if (changed) await saveAnalysisCache("history-cache", cache);
   return result;
+}
+
+export function shouldReuseFreshHistoryCache(cached, now = Date.now(), refresh = false) {
+  return refresh !== true && Array.isArray(cached?.points) && isFresh(cached, FRESH_MS, now);
 }
 
 async function loadProviderHistory(item, key, fetchImpl, loadTradeRepublicHistories) {
