@@ -83,3 +83,58 @@ test("explicit history refresh bypasses an otherwise fresh cache", () => {
   assert.equal(shouldReuseFreshHistoryCache(cached, localNow, false), true);
   assert.equal(shouldReuseFreshHistoryCache(cached, localNow, true), false);
 });
+
+
+test("prefers Yahoo when Trade Republic history is below the quality threshold", async () => {
+  const { loadHistory } = await import("../src/lib/history.mjs");
+  const partial = points.slice(-80);
+  const full = points;
+  const item = {
+    id: "history-fallback-blackrock-test",
+    name: "BlackRock",
+    ticker: "US09290D1019",
+    isin: "US09290D1019",
+    marketSymbol: "",
+    yahooSymbol: "",
+    providerSymbolUnresolved: true,
+    tradeRepublicEligible: true,
+    type: "AKTIE"
+  };
+  const loadTradeRepublicHistories = async () => new Map([[
+    item.id,
+    { points: partial, source: "Trade Republic", error: null }
+  ]]);
+  const fetchImpl = async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      chart: {
+        result: [{
+          timestamp: full.map((p) => Math.floor(p.time / 1000)),
+          indicators: { quote: [{ close: full.map((p) => p.close) }] }
+        }]
+      }
+    })
+  });
+
+  const result = await loadHistory([item], {
+    now,
+    refresh: true,
+    fetchImpl,
+    loadTradeRepublicHistories,
+    resolveYahooSymbol: async () => "BLK"
+  });
+
+  assert.equal(result.get(item.id).source, "Yahoo Finance");
+  assert.ok(result.get(item.id).coveragePct >= 85);
+});
+
+test("best history candidate chooses real coverage before provider order", async () => {
+  const { bestHistoryCandidate } = await import("../src/lib/history.mjs");
+  const short = { points: points.slice(-70), source: "Trade Republic" };
+  const complete = { points, source: "Yahoo Finance" };
+
+  const selected = bestHistoryCandidate([short, complete], now);
+
+  assert.equal(selected.source, "Yahoo Finance");
+});
