@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { calculateMomentum } from "../src/lib/historySupport.mjs";
+import { shouldReuseFreshHistoryCache } from "../src/lib/history.mjs";
 
 const DAY = 86_400_000;
 const now = Date.UTC(2026, 8, 2);
