@@ -14,8 +14,13 @@ for literal in \
   grep -q "$literal" "$PORTFOLIO"
 done
 
-for literal in 'Neu aufnehmen' 'Reduzieren' 'Verkaufen'; do
+for literal in 'Neu aufnehmen' 'Verkaufen (Teilverkauf)' 'Verkaufen' 'Halten · Daten prüfen'; do
   grep -q "$literal" "$RADAR"
+done
+
+for surface in "$PORTFOLIO" "$RADAR" "$DETAIL"; do
+  ! grep -Fq -- '-> "Reduzieren"' "$surface"
+  ! grep -Fq -- '-> "Bewertung prüfen"' "$surface"
 done
 
 grep -q 'Konfidenz' "$DETAIL"

@@ -20,9 +20,9 @@ object AdvisorNotificationCopy {
             event.newSignal == AdvisorSignal.KEINE_BELASTBARE_BEWERTUNG
         ) {
             return AdvisorNotificationText(
-                title = "⚠️ NICHT HANDELN – $name",
-                body = body("NICHT HANDELN", reason.ifBlank { "Die Datenbasis reicht aktuell nicht für eine belastbare Entscheidung." }),
-                level = "REVIEW"
+                title = "🟡 HALTEN – $name",
+                body = body("HALTEN", "Datenwarnung: " + reason.ifBlank { "Die Datenbasis reicht aktuell nicht für eine belastbare Entscheidung." }),
+                level = "WATCH"
             )
         }
 
@@ -32,23 +32,23 @@ object AdvisorNotificationCopy {
             val amount = event.amountEur?.takeIf { it > 0 }
             val detail = buildString {
                 if (amount != null) append("$amount € ")
-                append("$fromName reduzieren")
+                append("$fromName teilweise verkaufen")
                 if (toName != null) append(" und nach $toName umschichten")
                 if (reason.isNotBlank()) append(". $reason")
             }
             return AdvisorNotificationText(
-                title = "🟠 REDUZIEREN – $fromName",
-                body = body("REDUZIEREN", detail),
-                level = "REVIEW"
+                title = "🔴 VERKAUFEN – $fromName",
+                body = body("VERKAUFEN", detail),
+                level = "SELL"
             )
         }
 
         val action = when (event.newSignal) {
             AdvisorSignal.NACHKAUFEN -> Action("🟢", "NACHKAUFEN", "BUY")
             AdvisorSignal.HALTEN -> Action("🟡", "HALTEN", "WATCH")
-            AdvisorSignal.REDUZIEREN -> Action("🟠", "REDUZIEREN", "REVIEW")
+            AdvisorSignal.REDUZIEREN -> Action("🔴", "VERKAUFEN", "SELL")
             AdvisorSignal.VERKAUFEN -> Action("🔴", "VERKAUFEN", "SELL")
-            AdvisorSignal.KEINE_BELASTBARE_BEWERTUNG -> Action("⚠️", "NICHT HANDELN", "REVIEW")
+            AdvisorSignal.KEINE_BELASTBARE_BEWERTUNG -> Action("🟡", "HALTEN", "WATCH")
         }
 
         val detail = when (event.kind) {

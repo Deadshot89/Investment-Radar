@@ -623,9 +623,9 @@ private fun formatRadarForecastRange(point: ForecastPoint): String {
 private fun radarAdvisorActionLabel(action: PortfolioAdvisorAction): String = when (action) {
     PortfolioAdvisorAction.NACHKAUFEN -> "Nachkaufen"
     PortfolioAdvisorAction.HALTEN -> "Halten"
-    PortfolioAdvisorAction.REDUZIEREN -> "Reduzieren"
+    PortfolioAdvisorAction.REDUZIEREN -> "Verkaufen (Teilverkauf)"
     PortfolioAdvisorAction.VERKAUFEN -> "Verkaufen"
     PortfolioAdvisorAction.NEU_AUFNEHMEN -> "Neu aufnehmen"
     PortfolioAdvisorAction.NICHT_AUFNEHMEN -> "Nicht aufnehmen"
-    PortfolioAdvisorAction.KEINE_BELASTBARE_BEWERTUNG -> "Bewertung prüfen"
+    PortfolioAdvisorAction.KEINE_BELASTBARE_BEWERTUNG -> "Halten · Daten prüfen"
 }
