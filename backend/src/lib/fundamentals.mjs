@@ -28,7 +28,7 @@ export async function loadFundamentals(items, {
       return;
     }
     const cached = cache[item.id];
-    if (isFresh(cached, FRESH_MS, now) && cached?.raw) {
+    if (shouldReuseFreshFundamentalCache(cached, now, refresh)) {
       result.set(item.id, normalizeFundamentals({
         ...cached.raw,
         source: cached.source || "Fundamentaldaten",
@@ -105,6 +105,10 @@ export async function loadFundamentals(items, {
 
   if (changed) await saveAnalysisCache("fundamentals-cache", cache);
   return result;
+}
+
+export function shouldReuseFreshFundamentalCache(cached, now = Date.now(), refresh = false) {
+  return refresh !== true && Boolean(cached?.raw) && isFresh(cached, FRESH_MS, now);
 }
 
 export function mergeFundamentalSources(primary, fallback) {
