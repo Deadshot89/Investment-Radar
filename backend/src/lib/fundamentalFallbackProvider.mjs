@@ -143,31 +143,144 @@ export async function defaultResolveYahooSymbol(item, fetchImpl = fetch) {
   if (cached && Date.now() - cached.cachedAt <= YAHOO_SYMBOL_TTL_MS) return cached.symbol;
 
   try {
-    const url = new URL(YAHOO_SEARCH_BASE);
-    url.searchParams.set('q', isin);
-    url.searchParams.set('quotesCount', '8');
-    url.searchParams.set('newsCount', '0');
-    if (fetchImpl === globalThis.fetch) await throttleYahoo();
-    const response = await fetchImpl(url, {
-      headers: { Accept: 'application/json', 'User-Agent': USER_AGENT },
-      signal: AbortSignal.timeout(12_000)
-    });
-    if (!response.ok) return '';
-
-    const json = await response.json();
-    const candidates = Array.isArray(json?.quotes) ? json.quotes : [];
     const expectedType = String(item?.type ?? '').toUpperCase() === 'ETF' ? 'ETF' : 'EQUITY';
-    const candidate = candidates.find((quote) =>
-      String(quote?.quoteType ?? '').toUpperCase() === expectedType &&
-      typeof quote?.symbol === 'string' &&
-      quote.symbol.trim()
-    );
-    const symbol = String(candidate?.symbol ?? '').trim().toUpperCase();
+    const isinCandidates = await searchYahooEquities(isin, expectedType, fetchImpl);
+    const identityNames = [
+      firstString(item?.tradeRepublicName),
+      firstString(item?.name),
+      ...isinCandidates.flatMap((candidate) => [candidate.shortname, candidate.longname])
+    ].filter(Boolean);
+
+    const trustedByIsin = isinCandidates.map((candidate) => ({ ...candidate, identityTrusted: true }));
+    const bestIsin = rankYahooCandidates(trustedByIsin, identityNames)[0] ?? null;
+
+    let nameCandidates = [];
+    const nameQueries = [...new Set([
+      firstString(item?.tradeRepublicName),
+      firstString(item?.name),
+      bestIsin?.longname,
+      bestIsin?.shortname
+    ].filter(Boolean))].slice(0, 2);
+
+    if (!bestIsin || exchangePriority(bestIsin.exchange) < 90) {
+      for (const query of nameQueries) {
+        const loaded = await searchYahooEquities(query, expectedType, fetchImpl);
+        nameCandidates.push(...loaded.map((candidate) => ({
+          ...candidate,
+          identityTrusted: false,
+          nameMatch: bestNameMatch(candidate, identityNames)
+        })));
+      }
+    }
+
+    nameCandidates = nameCandidates.filter((candidate) => Number(candidate.nameMatch ?? 0) >= 0.55);
+    const ranked = rankYahooCandidates([...trustedByIsin, ...nameCandidates], identityNames);
+    const selected = ranked[0] ?? null;
+    const symbol = String(selected?.symbol ?? '').trim().toUpperCase();
+
     if (symbol) symbolCache.set(isin, { symbol, cachedAt: Date.now() });
     return symbol;
   } catch {
     return '';
   }
+}
+
+async function searchYahooEquities(query, expectedType, fetchImpl) {
+  const value = String(query ?? '').trim();
+  if (!value) return [];
+  const url = new URL(YAHOO_SEARCH_BASE);
+  url.searchParams.set('q', value);
+  url.searchParams.set('quotesCount', '12');
+  url.searchParams.set('newsCount', '0');
+  if (fetchImpl === globalThis.fetch) await throttleYahoo();
+  const response = await fetchImpl(url, {
+    headers: { Accept: 'application/json', 'User-Agent': USER_AGENT },
+    signal: AbortSignal.timeout(12_000)
+  });
+  if (!response.ok) return [];
+  const json = await response.json();
+  return (Array.isArray(json?.quotes) ? json.quotes : [])
+    .filter((quote) =>
+      String(quote?.quoteType ?? '').toUpperCase() === expectedType &&
+      typeof quote?.symbol === 'string' &&
+      quote.symbol.trim()
+    )
+    .map((quote) => ({
+      symbol: String(quote.symbol).trim().toUpperCase(),
+      exchange: String(quote.exchange ?? '').trim().toUpperCase(),
+      shortname: String(quote.shortname ?? '').trim(),
+      longname: String(quote.longname ?? '').trim(),
+      providerScore: Number(quote.score ?? 0)
+    }));
+}
+
+export function rankYahooCandidates(candidates, identityNames = []) {
+  const unique = new Map();
+  for (const candidate of candidates ?? []) {
+    if (!candidate?.symbol) continue;
+    const current = unique.get(candidate.symbol);
+    if (!current || scoreYahooCandidate(candidate, identityNames) > scoreYahooCandidate(current, identityNames)) {
+      unique.set(candidate.symbol, candidate);
+    }
+  }
+  return [...unique.values()].sort(
+    (a, b) => scoreYahooCandidate(b, identityNames) - scoreYahooCandidate(a, identityNames)
+  );
+}
+
+function scoreYahooCandidate(candidate, identityNames) {
+  const match = Number.isFinite(Number(candidate?.nameMatch))
+    ? Number(candidate.nameMatch)
+    : bestNameMatch(candidate, identityNames);
+  const provider = Math.min(35, Math.max(0, Number(candidate?.providerScore ?? 0) / 1000));
+  return exchangePriority(candidate?.exchange)
+    + (candidate?.identityTrusted === true ? 18 : 0)
+    + match * 35
+    + provider;
+}
+
+function exchangePriority(exchange) {
+  const code = String(exchange ?? '').toUpperCase();
+  if (['NMS','NYQ','NGM','NCM','ASE'].includes(code)) return 120;
+  if (['GER','KSC','HKG','LSE','PAR','AMS','EBS','MIL','OSL','STO','CPH','HEL','TOR','VAN','ASX','TYO'].includes(code)) return 112;
+  if (['VIE','IOB','MEX','SAO'].includes(code)) return 75;
+  if (['PNK'].includes(code)) return 45;
+  if (['FRA'].includes(code)) return 40;
+  if (['STU','DUS','HAM','HAN','MUN'].includes(code)) return 25;
+  return 60;
+}
+
+function bestNameMatch(candidate, identityNames) {
+  const candidateNames = [candidate?.longname, candidate?.shortname].filter(Boolean);
+  let best = 0;
+  for (const left of candidateNames) {
+    for (const right of identityNames ?? []) best = Math.max(best, companyNameMatch(left, right));
+  }
+  return best;
+}
+
+function companyNameMatch(a, b) {
+  const left = normalizeCompanyName(a);
+  const right = normalizeCompanyName(b);
+  if (!left || !right) return 0;
+  if (left === right || left.includes(right) || right.includes(left)) return 1;
+  const aTokens = new Set(left.split(' ').filter((token) => token.length >= 3));
+  const bTokens = new Set(right.split(' ').filter((token) => token.length >= 3));
+  if (!aTokens.size || !bTokens.size) return 0;
+  const shared = [...aTokens].filter((token) => bTokens.has(token));
+  if (shared.some((token) => token.length >= 6)) return Math.max(0.65, shared.length / Math.min(aTokens.size, bTokens.size));
+  return shared.length / Math.max(aTokens.size, bTokens.size);
+}
+
+function normalizeCompanyName(value) {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\b(adr|gdr|inc|incorporated|corp|corporation|company|co|ltd|limited|plc|ag|se|sa|nv|asa|holdings?|group)\b/g, ' ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
 }
 
 export async function defaultGetYahooSession(fetchImpl = fetch, { forceRefresh = false } = {}) {
