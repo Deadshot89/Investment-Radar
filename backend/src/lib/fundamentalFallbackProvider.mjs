@@ -13,7 +13,7 @@ const PROVIDER_FIELDS = [
 ];
 
 const yahooSessionCache = new WeakMap();
-const yahooSymbolCache = new Map();
+const yahooSymbolCaches = new WeakMap();
 let yahooThrottleChain = Promise.resolve();
 let yahooNextRequestAt = 0;
 
@@ -138,7 +138,8 @@ export async function defaultResolveYahooSymbol(item, fetchImpl = fetch) {
   const isin = String(item?.isin ?? '').trim().toUpperCase();
   if (!looksLikeIsin(isin)) return '';
 
-  const cached = yahooSymbolCache.get(isin);
+  const symbolCache = getYahooSymbolCache(fetchImpl);
+  const cached = symbolCache.get(isin);
   if (cached && Date.now() - cached.cachedAt <= YAHOO_SYMBOL_TTL_MS) return cached.symbol;
 
   try {
@@ -162,7 +163,7 @@ export async function defaultResolveYahooSymbol(item, fetchImpl = fetch) {
       quote.symbol.trim()
     );
     const symbol = String(candidate?.symbol ?? '').trim().toUpperCase();
-    if (symbol) yahooSymbolCache.set(isin, { symbol, cachedAt: Date.now() });
+    if (symbol) symbolCache.set(isin, { symbol, cachedAt: Date.now() });
     return symbol;
   } catch {
     return '';
@@ -199,6 +200,15 @@ export async function defaultGetYahooSession(fetchImpl = fetch, { forceRefresh =
   const session = { cookie, crumb, createdAt: now };
   yahooSessionCache.set(fetchImpl, session);
   return session;
+}
+
+function getYahooSymbolCache(fetchImpl) {
+  let cache = yahooSymbolCaches.get(fetchImpl);
+  if (!cache) {
+    cache = new Map();
+    yahooSymbolCaches.set(fetchImpl, cache);
+  }
+  return cache;
 }
 
 async function throttleYahoo() {
