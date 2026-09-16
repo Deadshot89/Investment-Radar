@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { normalizeFundamentals } from "../src/lib/fundamentalSupport.mjs";
-import { mergeFundamentalSources } from "../src/lib/fundamentals.mjs";
+import { mergeFundamentalSources, shouldReuseFreshFundamentalCache } from "../src/lib/fundamentals.mjs";
 
 test("missing provider fields remain null", () => {
   const result = normalizeFundamentals({ pe: 22, revenueGrowth: null, debtToEquity: undefined });
@@ -77,4 +77,12 @@ test('exactly five percentage points is not yet a margin conflict', () => {
   );
 
   assert.ok(!merged.conflicts.includes('netMargin'));
+});
+
+
+test("explicit fundamental refresh bypasses an otherwise fresh cache", () => {
+  const now = Date.UTC(2026, 8, 16, 12, 0, 0);
+  const cached = { raw: { pe: 20 }, fetchedAt: new Date(now - 60_000).toISOString() };
+  assert.equal(shouldReuseFreshFundamentalCache(cached, now, false), true);
+  assert.equal(shouldReuseFreshFundamentalCache(cached, now, true), false);
 });
