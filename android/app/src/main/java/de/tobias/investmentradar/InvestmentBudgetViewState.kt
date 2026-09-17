@@ -35,34 +35,29 @@ data class InvestmentBudgetViewState(
             activeInvestedEur: Double = summary.executedBuysEur,
             today: LocalDate = LocalDate.now()
         ): InvestmentBudgetViewState {
-            val cockpit = InvestmentBudgetPresentation.from(summary)
             val currentMonth = YearMonth.from(today)
-            val currentEntries = entries.filter { entry ->
+            val validEntries = entries.filter {
+                it.id.isNotBlank() &&
+                    it.amountEur.isFinite() && it.amountEur >= 0.0 &&
+                    it.feeEur.isFinite() && it.feeEur >= 0.0
+            }.distinctBy { it.id }
+            val currentEntries = validEntries.filter { entry ->
                 InvestmentBudgetDate.parse(entry.date)?.let { YearMonth.from(it) == currentMonth } == true
             }
-            val priorEntries = entries.filter { entry ->
+            val priorEntries = validEntries.filter { entry ->
                 InvestmentBudgetDate.parse(entry.date)?.let { YearMonth.from(it) < currentMonth } == true
             }
-            val monthly = currentEntries
-                .filter { it.type == BudgetJournalType.MONTHLY_DEPOSIT }
-                .sumOf { it.amountEur }
-            val extra = currentEntries
-                .filter { it.type == BudgetJournalType.EXTRA_DEPOSIT }
-                .sumOf { it.amountEur }
-            val sales = currentEntries
-                .filter { it.type == BudgetJournalType.SELL_CREDIT }
-                .sumOf { it.amountEur }
+            val monthly = currentEntries.filter { it.type == BudgetJournalType.MONTHLY_DEPOSIT }.sumOf { it.amountEur }
+            val extra = currentEntries.filter { it.type == BudgetJournalType.EXTRA_DEPOSIT }.sumOf { it.amountEur }
+            val sales = currentEntries.filter { it.type == BudgetJournalType.SELL_CREDIT }.sumOf { it.amountEur }
+            val currentBalance = currentEntries.sumOf(::balanceEffect).coerceAtLeast(0.0)
+            val reserved = summary.reservedEur.coerceFiniteNonNegative().coerceAtMost(currentBalance)
+            val available = (currentBalance - reserved).coerceAtLeast(0.0)
             val fees = currentEntries
                 .filter { it.type == BudgetJournalType.BUY_DEBIT || it.type == BudgetJournalType.SELL_CREDIT }
                 .sumOf { it.feeEur }
             val carryover = priorEntries.sumOf(::balanceEffect)
-            val history = entries
-                .filter {
-                    it.id.isNotBlank() &&
-                        it.amountEur.isFinite() && it.amountEur >= 0.0 &&
-                        it.feeEur.isFinite() && it.feeEur >= 0.0
-                }
-                .distinctBy { it.id }
+            val history = validEntries
                 .sortedWith(
                     compareByDescending<BudgetJournalEntry> {
                         InvestmentBudgetDate.parse(it.date) ?: LocalDate.MIN
@@ -83,10 +78,8 @@ data class InvestmentBudgetViewState(
                         BudgetJournalType.ADJUSTMENT_CREDIT -> "Korrektur +"
                         BudgetJournalType.ADJUSTMENT_DEBIT -> "Korrektur −"
                     }
-                    val feeNote = entry.feeEur
-                        .takeIf { it > 0.0 }
-                        ?.let { "Gebühr %.2f € bereits im Betrag enthalten".format(it) }
-                        .orEmpty()
+                    val feeNote = entry.feeEur.takeIf { it > 0.0 }
+                        ?.let { "Gebühr %.2f € bereits im Betrag enthalten".format(it) }.orEmpty()
                     BudgetHistoryItem(
                         id = entry.id,
                         date = entry.date,
@@ -103,10 +96,10 @@ data class InvestmentBudgetViewState(
                 extraFundingEur = extra.coerceFiniteNonNegative(),
                 investedEur = activeInvestedEur.coerceFiniteNonNegative(),
                 saleCreditsEur = sales.coerceFiniteNonNegative(),
-                reservedEur = cockpit.reservedEur,
-                availableEur = cockpit.availableEur,
-                advisorBudgetEur = cockpit.advisorBudgetEur,
-                cashBalanceEur = summary.cashBalanceEur.coerceFiniteNonNegative(),
+                reservedEur = reserved,
+                availableEur = available,
+                advisorBudgetEur = available.toInt().coerceAtLeast(0),
+                cashBalanceEur = currentBalance,
                 carryoverEur = carryover.coerceAtLeast(0.0),
                 feesEur = fees.coerceFiniteNonNegative(),
                 monthLabel = InvestmentBudgetDate.monthLabel(currentMonth.toString()),
