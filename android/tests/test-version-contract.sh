@@ -20,7 +20,7 @@ fail() {
   exit 1
 }
 
-grep -Fq 'versionCode = 85' "$GRADLE_FILE" || fail 'Android versionCode muss 84 sein.'
+grep -Fq 'versionCode = 85' "$GRADLE_FILE" || fail 'Android versionCode muss 85 sein.'
 grep -Fq 'versionName = "2.5.15"' "$GRADLE_FILE" || fail 'Android versionName muss 2.5.15 sein.'
 grep -Fq 'Release candidate: Investment Radar 2.5.15' "$GRADLE_FILE" || fail 'Release-Kandidat muss 2.5.15 benennen.'
 grep -Fq 'EXPECTED_BACKEND_VERSION: "2.1.0"' "$WORKFLOW_FILE" || fail 'Backend-Vertrag muss bei 2.1.0 bleiben.'
