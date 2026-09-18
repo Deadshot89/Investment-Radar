@@ -351,9 +351,22 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             it.id == purchase.id && it.type == BudgetJournalType.BUY_DEBIT && it.itemId == itemId
         }
         if (!budgetBacked) {
-            val next = current.upsertPurchaseIfValid(purchase) ?: return false
-            savePosition(next)
-            return true
+            val result = InvestmentBudgetExecutionService.executeBuy(
+                position = current,
+                entries = entries,
+                reservations = reservations,
+                request = BudgetBuyExecution(
+                    eventId = purchase.id,
+                    reservationId = null,
+                    itemId = itemId,
+                    date = purchase.date,
+                    amountEur = purchase.investedAmount,
+                    shares = purchase.shares,
+                    source = BudgetJournalSource.MANUAL,
+                    feeEur = feeEur ?: 0.0
+                )
+            )
+            return applyBudgetExecutionResult(app, result)
         }
         val result = InvestmentBudgetExecutionService.reviseBuy(current, entries, purchase, reservations, feeEur)
         return applyBudgetExecutionResult(app, result)
