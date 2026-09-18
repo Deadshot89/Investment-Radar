@@ -518,10 +518,16 @@ fun InvestmentRadarUi(
                                 actionCenter = moneyActionCenter,
                                 liquidityHoldings = liquidityHoldings,
                                 onOpenBudgetEditor = { budgetDialog = true },
-                                onExecuteLiquiditySale = { itemId, amountEur ->
-                                    val item = liquidityItemsById[itemId]
+                                onExecuteLiquiditySale = { suggestion ->
+                                    val item = liquidityItemsById[suggestion.itemId]
                                     if (item != null) {
-                                        pendingActionAmountEur = amountEur
+                                        pendingActionAmountEur = suggestion.amountEur
+                                        pendingActionShares = suggestion.shares
+                                        pendingActionPrefillMessage = buildString {
+                                            append("Geldbedarf: ")
+                                            append(if (suggestion.fullExit) "Vollverkauf" else "Teilverkauf")
+                                            if (suggestion.reason.isNotBlank()) append(" · ").append(suggestion.reason)
+                                        }
                                         investmentDialogEntryType = "SELL"
                                         investmentDialogItem = item
                                     } else {
@@ -1561,7 +1567,7 @@ private fun MoneyManagementScreen(
     actionCenter: DepotActionCenterState,
     liquidityHoldings: List<LiquidityHolding>,
     onOpenBudgetEditor: () -> Unit,
-    onExecuteLiquiditySale: (String, Double) -> Unit,
+    onExecuteLiquiditySale: (LiquiditySaleSuggestion) -> Unit,
     onRecordWithdrawal: (Double) -> Boolean,
     onExecuteAction: (DepotActionCenterItem) -> Unit
 ) {
@@ -1736,7 +1742,7 @@ private fun MoneyManagementScreen(
                                 }
                                 Text(suggestion.reason, color = RadarMuted, style = MaterialTheme.typography.bodySmall)
                                 Button(
-                                    onClick = { onExecuteLiquiditySale(suggestion.itemId, suggestion.amountEur) },
+                                    onClick = { onExecuteLiquiditySale(suggestion) },
                                     modifier = Modifier.fillMaxWidth(),
                                     colors = ButtonDefaults.buttonColors(containerColor = RadarRed, contentColor = Color.White)
                                 ) {
