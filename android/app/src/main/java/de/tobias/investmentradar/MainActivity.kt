@@ -816,6 +816,7 @@ private fun DashboardScreen(
                 NeonStatStrip(
                     entries = listOf(
                         "Monatsbudget ${budgetState.monthLabel}" to formatMoney(budgetState.monthlyBudgetEur),
+                        "Diesen Monat investiert" to formatMoney(budgetState.spentThisMonthEur),
                         "Für Käufe frei" to formatMoney(budgetState.monthlyAvailableEur),
                         "Rest Vormonate" to formatMoney(budgetState.carryoverEur),
                         "Zusätzlich" to formatMoney(budgetState.extraFundingEur),
@@ -826,7 +827,7 @@ private fun DashboardScreen(
                     ),
                     accent = RadarBlue
                 )
-                Text("Restgeld bleibt als Gesamtguthaben erhalten. Neue Kaufempfehlungen werden trotzdem nur aus dem noch freien Budget des aktuellen Monats berechnet.", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
+                Text("Bestätigte Käufe werden sofort vom Monatsbudget abgezogen. Restgeld bleibt als Gesamtguthaben erhalten; neue Kaufempfehlungen nutzen nur den noch freien Monatsrahmen.", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
             }
         }
 
