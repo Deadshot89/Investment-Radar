@@ -9,6 +9,8 @@ grep -Fq 'Text("Ausgeführt")' "$SCREEN" || { echo 'Executed confirmation action
 grep -Fq 'Text("Nicht ausgeführt")' "$SCREEN" || { echo 'Skipped confirmation action missing'; exit 1; }
 grep -Fq 'Ausführungstage' "$SCREEN" || { echo 'Editable execution days missing'; exit 1; }
 grep -Fq 'Instrument noch nicht eindeutig zugeordnet' "$SCREEN" || { echo 'Private Equity safety message missing'; exit 1; }
+grep -Fq 'Instrument zuordnen' "$SCREEN" || { echo 'Savings-plan instrument mapping action missing'; exit 1; }
+grep -Fq 'vm.executeBuy(itemId, purchase, BudgetJournalSource.SAVINGS_PLAN)' "$SCREEN" || { echo 'Confirmed savings-plan execution must debit the investment budget'; exit 1; }
 grep -Fq 'SavingsPlansScreen(' "$PORTFOLIO" || { echo 'Portfolio savings-plan navigation missing'; exit 1; }
 grep -Fq 'onShowSavingsPlansChange(true)' "$PORTFOLIO" || { echo 'Root-owned portfolio savings-plan entry action missing'; exit 1; }
 grep -Fq 'onShowSavingsPlansChange(false)' "$PORTFOLIO" || { echo 'Root-owned portfolio savings-plan return action missing'; exit 1; }
