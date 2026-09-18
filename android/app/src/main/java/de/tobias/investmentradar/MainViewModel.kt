@@ -156,7 +156,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun persistAdvisorPlan(application: Application, dashboard: DashboardData) {
-        val budgetSummary = InvestmentBudgetStore.summary(application)
+        val advisorBudgetEur = _budgetState.value.advisorBudgetEur
         val portfolioValues = PortfolioAnalysis.values(dashboard.items, _positions.value, _customItems.value)
         val monthlySavings = SavingsPlanBudget.monthlyAmounts(SavingsPlanStore.readPlans(application))
         val candidates = dashboard.items.map { item ->
@@ -168,7 +168,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 freshness = DataFreshness.summarize(item)
             )
         }
-        val plan = PortfolioAdvisorEngine.allocate(candidates, budgetSummary)
+        val plan = PortfolioAdvisorEngine.allocate(candidates, advisorBudgetEur)
         val analysisDay = dashboard.generatedAt.take(10).takeIf { it.length == 10 } ?: LocalDate.now().toString()
         PortfolioAdvisorStore.save(application, analysisDay, plan)
     }
