@@ -362,7 +362,7 @@ fun InvestmentRadarUi(
                             analysisDay = s.data.generatedAt.take(10).ifBlank { "current" },
                             advisorPlan = advisorPlan,
                             currentPricesEur = currentPricesEur
-                        ).copy(availableBudgetEur = budgetState.availableEur)
+                        ).copy(availableBudgetEur = budgetState.monthlyAvailableEur)
                         val liveActionPlan = ExitStrategyActionOverlay.apply(
                             plan = baseActionPlan,
                             positions = positions,
@@ -799,7 +799,7 @@ private fun DashboardScreen(
             val signalStyle = if (top == null) MaterialTheme.typography.labelLarge else MaterialTheme.typography.titleLarge
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 DarkMetricCard("MARKT", data.marketLight.uppercase(), RadarYellow, Modifier.weight(1f))
-                DarkMetricCard("VERFÜGBAR", formatMoney(budgetState.availableEur), RadarBlue, Modifier.weight(1f), onClick = onEditBudget)
+                DarkMetricCard("FÜR KÄUFE", formatMoney(budgetState.monthlyAvailableEur), RadarBlue, Modifier.weight(1f), onClick = onEditBudget)
                 DarkMetricCard("SIGNAL", if (top != null) "AKTIV" else "WARTEN", signalAccent, Modifier.weight(1f), valueStyle = signalStyle)
             }
         }
@@ -809,23 +809,24 @@ private fun DashboardScreen(
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("BUDGET-COCKPIT", color = RadarBlue, fontWeight = FontWeight.Black, style = MaterialTheme.typography.labelLarge)
-                        Text("Echtes verfügbares Investmentbudget", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
+                        Text("Monatsbudget für neue Käufe", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
                     }
                     IconButton(onClick = onEditBudget) { Icon(Icons.Default.Edit, contentDescription = "Budget bearbeiten") }
                 }
                 NeonStatStrip(
                     entries = listOf(
                         "Monatsbudget ${budgetState.monthLabel}" to formatMoney(budgetState.monthlyBudgetEur),
+                        "Für Käufe frei" to formatMoney(budgetState.monthlyAvailableEur),
                         "Rest Vormonate" to formatMoney(budgetState.carryoverEur),
                         "Zusätzlich" to formatMoney(budgetState.extraFundingEur),
                         "Depot-Einstand" to formatMoney(budgetState.investedEur),
-                        "Kontostand" to formatMoney(budgetState.cashBalanceEur),
+                        "Gesamtguthaben" to formatMoney(budgetState.cashBalanceEur),
                         "Reserviert" to formatMoney(budgetState.reservedEur),
-                        "Verfügbar" to formatMoney(budgetState.availableEur)
+                        "Gesamt verfügbar" to formatMoney(budgetState.availableEur)
                     ),
                     accent = RadarBlue
                 )
-                Text("Restgeld wird in den nächsten Monat übertragen. Empfehlungen erzeugen keine Buchung; erst ein bestätigter Kauf oder Verkauf verändert den Kontostand.", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
+                Text("Restgeld bleibt als Gesamtguthaben erhalten. Neue Kaufempfehlungen werden trotzdem nur aus dem noch freien Budget des aktuellen Monats berechnet.", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
             }
         }
 
@@ -932,7 +933,7 @@ private fun DashboardScreen(
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column {
                     Text("DEIN KAUFPLAN", style = MaterialTheme.typography.labelLarge, color = RadarMuted, fontWeight = FontWeight.Bold)
-                    Text("${formatMoney(budgetState.availableEur)} verfügbar", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+                    Text("${formatMoney(budgetState.monthlyAvailableEur)} für neue Käufe frei", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
                 }
                 FilledTonalButton(onClick = onEditBudget) {
                     Icon(Icons.Default.AccountBalanceWallet, null)
@@ -1586,7 +1587,7 @@ private fun MoneyManagementScreen(
         item {
             NeonPanel(accent = RadarGreen) {
                 Text("GELDVERWALTUNG · ${current.monthLabel}", color = RadarGreen, fontWeight = FontWeight.Black)
-                Text("Dein echtes verfügbares Geld", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
+                Text("Gesamt verfügbar inkl. Übertrag", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
                 Text(formatMoney(current.availableEur), style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Black, color = RadarGreen)
                 Text(
                     "Käufe werden erst nach deiner Bestätigung abgezogen. Verkäufe werden erst nach deiner Bestätigung gutgeschrieben.",
@@ -1608,12 +1609,13 @@ private fun MoneyManagementScreen(
         item {
             NeonStatStrip(
                 entries = listOf(
-                    "Verfügbar" to formatMoney(current.availableEur),
+                    "Für Käufe frei" to formatMoney(current.monthlyAvailableEur),
+                    "Gesamt verfügbar" to formatMoney(current.availableEur),
                     "Monatsbudget" to formatMoney(current.monthlyBudgetEur),
                     "Rest Vormonate" to formatMoney(current.carryoverEur),
                     "Zusätzlich" to formatMoney(current.extraFundingEur),
                     "Depot-Einstand" to formatMoney(current.investedEur),
-                    "Kontostand" to formatMoney(current.cashBalanceEur),
+                    "Gesamtguthaben" to formatMoney(current.cashBalanceEur),
                     "Reserviert" to formatMoney(current.reservedEur)
                 ),
                 accent = RadarBlue
@@ -1894,21 +1896,22 @@ private fun BudgetDialog(
         text = {
             Column(Modifier.heightIn(max = 590.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("GELDVERWALTUNG · ${current.monthLabel}", color = RadarBlue, fontWeight = FontWeight.Black)
-                Text("Verfügbar: ${formatMoney(current.availableEur)}", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black, color = RadarGreen)
+                Text("Für neue Käufe frei: ${formatMoney(current.monthlyAvailableEur)}", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black, color = RadarGreen)
                 NeonStatStrip(
                     entries = listOf(
-                        "Verfügbar" to formatMoney(current.availableEur),
+                        "Für Käufe frei" to formatMoney(current.monthlyAvailableEur),
+                        "Gesamt verfügbar" to formatMoney(current.availableEur),
                         "Monatsbudget" to formatMoney(current.monthlyBudgetEur),
                         "Depot-Einstand" to formatMoney(current.investedEur),
                         "Zusätzlich eingezahlt" to formatMoney(current.extraFundingEur),
                         "Rest Vormonate" to formatMoney(current.carryoverEur),
-                        "Kontostand" to formatMoney(current.cashBalanceEur),
+                        "Gesamtguthaben" to formatMoney(current.cashBalanceEur),
                         "Reserviert" to formatMoney(current.reservedEur)
                     ),
                     accent = RadarBlue
                 )
                 Text(
-                    "Restgeld wird automatisch übertragen. Das Monatsbudget wird pro Monat genau einmal hinzugefügt. Reservierungen sind keine Buchungen; sie reduzieren nur den für neue Empfehlungen frei verplanbaren Betrag.",
+                    "Restgeld wird als Gesamtguthaben übertragen. Für neue Empfehlungen zählt nur das noch freie Budget des aktuellen Monats. Reservierungen sind keine Buchungen, reduzieren aber diesen Monatsrahmen.",
                     color = RadarMuted,
                     style = MaterialTheme.typography.bodySmall
                 )
