@@ -41,7 +41,32 @@ class InvestmentBudgetMoneyFlowTest {
         assertEquals(60.0, view.carryoverEur, 0.000001)
         assertEquals(100.0, view.monthlyBudgetEur, 0.000001)
         assertEquals(160.0, view.availableEur, 0.000001)
+        assertEquals(100.0, view.monthlyAvailableEur, 0.000001)
+        assertEquals(100, view.advisorBudgetEur)
         assertEquals("10/2026", view.monthLabel)
+    }
+
+
+    @Test
+    fun priorCarryoverNeverExpandsCurrentMonthBuyRecommendations() {
+        val entries = listOf(
+            BudgetJournalEntry("monthly-budget-2026-08", BudgetJournalType.MONTHLY_DEPOSIT, 500.0, "2026-08-01"),
+            BudgetJournalEntry("buy-aug", BudgetJournalType.BUY_DEBIT, 20.0, "2026-08-05", "msft"),
+            BudgetJournalEntry("monthly-budget-2026-09", BudgetJournalType.MONTHLY_DEPOSIT, 100.0, "2026-09-01"),
+            BudgetJournalEntry("buy-sep", BudgetJournalType.BUY_DEBIT, 40.0, "2026-09-10", "meta")
+        )
+        val summary = InvestmentBudgetJournalEngine.summarize(entries, emptyList())
+        val view = InvestmentBudgetViewState.from(
+            summary = summary,
+            entries = entries,
+            activeInvestedEur = 60.0,
+            today = LocalDate.of(2026, 9, 18)
+        )
+
+        assertEquals(540.0, view.availableEur, 0.000001)
+        assertEquals(480.0, view.carryoverEur, 0.000001)
+        assertEquals(60.0, view.monthlyAvailableEur, 0.000001)
+        assertEquals(60, view.advisorBudgetEur)
     }
 
     @Test
