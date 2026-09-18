@@ -818,14 +818,14 @@ private fun DashboardScreen(
                         "Monatsbudget ${budgetState.monthLabel}" to formatMoney(budgetState.monthlyBudgetEur),
                         "Rest Vormonate" to formatMoney(budgetState.carryoverEur),
                         "Zusätzlich" to formatMoney(budgetState.extraFundingEur),
-                        "Depot-Einstand" to formatMoney(budgetState.investedEur),
-                        "Kontostand" to formatMoney(budgetState.cashBalanceEur),
+                        "Diesen Monat investiert" to formatMoney(budgetState.spentThisMonthEur),
+                        "Monatsbudget übrig" to formatMoney(budgetState.availableEur),
                         "Reserviert" to formatMoney(budgetState.reservedEur),
                         "Verfügbar" to formatMoney(budgetState.availableEur)
                     ),
                     accent = RadarBlue
                 )
-                Text("Restgeld wird in den nächsten Monat übertragen. Empfehlungen erzeugen keine Buchung; erst ein bestätigter Kauf oder Verkauf verändert den Kontostand.", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
+                Text("Ein bestätigter Kauf wird sofort vom verfügbaren Budget abgezogen. Restgeld wird in den nächsten Monat übertragen.", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
             }
         }
 
