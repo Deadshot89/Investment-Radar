@@ -20,7 +20,8 @@ grep -Fq 'Text("Verlustgrenze %")' "$DETAIL" || fail stop
 grep -Fq 'saveExitStrategy' "$VM" || fail save
 grep -Fq 'REPEAT_HOURS=1L' "$SCHEDULER" || fail hourly
 grep -Fq 'publishExitTriggers' "$WORKER" || fail publish
-grep -Fq 'InvestmentBudgetStore.summary(applicationContext)' "$DAILY" || fail budget
+grep -Fq 'InvestmentBudgetStore.viewState(' "$DAILY" || fail budget
+grep -Fq 'budgetState.advisorBudgetEur' "$DAILY" || fail monthlybudget
 grep -Fq 'PortfolioAdvisorAction.VERKAUFEN -> sourceValue' "$ACTION" || fail fullsell
 grep -Fq 'AdvisorSignal.VERKAUFEN -> Action("🔴", "VERKAUFEN", "SELL")' "$COPY" || fail sellalert
 grep -Fq 'val title="🔴 VERKAUFEN – $name"' "$NOTIFY" || fail exitsellcopy

@@ -18,8 +18,8 @@ android {
         minSdk = 23
         targetSdk = 36
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        versionCode = 84
-        versionName = "2.5.14"
+        versionCode = 85
+        versionName = "2.5.15"
 
         buildConfigField("String", "API_BASE_URL", "\"${prop("INVESTMENT_API_BASE_URL", "https://YOUR-FUNCTION-APP.azurewebsites.net").trimEnd('/')}\"")
         buildConfigField("String", "FIREBASE_APP_ID", "\"${prop("FIREBASE_APP_ID")}\"")
@@ -95,4 +95,4 @@ dependencies {
     implementation("com.google.firebase:firebase-messaging")
 }
 
-// Release candidate: Investment Radar 2.5.14
+// Release candidate: Investment Radar 2.5.15

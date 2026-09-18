@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -45,6 +46,7 @@ fun SavingsPlansScreen(
     var plans by remember { mutableStateOf(emptyList<SavingsPlan>()) }
     var executions by remember { mutableStateOf(emptyList<SavingsPlanExecution>()) }
     var editingPlan by remember { mutableStateOf<SavingsPlan?>(null) }
+    var mappingPlan by remember { mutableStateOf<SavingsPlan?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
     val today = remember { SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date()) }
     val itemById = remember(items) { items.associateBy { it.id } }
@@ -71,7 +73,7 @@ fun SavingsPlansScreen(
         },
         portfolioWriter = object : SavingsPlanPortfolioWriter {
             override fun persistPurchase(itemId: String, purchase: PortfolioPurchase): Boolean =
-                vm.upsertPurchase(itemId, purchase)
+                vm.executeBuy(itemId, purchase, BudgetJournalSource.SAVINGS_PLAN)
         },
         executionRepository = object : SavingsPlanExecutionRepository {
             override fun getExecution(id: String): SavingsPlanExecution? =
@@ -146,6 +148,14 @@ fun SavingsPlansScreen(
                         color = MaterialTheme.colorScheme.error,
                         fontWeight = FontWeight.Bold
                     )
+                } else {
+                    Text(
+                        "Zugeordnet: " + (itemById[plan.itemId]?.name ?: plan.itemId),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                OutlinedButton(onClick = { mappingPlan = plan }, modifier = Modifier.fillMaxWidth()) {
+                    Text(if (plan.itemId == null) "Instrument zuordnen" else "Instrument-Zuordnung ändern")
                 }
 
                 pendingExecutions.forEach { pending ->
@@ -237,6 +247,78 @@ fun SavingsPlansScreen(
                 }) { Text("Speichern") }
             },
             dismissButton = { TextButton(onClick = { editingPlan = null }) { Text("Abbrechen") } }
+        )
+    }
+
+    mappingPlan?.let { plan ->
+        var query by remember(plan.id) { mutableStateOf("") }
+        val matches = remember(query, items) {
+            val needle = query.trim().lowercase(Locale.GERMANY)
+            items.asSequence()
+                .filter { item ->
+                    needle.isBlank() ||
+                        item.name.lowercase(Locale.GERMANY).contains(needle) ||
+                        item.ticker.lowercase(Locale.GERMANY).contains(needle) ||
+                        item.isin.lowercase(Locale.GERMANY).contains(needle)
+                }
+                .take(50)
+                .toList()
+        }
+        AlertDialog(
+            onDismissRequest = { mappingPlan = null },
+            title = { Text("Instrument zuordnen") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(plan.name, fontWeight = FontWeight.Bold)
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        label = { Text("Name, Ticker oder ISIN") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (matches.isEmpty()) {
+                        Text(
+                            "Kein passendes Instrument in den geladenen Werten. Lege den Wert zuerst als eigene Position an und öffne die Zuordnung danach erneut.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxWidth().heightIn(max = 320.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            items(matches, key = { it.id }) { item ->
+                                OutlinedButton(
+                                    onClick = {
+                                        SavingsPlanStore.upsertPlan(context, plan.copy(itemId = item.id))
+                                        mappingPlan = null
+                                        reload()
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(Modifier.fillMaxWidth()) {
+                                        Text(item.name, fontWeight = FontWeight.Bold)
+                                        Text(
+                                            listOf(item.ticker, item.isin).filter { it.isNotBlank() }.joinToString(" · "),
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                if (plan.itemId != null) {
+                    TextButton(onClick = {
+                        SavingsPlanStore.upsertPlan(context, plan.copy(itemId = null))
+                        mappingPlan = null
+                        reload()
+                    }) { Text("Zuordnung entfernen") }
+                }
+            },
+            dismissButton = { TextButton(onClick = { mappingPlan = null }) { Text("Schließen") } }
         )
     }
 

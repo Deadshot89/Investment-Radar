@@ -7,6 +7,7 @@ VM="android/app/src/main/java/de/tobias/investmentradar/MainViewModel.kt"
 grep -q 'val budgetState by vm.budgetState.collectAsState()' "$SRC"
 grep -q 'budgetState = budgetState' "$SRC"
 grep -q 'budgetState.advisorBudgetEur' "$SRC"
+grep -q 'budgetState.monthlyAvailableEur' "$SRC"
 grep -q 'vm::setMonthlyBudget' "$SRC"
 grep -q 'vm.addExtraFunding' "$SRC"
 grep -q 'vm.executeBuy' "$SRC"
@@ -19,7 +20,7 @@ if grep -q 'prefs.getInt("monthly_budget"' "$SRC"; then
 fi
 
 # The visible cockpit must expose the key budget buckets.
-for label in 'Monatsbudget' 'Rest Vormonate' 'Zusätzlich' 'Depot-Einstand' 'Kontostand' 'Reserviert' 'Verfügbar'; do
+for label in 'Monatsbudget' 'Für Käufe frei' 'Rest Vormonate' 'Zusätzlich' 'Depot-Einstand' 'Gesamtguthaben' 'Reserviert' 'Gesamt verfügbar'; do
   grep -q "$label" "$SRC" || {
     echo "Missing budget cockpit label: $label"
     exit 1

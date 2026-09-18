@@ -42,7 +42,6 @@ class InvestmentBudgetViewStateTest {
         assertEquals(0.0, state.availableEur, 0.000001)
         assertEquals(0, state.advisorBudgetEur)
     }
-
     @Test
     fun `cockpit shows current month spend and reduced remaining budget after purchase`() {
         val entries = listOf(
@@ -60,6 +59,8 @@ class InvestmentBudgetViewStateTest {
 
         assertEquals(100.0, state.monthlyBudgetEur, 0.001)
         assertEquals(35.0, state.spentThisMonthEur, 0.001)
+        assertEquals(65.0, state.monthlyAvailableEur, 0.001)
         assertEquals(65.0, state.availableEur, 0.001)
     }
+
 }

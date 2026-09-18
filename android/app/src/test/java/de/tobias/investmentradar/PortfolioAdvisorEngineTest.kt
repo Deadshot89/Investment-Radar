@@ -83,6 +83,34 @@ class PortfolioAdvisorEngineTest {
     }
 
     @Test
+    fun savingsPlanOnDifferentAssetStillReducesTotalExtraBuyBudget() {
+        val plan = PortfolioAdvisorEngine.allocate(
+            listOf(
+                candidate("strong", PortfolioAdvisorAction.NEU_AUFNEHMEN, score = 85, holding = false),
+                candidate("savings-only", PortfolioAdvisorAction.HALTEN, score = 60, savings = 20)
+            ),
+            100
+        )
+
+        assertEquals(80, plan.allocations.sumOf { it.amountEur })
+        assertEquals(20, plan.cashEur)
+    }
+
+    @Test
+    fun plannedSavingsCanConsumeWholeMonthlyBudgetWithoutExtraBuy() {
+        val plan = PortfolioAdvisorEngine.allocate(
+            listOf(
+                candidate("strong", PortfolioAdvisorAction.NEU_AUFNEHMEN, score = 85, holding = false),
+                candidate("savings", PortfolioAdvisorAction.HALTEN, score = 60, savings = 100)
+            ),
+            100
+        )
+
+        assertTrue(plan.allocations.isEmpty())
+        assertEquals(100, plan.cashEur)
+    }
+
+    @Test
     fun reduceOrSellWithActiveSavingsPlanCreatesConflictButDoesNotMutateIt() {
         val plan = PortfolioAdvisorEngine.allocate(
             listOf(candidate("meta", PortfolioAdvisorAction.REDUZIEREN, score = 44, savings = 20)),
