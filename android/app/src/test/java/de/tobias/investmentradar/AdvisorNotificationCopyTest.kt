@@ -37,6 +37,46 @@ class AdvisorNotificationCopyTest {
     }
 
     @Test
+    fun `new candidate allocation is labeled buy candidate with concrete amount`() {
+        val event = AdvisorNotificationEvent(
+            id = "allocation|meta|60|NEU_AUFNEHMEN|2026-09-18",
+            instrumentId = "meta",
+            previousSignal = null,
+            newSignal = AdvisorSignal.NACHKAUFEN,
+            analysisDay = "2026-09-18",
+            reasons = listOf("Beste aktuelle Chance"),
+            kind = AdvisorNotificationEventKind.PURCHASE_ALLOCATION,
+            amountEur = 60,
+            portfolioAction = PortfolioAdvisorAction.NEU_AUFNEHMEN
+        )
+
+        val copy = AdvisorNotificationCopy.format(event, "Beispiel Aktie")
+
+        assertEquals("🟢 KAUFEN · 60 € – Beispiel Aktie", copy.title)
+        assertTrue(copy.body.startsWith("Entscheidung: KAUFEN · 60 €"))
+    }
+
+    @Test
+    fun `existing holding allocation is labeled buy more with concrete amount`() {
+        val event = AdvisorNotificationEvent(
+            id = "allocation|meta|40|NACHKAUFEN|2026-09-18",
+            instrumentId = "meta",
+            previousSignal = AdvisorSignal.HALTEN,
+            newSignal = AdvisorSignal.NACHKAUFEN,
+            analysisDay = "2026-09-18",
+            reasons = listOf("Bestehende Position"),
+            kind = AdvisorNotificationEventKind.PURCHASE_ALLOCATION,
+            amountEur = 40,
+            portfolioAction = PortfolioAdvisorAction.NACHKAUFEN
+        )
+
+        val copy = AdvisorNotificationCopy.format(event, "Beispiel Aktie")
+
+        assertEquals("🟢 NACHKAUFEN · 40 € – Beispiel Aktie", copy.title)
+        assertTrue(copy.body.startsWith("Entscheidung: NACHKAUFEN · 40 €"))
+    }
+
+    @Test
     fun `reduce signal is presented as a clear partial sell`() {
         val copy = AdvisorNotificationCopy.format(
             event = signalEvent(
