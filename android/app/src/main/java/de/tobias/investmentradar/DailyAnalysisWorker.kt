@@ -80,9 +80,13 @@ class DailyAnalysisWorker(
         InvestmentBudgetStore.ensureInitialized(applicationContext)
         InvestmentBudgetStore.ensureCurrentMonth(applicationContext)
         InvestmentBudgetStore.reconcileCurrentMonthPortfolio(applicationContext, positions)
-        val budget = InvestmentBudgetStore.summary(applicationContext)
+        val budgetState = InvestmentBudgetStore.viewState(
+            applicationContext,
+            activeInvestedEur = positions.values.sumOf { it.activeCostBasis },
+            today = LocalDate.now()
+        )
         val previousPlan = PortfolioAdvisorStore.latest(applicationContext)?.plan
-        val plan = PortfolioAdvisorEngine.allocate(candidates, budget)
+        val plan = PortfolioAdvisorEngine.allocate(candidates, budgetState.advisorBudgetEur)
         val planEvents = AdvisorChangePolicy.planEvents(previousPlan, plan, today)
         PortfolioAdvisorStore.save(applicationContext, today, plan)
 
