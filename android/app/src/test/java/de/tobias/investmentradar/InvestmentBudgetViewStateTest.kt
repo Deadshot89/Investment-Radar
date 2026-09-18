@@ -42,4 +42,24 @@ class InvestmentBudgetViewStateTest {
         assertEquals(0.0, state.availableEur, 0.000001)
         assertEquals(0, state.advisorBudgetEur)
     }
+
+    @Test
+    fun `cockpit shows current month spend and reduced remaining budget after purchase`() {
+        val entries = listOf(
+            BudgetJournalEntry("monthly-budget-2026-09", BudgetJournalType.MONTHLY_DEPOSIT, 100.0, "2026-09-01"),
+            BudgetJournalEntry("buy-1", BudgetJournalType.BUY_DEBIT, 35.0, "2026-09-18", itemId = "meta")
+        )
+        val summary = InvestmentBudgetJournalEngine.summarize(entries, emptyList())
+
+        val state = InvestmentBudgetViewState.from(
+            summary = summary,
+            entries = entries,
+            activeInvestedEur = 35.0,
+            today = java.time.LocalDate.of(2026, 9, 18)
+        )
+
+        assertEquals(100.0, state.monthlyBudgetEur, 0.001)
+        assertEquals(35.0, state.spentThisMonthEur, 0.001)
+        assertEquals(65.0, state.availableEur, 0.001)
+    }
 }
