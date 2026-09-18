@@ -46,6 +46,10 @@ object PortfolioAdvisorEngine {
         budgetEur: Int
     ): PortfolioAdvisorPlan {
         val budget = budgetEur.coerceAtLeast(0)
+        val plannedSavingsEur = candidates
+            .sumOf { it.monthlySavingsEur.coerceAtLeast(0) }
+            .coerceAtMost(budget)
+        val purchaseBudget = (budget - plannedSavingsEur).coerceAtLeast(0)
         val reallocations = ReallocationPolicy.suggest(candidates)
         val conflicts = candidates
             .filter {
@@ -61,7 +65,7 @@ object PortfolioAdvisorEngine {
                 )
             }
 
-        if (budget == 0) {
+        if (budget == 0 || purchaseBudget == 0) {
             return PortfolioAdvisorPlan(
                 budgetEur = 0,
                 allocations = emptyList(),
@@ -108,7 +112,7 @@ object PortfolioAdvisorEngine {
             eligible.all { it.action == PortfolioAdvisorAction.HALTEN } -> 40
             else -> 0
         }
-        val deployable = budget * deploymentPct / 100
+        val deployable = purchaseBudget * deploymentPct / 100
 
         if (deployable <= 0) {
             return PortfolioAdvisorPlan(
@@ -135,9 +139,7 @@ object PortfolioAdvisorEngine {
         }
 
         val allocations = eligible.mapNotNull { candidate ->
-            val desiredAmount = desired[candidate.itemId] ?: 0
-            val extraAmount = (desiredAmount - candidate.monthlySavingsEur.coerceAtLeast(0))
-                .coerceAtLeast(0)
+            val extraAmount = (desired[candidate.itemId] ?: 0).coerceAtLeast(0)
             if (extraAmount <= 0) {
                 null
             } else {
