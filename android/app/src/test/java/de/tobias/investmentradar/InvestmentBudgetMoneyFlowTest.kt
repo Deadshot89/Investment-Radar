@@ -178,4 +178,75 @@ class InvestmentBudgetMoneyFlowTest {
         assertTrue(reconciled.none { it.id == "historic-buy" })
         assertEquals(reconciled, restarted)
     }
+    @Test
+    fun liquidityNeedPartialSaleAndWithdrawalCloseCashGap() {
+        val position = PortfolioPosition("weak").upsertPurchaseIfValid(
+            PortfolioPurchase("buy-weak", "2026-09-01", 100.0, 10.0)
+        )!!
+        val entries = listOf(
+            BudgetJournalEntry("monthly-budget-2026-09", BudgetJournalType.MONTHLY_DEPOSIT, 150.0, "2026-09-01"),
+            BudgetJournalEntry("buy-weak", BudgetJournalType.BUY_DEBIT, 100.0, "2026-09-01", "weak")
+        )
+
+        val plan = LiquidityNeedEngine.plan(
+            requestedEur = 120.0,
+            availableCashEur = InvestmentBudgetJournalEngine.summarize(entries, emptyList()).availableEur,
+            holdings = listOf(
+                LiquidityHolding(
+                    itemId = "weak",
+                    instrumentName = "Weak Holding",
+                    currentValueEur = 100.0,
+                    shares = 10.0,
+                    advisorAction = PortfolioAdvisorAction.VERKAUFEN,
+                    advisorScore = 30,
+                    dataReliable = true,
+                    forecastDirection = "DOWN",
+                    profitLossPct = 0.0
+                )
+            )
+        )
+
+        assertEquals(50.0, plan.cashUsedEur, 0.000001)
+        assertEquals(70.0, plan.saleNeededEur, 0.000001)
+        val suggestion = plan.suggestions.single()
+        assertEquals(70.0, suggestion.amountEur, 0.000001)
+        assertEquals(7.0, suggestion.shares ?: 0.0, 0.000001)
+
+        val sold = InvestmentBudgetExecutionService.executeSale(
+            position = position,
+            entries = entries,
+            reservations = emptyList(),
+            request = BudgetSaleExecution(
+                eventId = "liquidity-sale",
+                itemId = suggestion.itemId,
+                date = "2026-09-18",
+                proceedsEur = suggestion.amountEur,
+                shares = suggestion.shares!!,
+                source = BudgetJournalSource.RECOMMENDATION
+            )
+        )
+
+        assertNull(sold.error)
+        assertEquals(3.0, sold.position!!.shares, 0.000001)
+        assertEquals(120.0, InvestmentBudgetJournalEngine.summarize(sold.entries, sold.reservations).availableEur, 0.000001)
+
+        val withdrawn = InvestmentBudgetCommands.addAdjustment(
+            sold.entries,
+            BudgetAdjustmentCommand(
+                eventId = "liquidity-withdrawal",
+                amountEur = 120.0,
+                date = "2026-09-18",
+                credit = false,
+                note = "Auszahlung / Geldbedarf"
+            )
+        )
+
+        assertEquals(0.0, InvestmentBudgetJournalEngine.summarize(withdrawn, sold.reservations).availableEur, 0.000001)
+        assertTrue(withdrawn.any {
+            it.id == "liquidity-withdrawal" &&
+                it.type == BudgetJournalType.ADJUSTMENT_DEBIT &&
+                it.note == "Auszahlung / Geldbedarf"
+        })
+    }
+
 }
