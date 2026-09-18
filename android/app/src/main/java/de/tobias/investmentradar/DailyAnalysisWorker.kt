@@ -87,9 +87,15 @@ class DailyAnalysisWorker(
         PortfolioAdvisorStore.save(applicationContext, today, plan)
 
         val displayNames = analysisItems.associate { it.id to it.name }
+        // Buy-like raw advisor signals are analysis inputs, not purchase instructions.
+        // Only budget allocations may become KAUFEN/NACHKAUFEN pushes.
+        val nonPurchaseSignalEvents = output.events.filterNot { event ->
+            event.newSignal == AdvisorSignal.NACHKAUFEN ||
+                event.kind == AdvisorNotificationEventKind.NEW_STRONG_OPPORTUNITY
+        }
         AdvisorNotificationManager.publishAdvisorEvents(
             applicationContext,
-            (output.events + planEvents).distinctBy { it.id },
+            (nonPurchaseSignalEvents + planEvents).distinctBy { it.id },
             displayNames
         )
         AdvisorNotificationManager.publishDueSavingsPlans(
