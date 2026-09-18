@@ -249,4 +249,90 @@ class InvestmentBudgetMoneyFlowTest {
         })
     }
 
+    @Test
+    fun currentMonthExtraCashNeverTurnsIntoBuyBudget() {
+        val entries = listOf(
+            BudgetJournalEntry("monthly-budget-2026-09", BudgetJournalType.MONTHLY_DEPOSIT, 100.0, "2026-09-01"),
+            BudgetJournalEntry("extra-500", BudgetJournalType.EXTRA_DEPOSIT, 500.0, "2026-09-05")
+        )
+        val view = InvestmentBudgetViewState.from(
+            InvestmentBudgetJournalEngine.summarize(entries, emptyList()),
+            entries,
+            today = LocalDate.of(2026, 9, 18)
+        )
+
+        assertEquals(600.0, view.availableEur, 0.000001)
+        assertEquals(100.0, view.monthlyAvailableEur, 0.000001)
+        assertEquals(100, view.advisorBudgetEur)
+    }
+
+    @Test
+    fun saleCreditNeverTurnsIntoNewBuyBudget() {
+        val entries = listOf(
+            BudgetJournalEntry("monthly-budget-2026-09", BudgetJournalType.MONTHLY_DEPOSIT, 100.0, "2026-09-01"),
+            BudgetJournalEntry("buy-month", BudgetJournalType.BUY_DEBIT, 40.0, "2026-09-03", "msft"),
+            BudgetJournalEntry("sale-500", BudgetJournalType.SELL_CREDIT, 500.0, "2026-09-10", "old")
+        )
+        val view = InvestmentBudgetViewState.from(
+            InvestmentBudgetJournalEngine.summarize(entries, emptyList()),
+            entries,
+            today = LocalDate.of(2026, 9, 18)
+        )
+
+        assertEquals(560.0, view.availableEur, 0.000001)
+        assertEquals(60.0, view.monthlyAvailableEur, 0.000001)
+        assertEquals(60, view.advisorBudgetEur)
+    }
+
+    @Test
+    fun correctionCreditNeverTurnsIntoNewBuyBudget() {
+        val entries = listOf(
+            BudgetJournalEntry("monthly-budget-2026-09", BudgetJournalType.MONTHLY_DEPOSIT, 100.0, "2026-09-01"),
+            BudgetJournalEntry("correction-500", BudgetJournalType.ADJUSTMENT_CREDIT, 500.0, "2026-09-12")
+        )
+        val view = InvestmentBudgetViewState.from(
+            InvestmentBudgetJournalEngine.summarize(entries, emptyList()),
+            entries,
+            today = LocalDate.of(2026, 9, 18)
+        )
+
+        assertEquals(600.0, view.availableEur, 0.000001)
+        assertEquals(100.0, view.monthlyAvailableEur, 0.000001)
+        assertEquals(100, view.advisorBudgetEur)
+    }
+
+    @Test
+    fun spareChangeInvestmentDoesNotConsumeMonthlyBuyBudget() {
+        val entries = listOf(
+            BudgetJournalEntry("monthly-budget-2026-09", BudgetJournalType.MONTHLY_DEPOSIT, 100.0, "2026-09-01"),
+            BudgetJournalEntry("extra-change", BudgetJournalType.EXTRA_DEPOSIT, 6.42, "2026-09-09", source = BudgetJournalSource.SPARE_CHANGE),
+            BudgetJournalEntry("buy-change", BudgetJournalType.BUY_DEBIT, 6.42, "2026-09-09", "spyi", BudgetJournalSource.SPARE_CHANGE)
+        )
+        val view = InvestmentBudgetViewState.from(
+            InvestmentBudgetJournalEngine.summarize(entries, emptyList()),
+            entries,
+            today = LocalDate.of(2026, 9, 18)
+        )
+
+        assertEquals(100.0, view.monthlyAvailableEur, 0.000001)
+        assertEquals(100, view.advisorBudgetEur)
+    }
+
+    @Test
+    fun withdrawalCanLowerBuyBudgetButNeverRaiseIt() {
+        val entries = listOf(
+            BudgetJournalEntry("monthly-budget-2026-09", BudgetJournalType.MONTHLY_DEPOSIT, 100.0, "2026-09-01"),
+            BudgetJournalEntry("withdrawal", BudgetJournalType.ADJUSTMENT_DEBIT, 80.0, "2026-09-15")
+        )
+        val view = InvestmentBudgetViewState.from(
+            InvestmentBudgetJournalEngine.summarize(entries, emptyList()),
+            entries,
+            today = LocalDate.of(2026, 9, 18)
+        )
+
+        assertEquals(20.0, view.availableEur, 0.000001)
+        assertEquals(20.0, view.monthlyAvailableEur, 0.000001)
+        assertEquals(20, view.advisorBudgetEur)
+    }
+
 }

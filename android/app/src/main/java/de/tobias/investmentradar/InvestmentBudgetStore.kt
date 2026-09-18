@@ -97,6 +97,7 @@ object InvestmentBudgetStore {
     private const val RESERVATIONS_KEY = "reservations_v1"
     private const val SETTINGS_PREFS = "investment_radar_settings"
     private const val LEGACY_BUDGET_KEY = "monthly_budget"
+    private const val WRONG_500_BUDGET_REPAIR_KEY = "wrong_500_budget_repair_v1"
 
     fun readEntries(context: Context): List<BudgetJournalEntry> {
         val raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -184,20 +185,41 @@ object InvestmentBudgetStore {
     }
 
     fun ensureInitialized(context: Context, today: LocalDate = LocalDate.now()) {
-        val existing = readEntries(context)
-        val legacyBudget = configuredMonthlyBudget(context)
+        val storedEntries = readEntries(context)
+        val settings = context.getSharedPreferences(SETTINGS_PREFS, Context.MODE_PRIVATE)
         val date = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
+
+        var existing = storedEntries
+        var configuredBudget = configuredMonthlyBudget(context)
+        if (!settings.getBoolean(WRONG_500_BUDGET_REPAIR_KEY, false)) {
+            val repair = InvestmentBudgetMigration.repairKnownIncorrectFiveHundredBudget(
+                existing = existing,
+                configuredMonthlyBudgetEur = configuredBudget,
+                date = date
+            )
+            existing = repair.entries
+            configuredBudget = repair.configuredMonthlyBudgetEur
+            settings.edit()
+                .putBoolean(WRONG_500_BUDGET_REPAIR_KEY, true)
+                .apply()
+            if (repair.repaired) {
+                settings.edit()
+                    .putInt(LEGACY_BUDGET_KEY, configuredBudget)
+                    .apply()
+            }
+        }
+
         val seeded = InvestmentBudgetMigration.seedIfEmpty(
             existing = existing,
-            legacyMonthlyBudgetEur = legacyBudget,
+            legacyMonthlyBudgetEur = configuredBudget,
             date = date
         )
         val current = InvestmentBudgetMigration.ensureCurrentMonth(
             existing = seeded,
-            configuredMonthlyBudgetEur = legacyBudget,
+            configuredMonthlyBudgetEur = configuredBudget,
             date = date
         )
-        if (current != existing) {
+        if (current != storedEntries) {
             context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                 .edit()
                 .putString(ENTRIES_KEY, InvestmentBudgetCodec.encodeEntries(current))

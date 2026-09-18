@@ -11,39 +11,30 @@ class PortfolioAdvisorLiveBudgetTest {
     }
 
     @Test
-    fun `advisor uses remaining available cash instead of static monthly budget`() {
-        val summary = InvestmentBudgetSummary(
-            monthlyDepositsEur = 100.0,
-            extraDepositsEur = 0.0,
-            executedBuysEur = 40.0,
-            saleCreditsEur = 0.0,
-            availableEur = 60.0,
-            reservedEur = 0.0
-        )
-
-        val plan = PortfolioAdvisorEngine.allocate(emptyList(), summary)
+    fun `advisor accepts only explicit monthly buy budget`() {
+        val plan = PortfolioAdvisorEngine.allocate(emptyList(), 60)
 
         assertEquals(60, plan.budgetEur)
         assertEquals(60, plan.cashEur)
     }
 
     @Test
-    fun `advisor never receives negative live cash`() {
-        val summary = InvestmentBudgetSummary(100.0, 0.0, 110.0, 0.0, -10.0, 0.0)
-        val plan = PortfolioAdvisorEngine.allocate(emptyList(), summary)
+    fun `advisor never receives negative explicit budget`() {
+        val plan = PortfolioAdvisorEngine.allocate(emptyList(), -10)
+
         assertEquals(0, plan.budgetEur)
         assertEquals(0, plan.cashEur)
     }
 
     @Test
-    fun `explicit advisor budget is deterministic even when runtime cache differs`() {
+    fun `explicit advisor budget is deterministic even when runtime cash differs`() {
         InvestmentBudgetRuntime.refresh(
             InvestmentBudgetSummary(
                 monthlyDepositsEur = 7.0,
-                extraDepositsEur = 0.0,
+                extraDepositsEur = 500.0,
                 executedBuysEur = 0.0,
-                saleCreditsEur = 0.0,
-                availableEur = 7.0,
+                saleCreditsEur = 500.0,
+                availableEur = 1007.0,
                 reservedEur = 0.0
             )
         )

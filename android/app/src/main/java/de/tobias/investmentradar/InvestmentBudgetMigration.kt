@@ -3,7 +3,56 @@ package de.tobias.investmentradar
 import java.time.LocalDate
 import java.time.YearMonth
 
+data class MonthlyBudgetRepair(
+    val entries: List<BudgetJournalEntry>,
+    val configuredMonthlyBudgetEur: Int,
+    val repaired: Boolean
+)
+
 object InvestmentBudgetMigration {
+    fun repairKnownIncorrectFiveHundredBudget(
+        existing: List<BudgetJournalEntry>,
+        configuredMonthlyBudgetEur: Int,
+        date: String
+    ): MonthlyBudgetRepair {
+        val monthKey = InvestmentBudgetDate.monthKey(date)
+            ?: return MonthlyBudgetRepair(existing, configuredMonthlyBudgetEur, false)
+        val currentMonthlyBudget = existing
+            .filter {
+                it.type == BudgetJournalType.MONTHLY_DEPOSIT &&
+                    InvestmentBudgetDate.monthKey(it.date) == monthKey
+            }
+            .sumOf { it.amountEur }
+        val wrongConfiguredValue = configuredMonthlyBudgetEur == 500
+        val wrongCurrentMonthValue = kotlin.math.abs(currentMonthlyBudget - 500.0) < 0.001
+        if (!wrongConfiguredValue && !wrongCurrentMonthValue) {
+            return MonthlyBudgetRepair(existing, configuredMonthlyBudgetEur, false)
+        }
+
+        val corrected = InvestmentBudgetCommands.setMonthlyBudget(
+            entries = existing,
+            amountEur = 100.0,
+            date = date
+        ).map { entry ->
+            if (
+                entry.type == BudgetJournalType.MONTHLY_DEPOSIT &&
+                InvestmentBudgetDate.monthKey(entry.date) == monthKey
+            ) {
+                entry.copy(
+                    source = BudgetJournalSource.SYSTEM,
+                    note = "Korrigiertes Monatsbudget · 500 € war kein Kaufbudget"
+                )
+            } else {
+                entry
+            }
+        }
+        return MonthlyBudgetRepair(
+            entries = corrected,
+            configuredMonthlyBudgetEur = 100,
+            repaired = true
+        )
+    }
+
     fun seedIfEmpty(
         existing: List<BudgetJournalEntry>,
         legacyMonthlyBudgetEur: Int,

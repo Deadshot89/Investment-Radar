@@ -824,16 +824,16 @@ private fun DashboardScreen(
                         "Monatsbudget ${budgetState.monthLabel}" to formatMoney(budgetState.monthlyBudgetEur),
                         "Diesen Monat investiert" to formatMoney(budgetState.spentThisMonthEur),
                         "Für Käufe frei" to formatMoney(budgetState.monthlyAvailableEur),
-                        "Rest Vormonate" to formatMoney(budgetState.carryoverEur),
-                        "Zusätzlich" to formatMoney(budgetState.extraFundingEur),
+                        "Übertrag (kein Kaufbudget)" to formatMoney(budgetState.carryoverEur),
+                        "Zusatz-Cash (kein Kaufbudget)" to formatMoney(budgetState.extraFundingEur),
                         "Depot-Einstand" to formatMoney(budgetState.investedEur),
-                        "Gesamtguthaben" to formatMoney(budgetState.cashBalanceEur),
+                        "Kontostand gesamt" to formatMoney(budgetState.cashBalanceEur),
                         "Reserviert" to formatMoney(budgetState.reservedEur),
-                        "Gesamt verfügbar" to formatMoney(budgetState.availableEur)
+                        "Cash gesamt (kein Kaufbudget)" to formatMoney(budgetState.availableEur)
                     ),
                     accent = RadarBlue
                 )
-                Text("Bestätigte Käufe werden sofort vom Monatsbudget abgezogen. Restgeld bleibt als Gesamtguthaben erhalten; neue Kaufempfehlungen nutzen nur den noch freien Monatsrahmen.", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
+                Text("Kaufempfehlungen dürfen nur dein Monatsbudget nutzen. Übertrag, Zusatz-Cash, Verkaufserlöse und Korrekturen bleiben getrennt und erhöhen den Kaufrahmen nicht.", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
             }
         }
 
@@ -1594,7 +1594,7 @@ private fun MoneyManagementScreen(
         item {
             NeonPanel(accent = RadarGreen) {
                 Text("GELDVERWALTUNG · ${current.monthLabel}", color = RadarGreen, fontWeight = FontWeight.Black)
-                Text("Gesamt verfügbar inkl. Übertrag", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
+                Text("Gesamtes Cash inkl. Übertrag · kein Kaufbudget", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
                 Text(formatMoney(current.availableEur), style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Black, color = RadarGreen)
                 Text(
                     "Käufe werden erst nach deiner Bestätigung abgezogen. Verkäufe werden erst nach deiner Bestätigung gutgeschrieben.",
@@ -1617,12 +1617,12 @@ private fun MoneyManagementScreen(
             NeonStatStrip(
                 entries = listOf(
                     "Für Käufe frei" to formatMoney(current.monthlyAvailableEur),
-                    "Gesamt verfügbar" to formatMoney(current.availableEur),
+                    "Cash gesamt (kein Kaufbudget)" to formatMoney(current.availableEur),
                     "Monatsbudget" to formatMoney(current.monthlyBudgetEur),
-                    "Rest Vormonate" to formatMoney(current.carryoverEur),
-                    "Zusätzlich" to formatMoney(current.extraFundingEur),
+                    "Übertrag (kein Kaufbudget)" to formatMoney(current.carryoverEur),
+                    "Zusatz-Cash (kein Kaufbudget)" to formatMoney(current.extraFundingEur),
                     "Depot-Einstand" to formatMoney(current.investedEur),
-                    "Gesamtguthaben" to formatMoney(current.cashBalanceEur),
+                    "Kontostand gesamt" to formatMoney(current.cashBalanceEur),
                     "Reserviert" to formatMoney(current.reservedEur)
                 ),
                 accent = RadarBlue
@@ -1907,18 +1907,18 @@ private fun BudgetDialog(
                 NeonStatStrip(
                     entries = listOf(
                         "Für Käufe frei" to formatMoney(current.monthlyAvailableEur),
-                        "Gesamt verfügbar" to formatMoney(current.availableEur),
+                        "Cash gesamt (kein Kaufbudget)" to formatMoney(current.availableEur),
                         "Monatsbudget" to formatMoney(current.monthlyBudgetEur),
                         "Depot-Einstand" to formatMoney(current.investedEur),
-                        "Zusätzlich eingezahlt" to formatMoney(current.extraFundingEur),
-                        "Rest Vormonate" to formatMoney(current.carryoverEur),
-                        "Gesamtguthaben" to formatMoney(current.cashBalanceEur),
+                        "Zusatz-Cash (kein Kaufbudget)" to formatMoney(current.extraFundingEur),
+                        "Übertrag (kein Kaufbudget)" to formatMoney(current.carryoverEur),
+                        "Kontostand gesamt" to formatMoney(current.cashBalanceEur),
                         "Reserviert" to formatMoney(current.reservedEur)
                     ),
                     accent = RadarBlue
                 )
                 Text(
-                    "Restgeld wird als Gesamtguthaben übertragen. Für neue Empfehlungen zählt nur das noch freie Budget des aktuellen Monats. Reservierungen sind keine Buchungen, reduzieren aber diesen Monatsrahmen.",
+                    "Für neue Kaufempfehlungen zählt ausschließlich dein Monatsbudget abzüglich bereits bestätigter Käufe und Reservierungen. Überträge, Zusatz-Cash, Verkaufserlöse und Korrekturgutschriften erhöhen dieses Kaufbudget nicht.",
                     color = RadarMuted,
                     style = MaterialTheme.typography.bodySmall
                 )
@@ -1974,7 +1974,7 @@ private fun BudgetDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf(50, 100, 200, 500).forEach { preset ->
+                    listOf(50, 100, 150, 200).forEach { preset ->
                         AssistChip(onClick = { monthlyValue = preset.toString() }, label = { Text("$preset €") })
                     }
                 }

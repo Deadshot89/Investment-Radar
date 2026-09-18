@@ -27,6 +27,6 @@ echo 'PASS: Geldverlauf und budgetwirksamer Erstkauf sind vollständig verdrahte
 # Finale Verifikation des vollständigen Feature-Stands.
 
 grep -Fq 'ensureCurrentMonth' "$STORE" || fail 'Monatswechsel muss Restbudget und neues Monatsbudget automatisch fortführen.'
-grep -Fq 'Rest Vormonate' "$UI" || fail 'Restbudget aus Vormonaten muss sichtbar erklärt werden.'
+grep -Fq 'Übertrag (kein Kaufbudget)' "$UI" || fail 'Übertrag aus Vormonaten muss sichtbar als kein Kaufbudget erklärt werden.'
 grep -Fq 'Budgetwirksam' "$UI" || fail 'Historische Transaktionen brauchen eine explizite Budgetwirksam-Auswahl.'
 grep -Fq 'Davon Gebühren' "$UI" || fail 'Gebühren müssen bei Transaktionen erfassbar sein.'
