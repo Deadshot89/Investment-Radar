@@ -19,6 +19,7 @@ data class InvestmentBudgetViewState(
     val monthlyBudgetEur: Double,
     val extraFundingEur: Double,
     val investedEur: Double,
+    val spentThisMonthEur: Double = 0.0,
     val saleCreditsEur: Double,
     val reservedEur: Double,
     val availableEur: Double,
@@ -60,6 +61,9 @@ data class InvestmentBudgetViewState(
                 .sumOf { it.amountEur }
             val sales = currentEntries
                 .filter { it.type == BudgetJournalType.SELL_CREDIT }
+                .sumOf { it.amountEur }
+            val spentThisMonth = currentEntries
+                .filter { it.type == BudgetJournalType.BUY_DEBIT || it.type == BudgetJournalType.ADJUSTMENT_DEBIT }
                 .sumOf { it.amountEur }
             val fees = currentEntries
                 .filter { it.type == BudgetJournalType.BUY_DEBIT || it.type == BudgetJournalType.SELL_CREDIT }
@@ -107,6 +111,7 @@ data class InvestmentBudgetViewState(
                 monthlyBudgetEur = monthly.coerceFiniteNonNegative(),
                 extraFundingEur = extra.coerceFiniteNonNegative(),
                 investedEur = activeInvestedEur.coerceFiniteNonNegative(),
+                spentThisMonthEur = spentThisMonth.coerceFiniteNonNegative(),
                 saleCreditsEur = sales.coerceFiniteNonNegative(),
                 reservedEur = cockpit.reservedEur,
                 availableEur = cockpit.availableEur,
@@ -126,6 +131,7 @@ data class InvestmentBudgetViewState(
                 monthlyBudgetEur = cockpit.monthlyBudgetEur,
                 extraFundingEur = cockpit.extraFundingEur,
                 investedEur = cockpit.investedEur,
+                spentThisMonthEur = cockpit.investedEur,
                 saleCreditsEur = cockpit.saleCreditsEur,
                 reservedEur = cockpit.reservedEur,
                 availableEur = cockpit.availableEur,
