@@ -66,6 +66,48 @@ class AdvisorChangePolicyTest {
     }
 
     @Test
+    fun newBudgetAllocationCreatesOnePurchaseEventWithAmountAndAction() {
+        val current = PortfolioAdvisorPlan(
+            budgetEur = 100,
+            allocations = listOf(
+                PortfolioAllocation(
+                    itemId = "meta",
+                    amountEur = 60,
+                    action = PortfolioAdvisorAction.NEU_AUFNEHMEN,
+                    reason = "Beste Chance"
+                )
+            ),
+            cashEur = 40,
+            reallocations = emptyList(),
+            savingsPlanConflicts = emptyList(),
+            candidates = emptyList()
+        )
+
+        val events = AdvisorChangePolicy.planEvents(null, current, "2026-09-18")
+
+        assertEquals(1, events.size)
+        assertEquals(AdvisorNotificationEventKind.PURCHASE_ALLOCATION, events.single().kind)
+        assertEquals(60, events.single().amountEur)
+        assertEquals(PortfolioAdvisorAction.NEU_AUFNEHMEN, events.single().portfolioAction)
+    }
+
+    @Test
+    fun unchangedBudgetAllocationCreatesNoRepeatedPurchaseEvent() {
+        val plan = PortfolioAdvisorPlan(
+            budgetEur = 100,
+            allocations = listOf(
+                PortfolioAllocation("meta", 60, PortfolioAdvisorAction.NACHKAUFEN, "Beste Chance")
+            ),
+            cashEur = 40,
+            reallocations = emptyList(),
+            savingsPlanConflicts = emptyList(),
+            candidates = emptyList()
+        )
+
+        assertTrue(AdvisorChangePolicy.planEvents(plan, plan, "2026-09-18").isEmpty())
+    }
+
+    @Test
     fun unchangedPlanCreatesNoPlanEvent() {
         val plan = plan(reallocationAmount = 20)
 
