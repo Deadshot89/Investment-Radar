@@ -26,6 +26,20 @@ object AdvisorNotificationCopy {
             )
         }
 
+        if (event.kind == AdvisorNotificationEventKind.PURCHASE_ALLOCATION) {
+            val amount = event.amountEur?.coerceAtLeast(0) ?: 0
+            val isExistingHolding = event.portfolioAction == PortfolioAdvisorAction.NACHKAUFEN
+            val label = if (isExistingHolding) "NACHKAUFEN" else "KAUFEN"
+            val detail = buildString {
+                if (reason.isNotBlank()) append(reason)
+            }
+            return AdvisorNotificationText(
+                title = "🟢 $label · $amount € – $name",
+                body = body("$label · $amount €", detail),
+                level = "BUY"
+            )
+        }
+
         if (event.kind == AdvisorNotificationEventKind.REALLOCATION) {
             val fromName = fromDisplayName?.takeIf { it.isNotBlank() } ?: name
             val toName = toDisplayName?.takeIf { it.isNotBlank() }
