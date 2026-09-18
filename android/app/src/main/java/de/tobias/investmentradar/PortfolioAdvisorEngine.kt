@@ -67,9 +67,9 @@ object PortfolioAdvisorEngine {
 
         if (budget == 0 || purchaseBudget == 0) {
             return PortfolioAdvisorPlan(
-                budgetEur = 0,
+                budgetEur = budget,
                 allocations = emptyList(),
-                cashEur = 0,
+                cashEur = budget,
                 reallocations = reallocations,
                 savingsPlanConflicts = conflicts,
                 candidates = candidates
