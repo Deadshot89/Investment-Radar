@@ -46,3 +46,21 @@ echo "PASS live investment budget cockpit wiring"
 
 grep -q 'addBudgetAdjustment' "$VM"
 grep -q 'feeEur' "$VM"
+
+ADVISOR="android/app/src/main/java/de/tobias/investmentradar/PortfolioAdvisorEngine.kt"
+if grep -Fq 'budget.availableEur' "$ADVISOR"; then
+  echo "Advisor darf Gesamt-Cash nicht als Kaufbudget akzeptieren"
+  exit 1
+fi
+if grep -Fq '"Gesamt verfügbar" to formatMoney' "$SRC"; then
+  echo "Altes mehrdeutiges Gesamt-verfügbar-Label darf nicht mehr als Budget-Kachel erscheinen"
+  exit 1
+fi
+if grep -Fq '"Rest Vormonate" to formatMoney' "$SRC"; then
+  echo "Übertrag muss ausdrücklich als kein Kaufbudget gekennzeichnet sein"
+  exit 1
+fi
+if grep -Fq 'listOf(50, 100, 200, 500)' "$SRC"; then
+  echo "500-Euro-Budget-Schnellwahl darf nicht mehr angezeigt werden"
+  exit 1
+fi
