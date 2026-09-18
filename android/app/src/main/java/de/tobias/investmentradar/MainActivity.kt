@@ -824,16 +824,16 @@ private fun DashboardScreen(
                         "Monatsbudget ${budgetState.monthLabel}" to formatMoney(budgetState.monthlyBudgetEur),
                         "Diesen Monat investiert" to formatMoney(budgetState.spentThisMonthEur),
                         "Für Käufe frei" to formatMoney(budgetState.monthlyAvailableEur),
-                        "Rest Vormonate" to formatMoney(budgetState.carryoverEur),
-                        "Zusätzlich" to formatMoney(budgetState.extraFundingEur),
+                        "Übertrag (kein Kaufbudget)" to formatMoney(budgetState.carryoverEur),
+                        "Zusatz-Cash (kein Kaufbudget)" to formatMoney(budgetState.extraFundingEur),
                         "Depot-Einstand" to formatMoney(budgetState.investedEur),
-                        "Gesamtguthaben" to formatMoney(budgetState.cashBalanceEur),
+                        "Kontostand gesamt" to formatMoney(budgetState.cashBalanceEur),
                         "Reserviert" to formatMoney(budgetState.reservedEur),
-                        "Gesamt verfügbar" to formatMoney(budgetState.availableEur)
+                        "Cash gesamt (kein Kaufbudget)" to formatMoney(budgetState.availableEur)
                     ),
                     accent = RadarBlue
                 )
-                Text("Bestätigte Käufe werden sofort vom Monatsbudget abgezogen. Restgeld bleibt als Gesamtguthaben erhalten; neue Kaufempfehlungen nutzen nur den noch freien Monatsrahmen.", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
+                Text("Kaufempfehlungen dürfen nur dein Monatsbudget nutzen. Übertrag, Zusatz-Cash, Verkaufserlöse und Korrekturen bleiben getrennt und erhöhen den Kaufrahmen nicht.", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
             }
         }
 
@@ -1594,7 +1594,7 @@ private fun MoneyManagementScreen(
         item {
             NeonPanel(accent = RadarGreen) {
                 Text("GELDVERWALTUNG · ${current.monthLabel}", color = RadarGreen, fontWeight = FontWeight.Black)
-                Text("Gesamt verfügbar inkl. Übertrag", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
+                Text("Gesamtes Cash inkl. Übertrag · kein Kaufbudget", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
                 Text(formatMoney(current.availableEur), style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Black, color = RadarGreen)
                 Text(
                     "Käufe werden erst nach deiner Bestätigung abgezogen. Verkäufe werden erst nach deiner Bestätigung gutgeschrieben.",
@@ -1974,7 +1974,7 @@ private fun BudgetDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf(50, 100, 200, 500).forEach { preset ->
+                    listOf(50, 100, 150, 200).forEach { preset ->
                         AssistChip(onClick = { monthlyValue = preset.toString() }, label = { Text("$preset €") })
                     }
                 }
