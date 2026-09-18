@@ -2,6 +2,7 @@
 set -euo pipefail
 
 # Final Integration Contract für Investment Radar 2.5.15 / Android 2.5.15.
+# Combined main budget debit + monthly purchase-cap release candidate.
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 GRADLE_FILE="$ROOT/android/app/build.gradle.kts"
 WORKFLOW_FILE="$ROOT/.github/workflows/android-build.yml"
