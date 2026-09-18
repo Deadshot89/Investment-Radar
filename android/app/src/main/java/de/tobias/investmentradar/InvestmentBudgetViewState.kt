@@ -69,8 +69,19 @@ data class InvestmentBudgetViewState(
                 .filter { it.type == BudgetJournalType.BUY_DEBIT || it.type == BudgetJournalType.SELL_CREDIT }
                 .sumOf { it.feeEur }
             val carryover = priorEntries.sumOf(::balanceEffect)
-            val currentMonthBalance = currentEntries.sumOf(::balanceEffect)
-            val monthlyAvailable = (currentMonthBalance - cockpit.reservedEur).coerceAtLeast(0.0)
+            val monthlyBudgetBuys = currentEntries
+                .filter {
+                    it.type == BudgetJournalType.BUY_DEBIT &&
+                        it.source != BudgetJournalSource.SPARE_CHANGE
+                }
+                .sumOf { it.amountEur }
+            val monthlyBudgetRemaining = (
+                monthly - monthlyBudgetBuys - cockpit.reservedEur
+            ).coerceAtLeast(0.0)
+            val monthlyAvailable = minOf(
+                monthlyBudgetRemaining,
+                cockpit.availableEur.coerceAtLeast(0.0)
+            )
             val history = validEntries
                 .sortedWith(
                     compareByDescending<BudgetJournalEntry> {
@@ -135,8 +146,16 @@ data class InvestmentBudgetViewState(
                 saleCreditsEur = cockpit.saleCreditsEur,
                 reservedEur = cockpit.reservedEur,
                 availableEur = cockpit.availableEur,
-                monthlyAvailableEur = cockpit.availableEur,
-                advisorBudgetEur = cockpit.advisorBudgetEur,
+                monthlyAvailableEur = minOf(
+                    cockpit.monthlyBudgetEur.coerceAtLeast(0.0),
+                    cockpit.availableEur.coerceAtLeast(0.0)
+                ),
+                advisorBudgetEur = floor(
+                    minOf(
+                        cockpit.monthlyBudgetEur.coerceAtLeast(0.0),
+                        cockpit.availableEur.coerceAtLeast(0.0)
+                    )
+                ).toInt().coerceAtLeast(0),
                 cashBalanceEur = summary.cashBalanceEur.coerceFiniteNonNegative(),
                 carryoverEur = 0.0,
                 feesEur = summary.feesEur.coerceFiniteNonNegative(),
