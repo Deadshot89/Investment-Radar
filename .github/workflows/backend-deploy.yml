@@ -175,8 +175,39 @@ jobs:
             exit 1
           fi
 
+          echo "Checking live radar data quality"
+          RADAR_QUALITY_URL="${BASE_URL%/}/api/radar?page=1&pageSize=20&tradeRepublicVerified=true&includeCounts=true"
+          RADAR_QUALITY_STATUS=$(curl --silent --show-error --max-time 90 --output /tmp/radar-quality.json --write-out "%{http_code}" "$RADAR_QUALITY_URL" || true)
+          echo "Radar quality status: $RADAR_QUALITY_STATUS"
+          if [ "$RADAR_QUALITY_STATUS" != "200" ]; then
+            echo "❌ Live-Datenqualitätsprüfung fehlgeschlagen: Radar HTTP $RADAR_QUALITY_STATUS." >> "$GITHUB_STEP_SUMMARY"
+            cat /tmp/radar-quality.json >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+            exit 1
+          fi
+          set +e
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          import { assessLiveRadarResponse } from "./backend/src/lib/liveDataQuality.mjs";
+          const payload = JSON.parse(fs.readFileSync("/tmp/radar-quality.json", "utf8"));
+          const result = assessLiveRadarResponse(payload);
+          fs.writeFileSync("/tmp/radar-quality-result.json", JSON.stringify(result, null, 2));
+          console.log(JSON.stringify(result));
+          process.exit(result.ok ? 0 : 5);
+          NODE
+          RADAR_QUALITY_EXIT=$?
+          set -e
+          RADAR_METRICS=$(node -e 'const fs=require("fs"); const r=JSON.parse(fs.readFileSync("/tmp/radar-quality-result.json","utf8")); const m=r.metrics; process.stdout.write(`Universe ${m.universeTotal}, Sample ${m.sampleSize}, Kurse ${m.quoteCoveragePct}%, Analyse ${m.analysisCoveragePct}%, Qualitätsmetadaten ${m.qualityMetadataPct}%, unsichere BUY ${m.unsafeBuyCount}, Datenfehler ${m.explicitDataErrorCount}`);')
+          echo "Radar data quality: $RADAR_METRICS"
+          if [ "$RADAR_QUALITY_EXIT" -ne 0 ]; then
+            RADAR_FAILURES=$(node -e 'const fs=require("fs"); const r=JSON.parse(fs.readFileSync("/tmp/radar-quality-result.json","utf8")); process.stdout.write((r.failures||[]).join("; "));')
+            echo "❌ Live-Datenqualität unter Mindeststandard: $RADAR_FAILURES" >> "$GITHUB_STEP_SUMMARY"
+            echo "Messwerte: $RADAR_METRICS" >> "$GITHUB_STEP_SUMMARY"
+            exit "$RADAR_QUALITY_EXIT"
+          fi
+
           echo "## Backend Deploy" >> "$GITHUB_STEP_SUMMARY"
           echo "✅ Backend-Version $EXPECTED_BACKEND_VERSION ist live: ${BASE_URL%/}" >> "$GITHUB_STEP_SUMMARY"
           echo "✅ Exakte Backend-Inhaltsrevision $BACKEND_REVISION und Deploy-ID $DEPLOY_ID sind live; API-Schema $EXPECTED_API_SCHEMA." >> "$GITHUB_STEP_SUMMARY"
           echo "✅ Push-Test-Route /api/test-push ist registriert und geschützt (HTTP 401 ohne Admin-Key)." >> "$GITHUB_STEP_SUMMARY"
           echo "✅ Eigene-Werte-Route /api/custom-quote ist registriert." >> "$GITHUB_STEP_SUMMARY"
+          echo "✅ Live-Datenqualität geprüft: $RADAR_METRICS" >> "$GITHUB_STEP_SUMMARY"
