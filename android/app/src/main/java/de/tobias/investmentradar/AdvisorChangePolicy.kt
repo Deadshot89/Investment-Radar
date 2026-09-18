@@ -4,6 +4,7 @@ enum class AdvisorNotificationEventKind {
     SIGNAL_CHANGE,
     NEW_STRONG_OPPORTUNITY,
     REALLOCATION,
+    PURCHASE_ALLOCATION,
     RELIABILITY_LOST
 }
 
@@ -17,7 +18,8 @@ data class AdvisorNotificationEvent(
     val kind: AdvisorNotificationEventKind = AdvisorNotificationEventKind.SIGNAL_CHANGE,
     val fromItemId: String? = null,
     val toItemId: String? = null,
-    val amountEur: Int? = null
+    val amountEur: Int? = null,
+    val portfolioAction: PortfolioAdvisorAction? = null
 )
 
 object AdvisorChangePolicy {
@@ -71,12 +73,32 @@ object AdvisorChangePolicy {
         current: PortfolioAdvisorPlan,
         analysisDay: String
     ): List<AdvisorNotificationEvent> {
+        val previousAllocations = previous?.allocations.orEmpty()
+            .associateBy { allocationKey(it) }
+        val purchaseEvents = current.allocations.asSequence()
+            .filter { it.amountEur > 0 }
+            .filterNot { allocationKey(it) in previousAllocations }
+            .map { allocation ->
+                AdvisorNotificationEvent(
+                    id = "allocation|${allocation.itemId}|${allocation.amountEur}|${allocation.action.name}|$analysisDay",
+                    instrumentId = allocation.itemId,
+                    previousSignal = null,
+                    newSignal = AdvisorSignal.NACHKAUFEN,
+                    analysisDay = analysisDay,
+                    reasons = listOf(allocation.reason).filter { it.isNotBlank() },
+                    kind = AdvisorNotificationEventKind.PURCHASE_ALLOCATION,
+                    amountEur = allocation.amountEur,
+                    portfolioAction = allocation.action
+                )
+            }
+            .toList()
+
         val before = previous?.reallocations.orEmpty()
             .filter { it.amountEur >= MIN_REALLOCATION_EUR }
             .map { reallocationKey(it) }
             .toSet()
 
-        return current.reallocations.asSequence()
+        val reallocationEvents = current.reallocations.asSequence()
             .filter { it.amountEur >= MIN_REALLOCATION_EUR }
             .filterNot { reallocationKey(it) in before }
             .distinctBy { reallocationKey(it) }
@@ -95,7 +117,12 @@ object AdvisorChangePolicy {
                 )
             }
             .toList()
+
+        return purchaseEvents + reallocationEvents
     }
+
+    private fun allocationKey(value: PortfolioAllocation): String =
+        "${value.itemId}|${value.amountEur}|${value.action.name}"
 
     private fun reallocationKey(value: ReallocationSuggestion): String =
         "${value.fromItemId}|${value.toItemId}|${value.amountEur}"
