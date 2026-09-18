@@ -2,6 +2,7 @@ package de.tobias.investmentradar
 
 import java.time.LocalDate
 import java.time.YearMonth
+import kotlin.math.floor
 
 data class BudgetHistoryItem(
     val id: String,
@@ -21,6 +22,7 @@ data class InvestmentBudgetViewState(
     val saleCreditsEur: Double,
     val reservedEur: Double,
     val availableEur: Double,
+    val monthlyAvailableEur: Double = availableEur,
     val advisorBudgetEur: Int,
     val cashBalanceEur: Double = availableEur + reservedEur,
     val carryoverEur: Double = 0.0,
@@ -37,10 +39,17 @@ data class InvestmentBudgetViewState(
         ): InvestmentBudgetViewState {
             val cockpit = InvestmentBudgetPresentation.from(summary)
             val currentMonth = YearMonth.from(today)
-            val currentEntries = entries.filter { entry ->
+            val validEntries = entries
+                .filter {
+                    it.id.isNotBlank() &&
+                        it.amountEur.isFinite() && it.amountEur >= 0.0 &&
+                        it.feeEur.isFinite() && it.feeEur >= 0.0
+                }
+                .distinctBy { it.id }
+            val currentEntries = validEntries.filter { entry ->
                 InvestmentBudgetDate.parse(entry.date)?.let { YearMonth.from(it) == currentMonth } == true
             }
-            val priorEntries = entries.filter { entry ->
+            val priorEntries = validEntries.filter { entry ->
                 InvestmentBudgetDate.parse(entry.date)?.let { YearMonth.from(it) < currentMonth } == true
             }
             val monthly = currentEntries
@@ -56,13 +65,9 @@ data class InvestmentBudgetViewState(
                 .filter { it.type == BudgetJournalType.BUY_DEBIT || it.type == BudgetJournalType.SELL_CREDIT }
                 .sumOf { it.feeEur }
             val carryover = priorEntries.sumOf(::balanceEffect)
-            val history = entries
-                .filter {
-                    it.id.isNotBlank() &&
-                        it.amountEur.isFinite() && it.amountEur >= 0.0 &&
-                        it.feeEur.isFinite() && it.feeEur >= 0.0
-                }
-                .distinctBy { it.id }
+            val currentMonthBalance = currentEntries.sumOf(::balanceEffect)
+            val monthlyAvailable = (currentMonthBalance - cockpit.reservedEur).coerceAtLeast(0.0)
+            val history = validEntries
                 .sortedWith(
                     compareByDescending<BudgetJournalEntry> {
                         InvestmentBudgetDate.parse(it.date) ?: LocalDate.MIN
@@ -105,7 +110,8 @@ data class InvestmentBudgetViewState(
                 saleCreditsEur = sales.coerceFiniteNonNegative(),
                 reservedEur = cockpit.reservedEur,
                 availableEur = cockpit.availableEur,
-                advisorBudgetEur = cockpit.advisorBudgetEur,
+                monthlyAvailableEur = monthlyAvailable,
+                advisorBudgetEur = floor(monthlyAvailable).toInt().coerceAtLeast(0),
                 cashBalanceEur = summary.cashBalanceEur.coerceFiniteNonNegative(),
                 carryoverEur = carryover.coerceAtLeast(0.0),
                 feesEur = fees.coerceFiniteNonNegative(),
@@ -123,6 +129,7 @@ data class InvestmentBudgetViewState(
                 saleCreditsEur = cockpit.saleCreditsEur,
                 reservedEur = cockpit.reservedEur,
                 availableEur = cockpit.availableEur,
+                monthlyAvailableEur = cockpit.availableEur,
                 advisorBudgetEur = cockpit.advisorBudgetEur,
                 cashBalanceEur = summary.cashBalanceEur.coerceFiniteNonNegative(),
                 carryoverEur = 0.0,
