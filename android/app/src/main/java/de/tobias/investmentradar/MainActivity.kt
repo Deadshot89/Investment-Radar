@@ -1617,12 +1617,12 @@ private fun MoneyManagementScreen(
             NeonStatStrip(
                 entries = listOf(
                     "Für Käufe frei" to formatMoney(current.monthlyAvailableEur),
-                    "Gesamt verfügbar" to formatMoney(current.availableEur),
+                    "Cash gesamt (kein Kaufbudget)" to formatMoney(current.availableEur),
                     "Monatsbudget" to formatMoney(current.monthlyBudgetEur),
-                    "Rest Vormonate" to formatMoney(current.carryoverEur),
-                    "Zusätzlich" to formatMoney(current.extraFundingEur),
+                    "Übertrag (kein Kaufbudget)" to formatMoney(current.carryoverEur),
+                    "Zusatz-Cash (kein Kaufbudget)" to formatMoney(current.extraFundingEur),
                     "Depot-Einstand" to formatMoney(current.investedEur),
-                    "Gesamtguthaben" to formatMoney(current.cashBalanceEur),
+                    "Kontostand gesamt" to formatMoney(current.cashBalanceEur),
                     "Reserviert" to formatMoney(current.reservedEur)
                 ),
                 accent = RadarBlue
@@ -1907,18 +1907,18 @@ private fun BudgetDialog(
                 NeonStatStrip(
                     entries = listOf(
                         "Für Käufe frei" to formatMoney(current.monthlyAvailableEur),
-                        "Gesamt verfügbar" to formatMoney(current.availableEur),
+                        "Cash gesamt (kein Kaufbudget)" to formatMoney(current.availableEur),
                         "Monatsbudget" to formatMoney(current.monthlyBudgetEur),
                         "Depot-Einstand" to formatMoney(current.investedEur),
-                        "Zusätzlich eingezahlt" to formatMoney(current.extraFundingEur),
-                        "Rest Vormonate" to formatMoney(current.carryoverEur),
-                        "Gesamtguthaben" to formatMoney(current.cashBalanceEur),
+                        "Zusatz-Cash (kein Kaufbudget)" to formatMoney(current.extraFundingEur),
+                        "Übertrag (kein Kaufbudget)" to formatMoney(current.carryoverEur),
+                        "Kontostand gesamt" to formatMoney(current.cashBalanceEur),
                         "Reserviert" to formatMoney(current.reservedEur)
                     ),
                     accent = RadarBlue
                 )
                 Text(
-                    "Restgeld wird als Gesamtguthaben übertragen. Für neue Empfehlungen zählt nur das noch freie Budget des aktuellen Monats. Reservierungen sind keine Buchungen, reduzieren aber diesen Monatsrahmen.",
+                    "Für neue Kaufempfehlungen zählt ausschließlich dein Monatsbudget abzüglich bereits bestätigter Käufe und Reservierungen. Überträge, Zusatz-Cash, Verkaufserlöse und Korrekturgutschriften erhöhen dieses Kaufbudget nicht.",
                     color = RadarMuted,
                     style = MaterialTheme.typography.bodySmall
                 )
