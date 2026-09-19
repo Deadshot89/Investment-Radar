@@ -8,6 +8,8 @@ data class LivePortfolioPosition(
 
 data class LivePortfolioSummaryData(
     val currentValue: Double,
+    val currentValueComplete: Boolean,
+    val missingPriceCount: Int,
     val costBasis: Double,
     val profitLoss: Double,
     val profitLossPct: Double,
@@ -30,6 +32,8 @@ object LivePortfolioSummary {
 
         return LivePortfolioSummaryData(
             currentValue = metrics.calculableCurrentValue,
+            currentValueComplete = metrics.currentValueComplete,
+            missingPriceCount = metrics.missingPriceCount,
             costBasis = metrics.investedCostBasis,
             profitLoss = metrics.totalProfitLoss ?: 0.0,
             profitLossPct = metrics.totalProfitLossPct ?: 0.0,
