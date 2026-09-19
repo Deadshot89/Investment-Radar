@@ -28,7 +28,7 @@ sealed interface UiState {
 class MainViewModel(app: Application) : AndroidViewModel(app) {
     init {
         InvestmentBudgetStore.ensureInitialized(app)
-        UserPortfolioSeed.ensureSeeded(app)
+        // Portfolio data is loaded only from persisted user data. Never auto-seed holdings or values.
     }
 
     private val _state = MutableStateFlow<UiState>(UiState.Loading)

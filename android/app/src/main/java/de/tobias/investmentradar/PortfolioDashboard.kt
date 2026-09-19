@@ -105,7 +105,14 @@ fun PortfolioDashboard(
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Bold
                 )
-                Text(portfolioMoney(metrics.calculableCurrentValue), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black)
+                Text(
+                    if (metrics.currentValueComplete) portfolioMoney(metrics.calculableCurrentValue) else "Nicht vollständig berechenbar",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Black
+                )
+                if (!metrics.currentValueComplete && metrics.calculableCurrentValue > 0.0) {
+                    PortfolioDashboardValue("Berechenbarer Teil", portfolioMoney(metrics.calculableCurrentValue))
+                }
                 PortfolioDashboardValue("Einstand", if (costBasisComplete) portfolioMoney(metrics.investedCostBasis) else "Nicht vollständig erfasst")
                 PortfolioDashboardValue("Positionen", metrics.heldPositionCount.toString())
                 PortfolioDashboardValue(
@@ -123,7 +130,7 @@ fun PortfolioDashboard(
                     Text("Für einzelne Depotwerte fehlen Einstandsdaten. Depotwert und Gewichtung bleiben korrekt; fehlende Performance wird nicht erfunden.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 if (!metrics.currentValueComplete) {
-                    Text("${metrics.missingPriceCount} Position(en) ohne verwertbaren Kurs – Gesamtperformance unvollständig.", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                    Text("${metrics.missingPriceCount} Position(en) ohne belastbaren aktuellen Wert – Depotgesamtwert und Performance werden nicht behauptet.", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -162,7 +169,7 @@ fun PortfolioDashboard(
                 if (importedSnapshot) {
                     PortfolioDashboardValue(
                         "Wertbasis",
-                        if (liveTrackedValue) "Live-Kurs × Stückzahl" else "Importierter Depotwert"
+                        if (liveTrackedValue) "Live-Kurs × Stückzahl" else "Historischer Import · kein aktueller Wert"
                     )
                 }
                 PortfolioDashboardValue("Einstand", if (row.costBasisKnown) portfolioMoney(row.investedCostBasis) else "Nicht erfasst")
@@ -222,15 +229,15 @@ fun PortfolioDashboard(
                 }
 
                 if (row.active && !row.hasUsablePrice) {
-                    Text("Kurs fehlt – Depotwert und Gesamtperformance werden deshalb als Teilwert angezeigt.", color = MaterialTheme.colorScheme.error)
+                    Text("Aktueller Wert fehlt – historische Snapshotwerte werden nicht als heutiger Depotwert verwendet.", color = MaterialTheme.colorScheme.error)
                 }
                 position?.let {
                     Text(
                         when {
                             importedSnapshot && liveTrackedValue && row.costBasisKnown -> "Live-Tracking aktiv · Einstand importiert"
                             importedSnapshot && liveTrackedValue -> "Live-Tracking aktiv · Einstand fehlt"
-                            importedSnapshot && row.costBasisKnown -> "Depotwert und Einstand importiert"
-                            importedSnapshot -> "Depotwert importiert · Einstand fehlt"
+                            importedSnapshot && row.costBasisKnown -> "Historischer Depotwert gespeichert · Einstand importiert"
+                            importedSnapshot -> "Historischer Depotwert gespeichert · Einstand fehlt"
                             else -> "${it.purchases.size} Käufe · ${it.sales.size} Verkäufe"
                         },
                         color = MaterialTheme.colorScheme.onSurfaceVariant,

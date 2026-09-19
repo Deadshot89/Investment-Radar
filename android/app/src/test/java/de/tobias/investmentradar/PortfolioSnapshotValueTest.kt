@@ -7,26 +7,26 @@ import org.junit.Test
 
 class PortfolioSnapshotValueTest {
     @Test
-    fun snapshotOnlyHoldingCountsAsActiveAndUsesSnapshotValue() {
+    fun snapshotOnlyHoldingStaysActiveButIsNotACurrentMarketValue() {
         val position = PortfolioPosition(itemId = "meta", snapshotValueEur = 1675.88)
 
         assertTrue(position.isActiveHolding())
-        assertEquals(1675.88, position.currentValue(null)!!, 0.001)
+        assertNull(position.currentValue(null))
         assertNull(position.unrealizedProfitLoss(null))
         assertNull(position.totalProfitLoss(null))
     }
 
     @Test
-    fun portfolioAnalysisUsesSnapshotValueWithoutInventingSharesOrCostBasis() {
+    fun portfolioAnalysisDoesNotUseHistoricalSnapshotAsCurrentValue() {
         val positions = mapOf("meta" to PortfolioPosition(itemId = "meta", snapshotValueEur = 1675.88))
 
         val values = PortfolioAnalysis.values(emptyList(), positions, emptyList())
 
-        assertEquals(1675.88, values.getValue("meta"), 0.001)
+        assertTrue(values.isEmpty())
     }
 
     @Test
-    fun portfolioAnalysisPrefersTrackedSharesAtCurrentPriceOverOldSnapshot() {
+    fun portfolioAnalysisUsesTrackedSharesAtCurrentPrice() {
         val item = InvestmentItem(
             id = "meta",
             type = "Aktie",
@@ -62,7 +62,7 @@ class PortfolioSnapshotValueTest {
     }
 
     @Test
-    fun portfolioMetricsIncludesSnapshotOnlyHoldingInWeights() {
+    fun snapshotOnlyHoldingsMakePortfolioValueIncompleteInsteadOfFabricatingTotal() {
         val positions = mapOf(
             "meta" to PortfolioPosition(itemId = "meta", snapshotValueEur = 1675.88),
             "msft" to PortfolioPosition(itemId = "msft", snapshotValueEur = 31.38)
@@ -71,9 +71,10 @@ class PortfolioSnapshotValueTest {
         val summary = PortfolioMetrics.calculate(emptyList(), positions, emptyList())
 
         assertEquals(2, summary.heldPositionCount)
-        assertEquals(1707.26, summary.calculableCurrentValue, 0.001)
-        assertEquals("meta", summary.largestPositionId)
-        assertTrue((summary.largestWeightPct ?: 0.0) > 98.0)
+        assertEquals(2, summary.missingPriceCount)
+        assertEquals(0.0, summary.calculableCurrentValue, 0.001)
+        assertTrue(!summary.currentValueComplete)
+        assertNull(summary.largestPositionId)
         assertNull(summary.totalProfitLoss)
     }
 }

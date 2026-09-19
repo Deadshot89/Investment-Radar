@@ -7,7 +7,7 @@ import org.junit.Test
 
 class PortfolioSnapshotDisplayTest {
     @Test
-    fun snapshotOnlyPositionKeepsValueButMarksCostBasisUnknown() {
+    fun snapshotOnlyPositionRequiresSharesBeforeLivePriceCanProduceCurrentValue() {
         val position = PortfolioPosition(itemId = "meta", snapshotValueEur = 1675.88)
         val result = PortfolioMetrics.calculate(
             items = listOf(testInvestmentItem(id = "meta", priceEur = 500.0)),
@@ -16,7 +16,8 @@ class PortfolioSnapshotDisplayTest {
         )
         val metric = result.positions.single()
 
-        assertEquals(1675.88, metric.currentValue!!, 0.001)
+        assertNull(metric.currentValue)
+        assertFalse(metric.hasUsablePrice)
         assertFalse(metric.costBasisKnown)
         assertNull(metric.totalProfitLoss)
         assertNull(metric.totalProfitLossPct)
