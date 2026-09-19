@@ -51,7 +51,22 @@ fun LivePortfolioCard(
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("MEIN DEPOT", color = accent, fontWeight = FontWeight.Black, style = MaterialTheme.typography.labelLarge)
-                    Text(formatLiveMoney(summary.currentValue), fontWeight = FontWeight.Black, style = MaterialTheme.typography.headlineMedium)
+                    Text(
+                        if (summary.currentValueComplete) formatLiveMoney(summary.currentValue) else "Nicht vollständig berechenbar",
+                        fontWeight = FontWeight.Black,
+                        style = MaterialTheme.typography.headlineMedium
+                    )
+                    if (!summary.currentValueComplete) {
+                        Text(
+                            "${summary.missingPriceCount} Position(en) ohne belastbaren aktuellen Wert",
+                            color = Color(0xFFFF6577),
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                        if (summary.currentValue > 0.0) {
+                            Text("Berechenbarer Teil: ${formatLiveMoney(summary.currentValue)}", color = muted, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
                 }
                 Button(onClick = onOpenPortfolio) { Text("Öffnen") }
             }
