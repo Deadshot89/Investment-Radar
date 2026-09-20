@@ -295,7 +295,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         itemId: String,
         sale: PortfolioSale,
         source: BudgetJournalSource = BudgetJournalSource.MANUAL,
-        feeEur: Double = 0.0
+        feeEur: Double = 0.0,
+        note: String = "Verkauf ausgeführt"
     ): Boolean {
         val app = getApplication<Application>()
         val current = _positions.value[itemId] ?: return false
@@ -310,7 +311,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 proceedsEur = sale.proceeds,
                 shares = sale.shares,
                 source = source,
-                feeEur = feeEur
+                feeEur = feeEur,
+                note = note
             )
         )
         val nextPosition = result.position ?: return false

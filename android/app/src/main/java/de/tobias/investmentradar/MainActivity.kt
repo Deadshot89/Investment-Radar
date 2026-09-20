@@ -154,6 +154,7 @@ fun InvestmentRadarUi(
     var pendingActionAmountEur by remember { mutableStateOf<Double?>(null) }
     var pendingActionShares by remember { mutableStateOf<Double?>(null) }
     var pendingActionPrefillMessage by remember { mutableStateOf<String?>(null) }
+    var pendingActionSaleNote by remember { mutableStateOf<String?>(null) }
     var investmentDialogItem by remember { mutableStateOf<InvestmentItem?>(null) }
     var investmentDialogEntryType by remember { mutableStateOf("BUY") }
     var customAssetDialog by remember { mutableStateOf(false) }
@@ -196,6 +197,7 @@ fun InvestmentRadarUi(
                             pendingActionAmountEur = null
                             pendingActionShares = null
                             pendingActionPrefillMessage = null
+                            pendingActionSaleNote = null
                         }
                         AppOverlay.CUSTOM_ASSET -> customAssetDialog = false
                         AppOverlay.EDIT_CUSTOM_ASSET -> editingCustomAsset = null
@@ -462,6 +464,7 @@ fun InvestmentRadarUi(
                                                 pendingActionAmountEur = prefill.amountEur.takeIf { it > 0.0 }
                                                 pendingActionShares = prefill.shares
                                                 pendingActionPrefillMessage = prefill.message
+                                                pendingActionSaleNote = null
                                                 investmentDialogEntryType = "BUY"
                                                 investmentDialogItem = item
                                             } else {
@@ -480,6 +483,7 @@ fun InvestmentRadarUi(
                                                 pendingActionAmountEur = prefill.amountEur.takeIf { it > 0.0 }
                                                 pendingActionShares = prefill.shares
                                                 pendingActionPrefillMessage = prefill.message
+                                                pendingActionSaleNote = null
                                                 investmentDialogEntryType = "SELL"
                                                 investmentDialogItem = item
                                             } else {
@@ -519,7 +523,7 @@ fun InvestmentRadarUi(
                                 actionCenter = moneyActionCenter,
                                 liquidityHoldings = liquidityHoldings,
                                 onOpenBudgetEditor = { budgetDialog = true },
-                                onExecuteLiquiditySale = { suggestion ->
+                                onExecuteLiquiditySale = { suggestion, flowTag ->
                                     val item = liquidityItemsById[suggestion.itemId]
                                     if (item != null) {
                                         pendingActionAmountEur = suggestion.amountEur
@@ -529,14 +533,15 @@ fun InvestmentRadarUi(
                                             append(if (suggestion.fullExit) "Vollverkauf" else "Teilverkauf")
                                             if (suggestion.reason.isNotBlank()) append(" · ").append(suggestion.reason)
                                         }
+                                        pendingActionSaleNote = "$flowTag · privater Verkaufserlös"
                                         investmentDialogEntryType = "SELL"
                                         investmentDialogItem = item
                                     } else {
                                         missingAlertItemMessage = "Das Wertpapier ist nicht im aktuellen Radar enthalten."
                                     }
                                 },
-                                onRecordWithdrawal = { amountEur ->
-                                    vm.addBudgetAdjustment(amountEur, false, "Auszahlung / Geldbedarf")
+                                onRecordWithdrawal = { amountEur, flowTag ->
+                                    vm.addBudgetAdjustment(amountEur, false, "Auszahlung / Geldbedarf · $flowTag")
                                 },
                                 onExecuteAction = { action ->
                                     when (action.type) {
@@ -552,6 +557,7 @@ fun InvestmentRadarUi(
                                                 pendingActionAmountEur = prefill.amountEur.takeIf { it > 0.0 }
                                                 pendingActionShares = prefill.shares
                                                 pendingActionPrefillMessage = prefill.message
+                                                pendingActionSaleNote = null
                                                 investmentDialogEntryType = "BUY"
                                                 investmentDialogItem = item
                                             } else {
@@ -570,6 +576,7 @@ fun InvestmentRadarUi(
                                                 pendingActionAmountEur = prefill.amountEur.takeIf { it > 0.0 }
                                                 pendingActionShares = prefill.shares
                                                 pendingActionPrefillMessage = prefill.message
+                                                pendingActionSaleNote = null
                                                 investmentDialogEntryType = "SELL"
                                                 investmentDialogItem = item
                                             } else {
@@ -634,6 +641,7 @@ fun InvestmentRadarUi(
                             pendingActionAmountEur = prefill.amountEur.takeIf { it > 0.0 }
                             pendingActionShares = prefill.shares
                             pendingActionPrefillMessage = prefill.message
+                            pendingActionSaleNote = null
                             investmentDialogEntryType = "BUY"
                             investmentDialogItem = item
                         } else {
@@ -652,6 +660,7 @@ fun InvestmentRadarUi(
                             pendingActionAmountEur = prefill.amountEur.takeIf { it > 0.0 }
                             pendingActionShares = prefill.shares
                             pendingActionPrefillMessage = prefill.message
+                            pendingActionSaleNote = null
                             investmentDialogEntryType = "SELL"
                             investmentDialogItem = item
                         } else {
@@ -684,13 +693,23 @@ fun InvestmentRadarUi(
                 pendingActionAmountEur = null
                 pendingActionShares = null
                 pendingActionPrefillMessage = null
+                pendingActionSaleNote = null
             },
             onUpsertPurchase = { purchase, fee -> vm.upsertPurchase(item.id, purchase, fee) },
             onDeletePurchase = { purchaseId -> vm.removePurchase(item.id, purchaseId) },
             onUpsertSale = { sale, fee -> vm.upsertSale(item.id, sale, fee) },
             onDeleteSale = { saleId -> vm.removeSale(item.id, saleId) },
             onExecutePurchase = { purchase, fee -> vm.executeBuy(item.id, purchase, feeEur = fee) },
-            onExecuteSale = { sale, fee -> vm.executeSale(item.id, sale, feeEur = fee) }
+            onExecuteSale = { sale, fee ->
+                val saved = vm.executeSale(
+                    itemId = item.id,
+                    sale = sale,
+                    feeEur = fee,
+                    note = pendingActionSaleNote ?: "Verkauf ausgeführt"
+                )
+                if (saved) pendingActionSaleNote = null
+                saved
+            }
         )
     }
 
@@ -1235,7 +1254,7 @@ private fun PurchaseHistoryDialog(
                 OutlinedTextField(
                     value = amountText,
                     onValueChange = { amountText = sanitizeDecimalInput(it); errorText = null },
-                    label = { Text(if (entryType == "BUY") "Tatsächliche Belastung inkl. Gebühren" else "Netto-Gutschrift nach Gebühren") },
+                    label = { Text(if (entryType == "BUY") "Tatsächliche Belastung inkl. Gebühren" else "Netto-Verkaufserlös nach Gebühren") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -1249,9 +1268,13 @@ private fun PurchaseHistoryDialog(
                 if (editingId == null) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                         Column(Modifier.weight(1f)) {
-                            Text("Budgetwirksam", fontWeight = FontWeight.Bold)
+                            Text(if (entryType == "BUY") "Budgetwirksam" else "Im Geldverlauf erfassen", fontWeight = FontWeight.Bold)
                             Text(
-                                if (budgetRelevant) "Verändert den Investment-Kontostand." else "Nur historische Depotbuchung – verändert das Budget nicht.",
+                                when {
+                                    entryType == "BUY" && budgetRelevant -> "Verändert den Investment-Kontostand."
+                                    entryType == "SELL" && budgetRelevant -> "Dokumentiert den Verkaufserlös. Er erhöht App-Cash und Kaufbudget nicht."
+                                    else -> "Nur historische Depotbuchung – verändert das Budget nicht."
+                                },
                                 color = RadarMuted,
                                 style = MaterialTheme.typography.bodySmall
                             )
@@ -1279,7 +1302,7 @@ private fun PurchaseHistoryDialog(
                 if (editingId == null) {
                     Text(
                         if (budgetRelevant) {
-                            if (entryType == "BUY") "Erst diese Bestätigung bucht die tatsächliche Belastung vom Budget ab." else "Erst diese Bestätigung schreibt die Netto-Gutschrift dem Budget gut."
+                            if (entryType == "BUY") "Erst diese Bestätigung bucht die tatsächliche Belastung vom Budget ab." else "Erst diese Bestätigung erfasst den Verkaufserlös im Geldverlauf. Er bleibt privat und erhöht App-Cash und Kaufbudget nicht."
                         } else {
                             "Historische Depotbuchung: Stückzahl und Einstand werden ergänzt, der Investment-Kontostand bleibt unverändert."
                         },
@@ -1588,22 +1611,37 @@ private fun NeonStatStrip(entries: List<Pair<String, String>>, accent: Color) {
     }
 }
 
+private fun visibleBudgetHistoryNote(note: String): String = when {
+    note.startsWith("Geldbedarf:") -> note.substringAfter(" · ", "Privater Verkaufserlös")
+    " · Geldbedarf:" in note -> note.substringBefore(" · Geldbedarf:")
+    else -> note
+}
+
 @Composable
 private fun MoneyManagementScreen(
     current: InvestmentBudgetViewState,
     actionCenter: DepotActionCenterState,
     liquidityHoldings: List<LiquidityHolding>,
     onOpenBudgetEditor: () -> Unit,
-    onExecuteLiquiditySale: (LiquiditySaleSuggestion) -> Unit,
-    onRecordWithdrawal: (Double) -> Boolean,
+    onExecuteLiquiditySale: (LiquiditySaleSuggestion, String) -> Unit,
+    onRecordWithdrawal: (Double, String) -> Boolean,
     onExecuteAction: (DepotActionCenterItem) -> Unit
 ) {
     var liquidityNeedText by rememberSaveable { mutableStateOf("") }
     var useCashFirst by rememberSaveable { mutableStateOf(true) }
-    var withdrawalBooked by rememberSaveable { mutableStateOf(false) }
+    var liquidityFlowId by rememberSaveable { mutableStateOf(UUID.randomUUID().toString()) }
     val liquidityNeed = parseDecimal(liquidityNeedText)?.takeIf { it > 0.0 }
-    val liquidityPlan = remember(liquidityNeed, useCashFirst, current.availableEur, liquidityHoldings) {
-        liquidityNeed?.let {
+    val liquidityFlowTag = "Geldbedarf:$liquidityFlowId"
+    val liquidityProgress = liquidityNeed?.let {
+        LiquidityNeedEngine.progress(
+            requestedEur = it,
+            history = current.history,
+            flowTag = liquidityFlowTag
+        )
+    }
+    val remainingLiquidityNeed = liquidityProgress?.remainingEur
+    val liquidityPlan = remember(remainingLiquidityNeed, useCashFirst, current.availableEur, liquidityHoldings) {
+        remainingLiquidityNeed?.takeIf { it > 0.01 }?.let {
             LiquidityNeedEngine.plan(
                 requestedEur = it,
                 availableCashEur = if (useCashFirst) current.availableEur else 0.0,
@@ -1667,8 +1705,9 @@ private fun MoneyManagementScreen(
                 OutlinedTextField(
                     value = liquidityNeedText,
                     onValueChange = {
-                        liquidityNeedText = sanitizeDecimalInput(it)
-                        withdrawalBooked = false
+                        val next = sanitizeDecimalInput(it)
+                        if (next != liquidityNeedText) liquidityFlowId = UUID.randomUUID().toString()
+                        liquidityNeedText = next
                     },
                     label = { Text("Benötigter Betrag in €") },
                     singleLine = true,
@@ -1678,8 +1717,8 @@ private fun MoneyManagementScreen(
                     listOf(50, 100, 250, 500).forEach { preset ->
                         AssistChip(
                             onClick = {
+                                liquidityFlowId = UUID.randomUUID().toString()
                                 liquidityNeedText = preset.toString()
-                                withdrawalBooked = false
                             },
                             label = { Text("$preset €") }
                         )
@@ -1700,30 +1739,39 @@ private fun MoneyManagementScreen(
                     }
                     Switch(
                         checked = useCashFirst,
-                        onCheckedChange = {
-                            useCashFirst = it
-                            withdrawalBooked = false
-                        }
+                        onCheckedChange = { useCashFirst = it }
                     )
                 }
 
-                if (withdrawalBooked) {
+                if (liquidityNeed != null && liquidityProgress?.complete == true) {
                     Text(
-                        "Auszahlung verbucht. Der Betrag ist nicht mehr als Investmentbudget verfügbar.",
+                        "Geldbedarf vollständig gedeckt.",
                         color = RadarGreen,
                         fontWeight = FontWeight.Black
+                    )
+                    Text(
+                        "${formatMoney(liquidityProgress.withdrawnCashEur)} aus App-Cash entnommen · ${formatMoney(liquidityProgress.privateSaleCoveredEur)} aus privaten Verkaufserlösen.",
+                        color = RadarMuted,
+                        style = MaterialTheme.typography.bodySmall
                     )
                     OutlinedButton(
                         onClick = {
                             liquidityNeedText = ""
-                            withdrawalBooked = false
+                            liquidityFlowId = UUID.randomUUID().toString()
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("Neuen Geldbedarf planen") }
                 } else if (liquidityPlan != null) {
                     val plan = liquidityPlan
                     HorizontalDivider(color = RadarSurface2)
-                    Text("Benötigt: ${formatMoney(plan.requestedEur)}", fontWeight = FontWeight.Black)
+                    Text("Benötigt gesamt: ${formatMoney(liquidityNeed ?: plan.requestedEur)}", fontWeight = FontWeight.Black)
+                    liquidityProgress?.takeIf { it.coveredEur > 0.01 }?.let { progress ->
+                        Text(
+                            "Bereits gedeckt: ${formatMoney(progress.coveredEur)} · noch offen: ${formatMoney(progress.remainingEur)}",
+                            color = RadarGreen,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                     if (useCashFirst && plan.cashUsedEur > 0.0) {
                         Text("Davon aus freiem Cash: ${formatMoney(plan.cashUsedEur)}", color = RadarGreen)
                     }
@@ -1769,7 +1817,7 @@ private fun MoneyManagementScreen(
                                 }
                                 Text(suggestion.reason, color = RadarMuted, style = MaterialTheme.typography.bodySmall)
                                 Button(
-                                    onClick = { onExecuteLiquiditySale(suggestion) },
+                                    onClick = { onExecuteLiquiditySale(suggestion, liquidityFlowTag) },
                                     modifier = Modifier.fillMaxWidth(),
                                     colors = ButtonDefaults.buttonColors(containerColor = RadarRed, contentColor = Color.White)
                                 ) {
@@ -1786,23 +1834,21 @@ private fun MoneyManagementScreen(
                         }
                     }
 
-                    val withdrawalReady = liquidityNeed != null && current.availableEur + 0.001 >= liquidityNeed
-                    if (withdrawalReady) {
+                    if (plan.cashUsedEur > 0.01) {
                         HorizontalDivider(color = RadarSurface2)
                         Text(
-                            "Das benötigte Geld ist jetzt als freies Cash vorhanden. Wenn du es wirklich aus dem Investmenttopf herausnimmst, verbuche die Auszahlung.",
+                            "Diesen Anteil kannst du aus vorhandenem App-Cash privat entnehmen. Verkaufserlöse werden separat direkt als privat gedeckt gezählt.",
                             color = RadarMuted,
                             style = MaterialTheme.typography.bodySmall
                         )
                         Button(
                             onClick = {
-                                val amount = liquidityNeed ?: return@Button
-                                if (onRecordWithdrawal(amount)) withdrawalBooked = true
+                                onRecordWithdrawal(plan.cashUsedEur, liquidityFlowTag)
                             },
                             modifier = Modifier.fillMaxWidth(),
                             colors = ButtonDefaults.buttonColors(containerColor = RadarYellow, contentColor = Color(0xFF201703))
                         ) {
-                            Text("Auszahlung verbuchen", fontWeight = FontWeight.Black)
+                            Text("${formatMoney(plan.cashUsedEur)} App-Cash entnehmen", fontWeight = FontWeight.Black)
                         }
                     }
                 }
@@ -1882,7 +1928,12 @@ private fun MoneyManagementScreen(
             item { Text("Noch keine Geldbewegungen vorhanden.", color = RadarMuted) }
         } else {
             items(current.history.take(30)) { entry ->
-                val accent = if (entry.isCredit) RadarGreen else RadarBlue
+                val isSale = entry.title == "Verkauf"
+                val accent = when {
+                    isSale -> RadarYellow
+                    entry.isCredit -> RadarGreen
+                    else -> RadarBlue
+                }
                 NeonPanel(accent = accent) {
                     Row(
                         Modifier.fillMaxWidth(),
@@ -1893,9 +1944,9 @@ private fun MoneyManagementScreen(
                             Text(entry.title, fontWeight = FontWeight.Black)
                             Text(entry.date, color = RadarMuted, style = MaterialTheme.typography.bodySmall)
                         }
-                        Text(formatSignedMoney(entry.amountEur), color = accent, fontWeight = FontWeight.Black)
+                        Text(if (isSale) formatMoney(kotlin.math.abs(entry.amountEur)) else formatSignedMoney(entry.amountEur), color = accent, fontWeight = FontWeight.Black)
                     }
-                    val details = listOf(entry.itemId, entry.note).filter { it.isNotBlank() }.joinToString(" · ")
+                    val details = listOf(entry.itemId, visibleBudgetHistoryNote(entry.note)).filter { it.isNotBlank() }.joinToString(" · ")
                     if (details.isNotBlank()) Text(details, color = RadarMuted, style = MaterialTheme.typography.bodySmall)
                 }
             }
