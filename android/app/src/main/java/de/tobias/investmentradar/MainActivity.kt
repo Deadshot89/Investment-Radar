@@ -1733,23 +1733,35 @@ private fun MoneyManagementScreen(
                     )
                 }
 
-                if (withdrawalBooked) {
+                if (liquidityNeed != null && liquidityProgress?.complete == true) {
                     Text(
-                        "Auszahlung verbucht. Der Betrag ist nicht mehr als Investmentbudget verfügbar.",
+                        "Geldbedarf vollständig gedeckt.",
                         color = RadarGreen,
                         fontWeight = FontWeight.Black
+                    )
+                    Text(
+                        "${formatMoney(liquidityProgress.withdrawnCashEur)} aus App-Cash entnommen · ${formatMoney(liquidityProgress.privateSaleCoveredEur)} aus privaten Verkaufserlösen.",
+                        color = RadarMuted,
+                        style = MaterialTheme.typography.bodySmall
                     )
                     OutlinedButton(
                         onClick = {
                             liquidityNeedText = ""
-                            withdrawalBooked = false
+                            liquidityFlowId = UUID.randomUUID().toString()
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("Neuen Geldbedarf planen") }
                 } else if (liquidityPlan != null) {
                     val plan = liquidityPlan
                     HorizontalDivider(color = RadarSurface2)
-                    Text("Benötigt: ${formatMoney(plan.requestedEur)}", fontWeight = FontWeight.Black)
+                    Text("Benötigt gesamt: ${formatMoney(liquidityNeed ?: plan.requestedEur)}", fontWeight = FontWeight.Black)
+                    liquidityProgress?.takeIf { it.coveredEur > 0.01 }?.let { progress ->
+                        Text(
+                            "Bereits gedeckt: ${formatMoney(progress.coveredEur)} · noch offen: ${formatMoney(progress.remainingEur)}",
+                            color = RadarGreen,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                     if (useCashFirst && plan.cashUsedEur > 0.0) {
                         Text("Davon aus freiem Cash: ${formatMoney(plan.cashUsedEur)}", color = RadarGreen)
                     }
@@ -1795,7 +1807,7 @@ private fun MoneyManagementScreen(
                                 }
                                 Text(suggestion.reason, color = RadarMuted, style = MaterialTheme.typography.bodySmall)
                                 Button(
-                                    onClick = { onExecuteLiquiditySale(suggestion) },
+                                    onClick = { onExecuteLiquiditySale(suggestion, liquidityFlowTag) },
                                     modifier = Modifier.fillMaxWidth(),
                                     colors = ButtonDefaults.buttonColors(containerColor = RadarRed, contentColor = Color.White)
                                 ) {
@@ -1812,23 +1824,21 @@ private fun MoneyManagementScreen(
                         }
                     }
 
-                    val withdrawalReady = liquidityNeed != null && current.availableEur + 0.001 >= liquidityNeed
-                    if (withdrawalReady) {
+                    if (plan.cashUsedEur > 0.01) {
                         HorizontalDivider(color = RadarSurface2)
                         Text(
-                            "Das benötigte Geld ist jetzt als freies Cash vorhanden. Wenn du es wirklich aus dem Investmenttopf herausnimmst, verbuche die Auszahlung.",
+                            "Diesen Anteil kannst du aus vorhandenem App-Cash privat entnehmen. Verkaufserlöse werden separat direkt als privat gedeckt gezählt.",
                             color = RadarMuted,
                             style = MaterialTheme.typography.bodySmall
                         )
                         Button(
                             onClick = {
-                                val amount = liquidityNeed ?: return@Button
-                                if (onRecordWithdrawal(amount)) withdrawalBooked = true
+                                onRecordWithdrawal(plan.cashUsedEur, liquidityFlowTag)
                             },
                             modifier = Modifier.fillMaxWidth(),
                             colors = ButtonDefaults.buttonColors(containerColor = RadarYellow, contentColor = Color(0xFF201703))
                         ) {
-                            Text("Auszahlung verbuchen", fontWeight = FontWeight.Black)
+                            Text("${formatMoney(plan.cashUsedEur)} App-Cash entnehmen", fontWeight = FontWeight.Black)
                         }
                     }
                 }
