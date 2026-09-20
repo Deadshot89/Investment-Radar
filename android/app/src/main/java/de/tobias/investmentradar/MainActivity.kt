@@ -523,7 +523,7 @@ fun InvestmentRadarUi(
                                 actionCenter = moneyActionCenter,
                                 liquidityHoldings = liquidityHoldings,
                                 onOpenBudgetEditor = { budgetDialog = true },
-                                onExecuteLiquiditySale = { suggestion ->
+                                onExecuteLiquiditySale = { suggestion, flowTag ->
                                     val item = liquidityItemsById[suggestion.itemId]
                                     if (item != null) {
                                         pendingActionAmountEur = suggestion.amountEur
@@ -533,14 +533,15 @@ fun InvestmentRadarUi(
                                             append(if (suggestion.fullExit) "Vollverkauf" else "Teilverkauf")
                                             if (suggestion.reason.isNotBlank()) append(" · ").append(suggestion.reason)
                                         }
+                                        pendingActionSaleNote = "$flowTag · privater Verkaufserlös"
                                         investmentDialogEntryType = "SELL"
                                         investmentDialogItem = item
                                     } else {
                                         missingAlertItemMessage = "Das Wertpapier ist nicht im aktuellen Radar enthalten."
                                     }
                                 },
-                                onRecordWithdrawal = { amountEur ->
-                                    vm.addBudgetAdjustment(amountEur, false, "Auszahlung / Geldbedarf")
+                                onRecordWithdrawal = { amountEur, flowTag ->
+                                    vm.addBudgetAdjustment(amountEur, false, "Auszahlung / Geldbedarf · $flowTag")
                                 },
                                 onExecuteAction = { action ->
                                     when (action.type) {
