@@ -279,8 +279,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 amountEur = purchase.investedAmount,
                 shares = purchase.shares,
                 source = source,
-                feeEur = feeEur,
-                note = note
+                feeEur = feeEur
             )
         )
         val nextPosition = result.position ?: return false
@@ -312,7 +311,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 proceedsEur = sale.proceeds,
                 shares = sale.shares,
                 source = source,
-                feeEur = feeEur
+                feeEur = feeEur,
+                note = note
             )
         )
         val nextPosition = result.position ?: return false
