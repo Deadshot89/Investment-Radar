@@ -18,7 +18,8 @@ data class BudgetSaleExecution(
     val proceedsEur: Double,
     val shares: Double,
     val source: BudgetJournalSource,
-    val feeEur: Double = 0.0
+    val feeEur: Double = 0.0,
+    val note: String = "Verkauf ausgeführt"
 )
 
 data class BudgetExecutionResult(
@@ -177,7 +178,7 @@ object InvestmentBudgetExecutionService {
                 date = request.date,
                 itemId = request.itemId,
                 source = request.source,
-                note = "Verkauf ausgeführt",
+                note = request.note.trim().ifBlank { "Verkauf ausgeführt" },
                 feeEur = request.feeEur
             )
         )
@@ -213,7 +214,7 @@ object InvestmentBudgetExecutionService {
             existingEntry.copy(
                 amountEur = sale.proceeds,
                 date = sale.date,
-                note = "Verkauf aktualisiert",
+                note = existingEntry.note.ifBlank { "Verkauf aktualisiert" },
                 feeEur = feeEur ?: existingEntry.feeEur
             )
         )
