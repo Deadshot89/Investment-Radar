@@ -69,6 +69,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _alertPreferences = MutableStateFlow(AlertPreferencesStore.read(app))
     val alertPreferences: StateFlow<AlertPreferences> = _alertPreferences.asStateFlow()
 
+    private val _recommendationOverrides = MutableStateFlow(RecommendationOverrideStore.read(app))
+    val recommendationOverrides: StateFlow<Map<String, RecommendationOverride>> = _recommendationOverrides.asStateFlow()
+
     init {
         refresh()
         viewModelScope.launch {
@@ -169,7 +172,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 freshness = DataFreshness.summarize(item)
             )
         }
-        val plan = PortfolioAdvisorEngine.allocate(candidates, advisorBudgetEur)
+        val automaticPlan = PortfolioAdvisorEngine.allocate(candidates, advisorBudgetEur)
+        val plan = RecommendationOverrideEngine.apply(automaticPlan, _recommendationOverrides.value)
         val analysisDay = dashboard.generatedAt.take(10).takeIf { it.length == 10 } ?: LocalDate.now().toString()
         PortfolioAdvisorStore.save(application, analysisDay, plan)
     }
@@ -256,6 +260,41 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             )
         )
         refreshBudgetState(app)
+    }.isSuccess
+
+    fun saveRecommendationOverride(
+        itemId: String,
+        action: PortfolioAdvisorAction,
+        amountEur: Int?
+    ): Boolean = runCatching {
+        require(itemId.isNotBlank())
+        val isHolding = itemId in _holdingIds.value
+        require(action in RecommendationOverridePresentation.allowedActions(isHolding))
+        val normalizedAmount = if (RecommendationOverridePresentation.isBuyAction(action)) {
+            require(amountEur != null && amountEur > 0)
+            amountEur
+        } else {
+            null
+        }
+        val app = getApplication<Application>()
+        RecommendationOverrideStore.save(
+            app,
+            RecommendationOverride(
+                itemId = itemId,
+                action = action,
+                amountEur = normalizedAmount
+            )
+        )
+        _recommendationOverrides.value = RecommendationOverrideStore.read(app)
+        (_state.value as? UiState.Ready)?.let { persistAdvisorPlan(app, it.data) }
+    }.isSuccess
+
+    fun clearRecommendationOverride(itemId: String): Boolean = runCatching {
+        require(itemId.isNotBlank())
+        val app = getApplication<Application>()
+        RecommendationOverrideStore.remove(app, itemId)
+        _recommendationOverrides.value = RecommendationOverrideStore.read(app)
+        (_state.value as? UiState.Ready)?.let { persistAdvisorPlan(app, it.data) }
     }.isSuccess
 
     fun executeBuy(

@@ -135,6 +135,7 @@ fun InvestmentRadarUi(
     val watchlistIds by vm.watchlistIds.collectAsState()
     val alerts by vm.alerts.collectAsState()
     val alertPreferences by vm.alertPreferences.collectAsState()
+    val recommendationOverrides by vm.recommendationOverrides.collectAsState()
     val context = LocalContext.current
     var tab by remember { mutableIntStateOf(initialTab.coerceIn(0, 4)) }
     var selectedDetailId by remember { mutableStateOf(initialDetailId?.takeIf { it.isNotBlank() }) }
@@ -325,7 +326,8 @@ fun InvestmentRadarUi(
                                 freshness = DataFreshness.summarize(item)
                             )
                         }
-                        val advisorPlan = PortfolioAdvisorEngine.allocate(advisorCandidates, budgetState.advisorBudgetEur)
+                        val automaticAdvisorPlan = PortfolioAdvisorEngine.allocate(advisorCandidates, budgetState.advisorBudgetEur)
+                        val advisorPlan = RecommendationOverrideEngine.apply(automaticAdvisorPlan, recommendationOverrides)
                         val advisorById = advisorPlan.candidates.associateBy { it.itemId }
                         val itemsById = s.data.items.associateBy { it.id }
                         val liquidityItemsById = buildMap {
@@ -408,6 +410,9 @@ fun InvestmentRadarUi(
                                 customItems = customItems,
                                 watchlistIds = watchlistIds,
                                 advisorPlan = advisorPlan,
+                                recommendationOverrides = recommendationOverrides,
+                                onSaveRecommendationOverride = vm::saveRecommendationOverride,
+                                onClearRecommendationOverride = vm::clearRecommendationOverride,
                                 onEditBudget = { budgetDialog = true },
                                 onOpenRadar = { selectedDetailId = null; tab = 1 },
                                 onOpenPortfolio = { selectedDetailId = null; tab = 2 },
@@ -786,6 +791,9 @@ private fun DashboardScreen(
     customItems: List<CustomInvestment>,
     watchlistIds: Set<String>,
     advisorPlan: PortfolioAdvisorPlan,
+    recommendationOverrides: Map<String, RecommendationOverride>,
+    onSaveRecommendationOverride: (String, PortfolioAdvisorAction, Int?) -> Boolean,
+    onClearRecommendationOverride: (String) -> Boolean,
     onEditBudget: () -> Unit,
     onOpenRadar: () -> Unit,
     onOpenPortfolio: () -> Unit,
@@ -793,17 +801,21 @@ private fun DashboardScreen(
     onAddToPortfolio: (InvestmentItem) -> Unit
 ) {
     val context = LocalContext.current
+    var editingRecommendationId by rememberSaveable { mutableStateOf<String?>(null) }
     val cashAmount = advisorPlan.cashEur
     val advisorById = advisorPlan.candidates.associateBy { it.itemId }
     val allocations = advisorPlan.allocations.associate { it.itemId to it.amountEur }
-    val top = data.items
-        .filter { RecommendationPresentation.effectiveRecommendation(it) == "BUY" }
-        .maxByOrNull { it.scoreTotal ?: Int.MIN_VALUE }
     val buyCandidates = data.items
-        .filter { RecommendationPresentation.effectiveRecommendation(it) == "BUY" }
+        .filter { item ->
+            advisorById[item.id]?.action?.let(RecommendationOverridePresentation::isBuyAction) == true
+        }
         .sortedByDescending { it.scoreTotal ?: Int.MIN_VALUE }
+    val top = buyCandidates.firstOrNull()
     val reviewItems = data.items.filter { item ->
-        item.id in holdingIds && RecommendationPresentation.effectiveRecommendation(item) == "REVIEW"
+        item.id in holdingIds && advisorById[item.id]?.action in setOf(
+            PortfolioAdvisorAction.REDUZIEREN,
+            PortfolioAdvisorAction.VERKAUFEN
+        )
     }
     val missingQuoteItems = data.items.filter { it.status.equals("EIGEN", true) && it.price == null }
     val concentrationWarning: Pair<InvestmentItem, Double>? = null
@@ -877,11 +889,25 @@ private fun DashboardScreen(
                     StatusPill(if (reviewItems.isNotEmpty()) "PRÜFEN" else "AKTUELL")
                 }
                 buyCandidates.take(3).forEach { candidate ->
-                    RelevantInstrumentRow("Kaufkandidat", candidate, RadarGreen) { onOpenInstrument(candidate.id) }
+                    RelevantInstrumentRow(
+                        label = "Kaufkandidat",
+                        item = candidate,
+                        accent = RadarGreen,
+                        manual = candidate.id in recommendationOverrides,
+                        onOpen = { onOpenInstrument(candidate.id) },
+                        onEdit = { editingRecommendationId = candidate.id }
+                    )
                 }
                 if (buyCandidates.isEmpty()) RelevantRow("Kaufkandidaten", "Keine", RadarMuted)
                 reviewItems.take(3).forEach { candidate ->
-                    RelevantInstrumentRow("Prüfsignal", candidate, RadarYellow) { onOpenInstrument(candidate.id) }
+                    RelevantInstrumentRow(
+                        label = "Prüfsignal",
+                        item = candidate,
+                        accent = RadarYellow,
+                        manual = candidate.id in recommendationOverrides,
+                        onOpen = { onOpenInstrument(candidate.id) },
+                        onEdit = { editingRecommendationId = candidate.id }
+                    )
                 }
                 if (reviewItems.isEmpty()) RelevantRow("Prüfsignale", "Keine", RadarMuted)
                 RelevantRow("Watchlist", "${watchlistIds.size} Werte", RadarPurple)
@@ -894,8 +920,9 @@ private fun DashboardScreen(
         }
 
         if (top != null) item {
-            val label = RecommendationPresentation.label(top)
             val advisor = advisorById[top.id]
+            val label = advisor?.action?.let { RecommendationOverridePresentation.label(it) }
+                ?: RecommendationPresentation.label(top)
             val amount = allocations[top.id] ?: 0
             val topPosition = positions[top.id]
             val topInDepot = topPosition?.isActiveHolding() == true
@@ -909,6 +936,9 @@ private fun DashboardScreen(
                         Text("${top.ticker} · ${top.type} · Risiko ${top.risk}/5", color = RadarMuted)
                     }
                     ScoreRing(top.scoreTotal ?: 0)
+                }
+                if (top.id in recommendationOverrides) {
+                    StatusPill("MANUELL")
                 }
                 PortfolioBadgeRow(
                     listOf(
@@ -934,8 +964,15 @@ private fun DashboardScreen(
                 )
                 LiveForecastSummary(top)
                 ScoreBreakdownCard(top)
-                FilledTonalButton(onClick = { onAddToPortfolio(top) }, modifier = Modifier.fillMaxWidth()) {
-                    Text(if (topInDepot) "Position erhöhen" else "Zum Depot hinzufügen", fontWeight = FontWeight.Black)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilledTonalButton(onClick = { onAddToPortfolio(top) }, modifier = Modifier.weight(1f)) {
+                        Text(if (topInDepot) "Position erhöhen" else "Zum Depot hinzufügen", fontWeight = FontWeight.Black)
+                    }
+                    OutlinedButton(onClick = { editingRecommendationId = top.id }, modifier = Modifier.weight(1f)) {
+                        Icon(Icons.Default.Edit, null)
+                        Spacer(Modifier.width(6.dp))
+                        Text("Empfehlung bearbeiten")
+                    }
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
@@ -980,10 +1017,13 @@ private fun DashboardScreen(
         items(data.items.sortedByDescending { allocations[it.id] ?: 0 }) { item ->
             RecommendationRow(
                 item = item,
-                personal = null,
+                candidate = advisorById[item.id],
+                allocationEur = allocations[item.id] ?: 0,
+                manualOverride = recommendationOverrides[item.id],
                 position = positions[item.id],
                 onOpen = { TradeRepublicNavigator.open(context, item) },
-                onAddToPortfolio = { onAddToPortfolio(item) }
+                onAddToPortfolio = { onAddToPortfolio(item) },
+                onEditRecommendation = { editingRecommendationId = item.id }
             )
         }
 
@@ -996,6 +1036,157 @@ private fun DashboardScreen(
             )
         }
     }
+
+    editingRecommendationId?.let { itemId ->
+        val item = data.items.firstOrNull { it.id == itemId }
+        val candidate = advisorById[itemId]
+        if (item != null && candidate != null) {
+            RecommendationOverrideDialog(
+                item = item,
+                candidate = candidate,
+                currentAllocationEur = allocations[itemId] ?: 0,
+                existingOverride = recommendationOverrides[itemId],
+                maxBuyAmountEur = RecommendationOverrideEngine.maxBuyAmount(
+                    plan = advisorPlan,
+                    overrides = recommendationOverrides,
+                    itemId = itemId
+                ),
+                onDismiss = { editingRecommendationId = null },
+                onSave = { action, amount ->
+                    if (onSaveRecommendationOverride(itemId, action, amount)) {
+                        editingRecommendationId = null
+                        true
+                    } else {
+                        false
+                    }
+                },
+                onReset = {
+                    if (onClearRecommendationOverride(itemId)) {
+                        editingRecommendationId = null
+                        true
+                    } else {
+                        false
+                    }
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun RecommendationOverrideDialog(
+    item: InvestmentItem,
+    candidate: PortfolioAdvisorCandidate,
+    currentAllocationEur: Int,
+    existingOverride: RecommendationOverride?,
+    maxBuyAmountEur: Int,
+    onDismiss: () -> Unit,
+    onSave: (PortfolioAdvisorAction, Int?) -> Boolean,
+    onReset: () -> Boolean
+) {
+    val allowedActions = remember(candidate.isHolding) {
+        RecommendationOverridePresentation.allowedActions(candidate.isHolding)
+    }
+    var selectedAction by remember(item.id, existingOverride?.action, candidate.action) {
+        mutableStateOf(existingOverride?.action ?: candidate.action)
+    }
+    val initialAmount = existingOverride?.amountEur
+        ?: currentAllocationEur.takeIf { it > 0 }?.coerceAtMost(maxBuyAmountEur)
+    var amountText by remember(item.id, existingOverride?.amountEur, currentAllocationEur, maxBuyAmountEur) {
+        mutableStateOf(initialAmount?.toString().orEmpty())
+    }
+    var errorText by remember(item.id) { mutableStateOf<String?>(null) }
+    val isBuyAction = RecommendationOverridePresentation.isBuyAction(selectedAction)
+    val amount = amountText.toIntOrNull()
+    val valid = selectedAction in allowedActions &&
+        (!isBuyAction || (amount != null && amount > 0 && amount <= maxBuyAmountEur))
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Empfehlung bearbeiten") },
+        text = {
+            Column(
+                Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(item.name, fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Automatisch: ${RecommendationOverridePresentation.label(candidate.action)}" +
+                        currentAllocationEur.takeIf { it > 0 }?.let { " · $it €" }.orEmpty(),
+                    color = RadarMuted,
+                    style = MaterialTheme.typography.bodySmall
+                )
+                if (existingOverride != null) {
+                    StatusPill("MANUELL")
+                }
+                Text("Empfehlung", fontWeight = FontWeight.Black)
+                allowedActions.chunked(2).forEach { rowActions ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        rowActions.forEach { action ->
+                            FilterChip(
+                                selected = selectedAction == action,
+                                onClick = {
+                                    selectedAction = action
+                                    errorText = null
+                                },
+                                label = { Text(RecommendationOverridePresentation.label(action)) },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        if (rowActions.size == 1) Spacer(Modifier.weight(1f))
+                    }
+                }
+                if (isBuyAction) {
+                    OutlinedTextField(
+                        value = amountText,
+                        onValueChange = {
+                            amountText = it.filter(Char::isDigit).take(5)
+                            errorText = null
+                        },
+                        label = { Text("Monatsbetrag in €") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Text(
+                        "Für diese manuelle Empfehlung sind maximal $maxBuyAmountEur € frei. Andere manuelle Käufe und Sparpläne werden vorher berücksichtigt.",
+                        color = RadarMuted,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                } else {
+                    Text(
+                        "Für ${RecommendationOverridePresentation.label(selectedAction)} wird kein neuer Kaufbetrag reserviert.",
+                        color = RadarMuted,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+                Text(
+                    "Die Änderung gilt lokal als deine Vorgabe und überschreibt nur die Handlung bzw. den Monatsbetrag. Marktdaten, Score und Risiko werden nicht verändert.",
+                    color = RadarCyan,
+                    style = MaterialTheme.typography.bodySmall
+                )
+                errorText?.let { Text(it, color = RadarRed, fontWeight = FontWeight.Bold) }
+            }
+        },
+        confirmButton = {
+            Button(
+                enabled = valid,
+                onClick = {
+                    val saved = onSave(selectedAction, if (isBuyAction) amount else null)
+                    if (!saved) errorText = "Empfehlung konnte nicht gespeichert werden."
+                }
+            ) { Text("Speichern") }
+        },
+        dismissButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (existingOverride != null) {
+                    TextButton(onClick = {
+                        if (!onReset()) errorText = "Automatik konnte nicht wiederhergestellt werden."
+                    }) { Text("Automatik") }
+                }
+                TextButton(onClick = onDismiss) { Text("Abbrechen") }
+            }
+        }
+    )
 }
 
 @Composable
@@ -1068,21 +1259,33 @@ private fun CustomInvestmentDialog(
 }
 
 @Composable
-private fun RelevantInstrumentRow(label: String, item: InvestmentItem, accent: Color, onClick: () -> Unit) {
+private fun RelevantInstrumentRow(
+    label: String,
+    item: InvestmentItem,
+    accent: Color,
+    manual: Boolean,
+    onOpen: () -> Unit,
+    onEdit: () -> Unit
+) {
     Row(
         Modifier
             .fillMaxWidth()
             .background(Color(0x0DFFFFFF), RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .padding(horizontal = 12.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f)) {
             Text(label, color = RadarMuted, style = MaterialTheme.typography.labelSmall)
             Text(dashboardInstrumentLabel(item), color = accent, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+            if (manual) Text("MANUELL", color = RadarPurple, fontWeight = FontWeight.Black, style = MaterialTheme.typography.labelSmall)
         }
-        Text("Öffnen ›", color = accent, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = onOpen) { Text("Öffnen") }
+            IconButton(onClick = onEdit) {
+                Icon(Icons.Default.Edit, contentDescription = "Empfehlung bearbeiten", tint = accent)
+            }
+        }
     }
 }
 
@@ -1440,13 +1643,17 @@ private fun PurchaseHistoryDialog(
 @Composable
 private fun RecommendationRow(
     item: InvestmentItem,
-    personal: PersonalRecommendation?,
+    candidate: PortfolioAdvisorCandidate?,
+    allocationEur: Int,
+    manualOverride: RecommendationOverride?,
     position: PortfolioPosition?,
     onOpen: () -> Unit,
-    onAddToPortfolio: () -> Unit
+    onAddToPortfolio: () -> Unit,
+    onEditRecommendation: () -> Unit
 ) {
-    val label = RecommendationPresentation.label(item)
-    val amount = personal?.allocationEur ?: 0
+    val label = candidate?.action?.let { RecommendationOverridePresentation.label(it) }
+        ?: RecommendationPresentation.label(item)
+    val amount = allocationEur
     val isHolding = position?.isActiveHolding() == true
     val depotValue = position?.takeIf { it.isActiveHolding() }?.currentValue(item.price)
     NeonPanel(
@@ -1466,20 +1673,30 @@ private fun RecommendationRow(
                     )
                 }
                 Text(
-                    if (amount > 0) "Diesen Monat $amount €" else personal?.explanation ?: RecommendationPresentation.label(item),
+                    if (amount > 0) "Diesen Monat $amount €" else candidate?.advisor?.reasons?.firstOrNull() ?: label,
                     color = recommendationColor(label),
                     fontWeight = FontWeight.Bold,
                     style = MaterialTheme.typography.labelLarge
                 )
             }
             Column(horizontalAlignment = Alignment.End) {
+                if (manualOverride != null) {
+                    Text("MANUELL", color = RadarPurple, fontWeight = FontWeight.Black, style = MaterialTheme.typography.labelSmall)
+                }
                 Text(if (amount > 0) "$amount €" else "0 €", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium, color = if (amount > 0) RadarGreen else RadarMuted)
                 Icon(Icons.AutoMirrored.Filled.OpenInNew, null, tint = RadarCyan, modifier = Modifier.size(18.dp))
             }
         }
         LiveForecastSummary(item, compact = true)
-        FilledTonalButton(onClick = onAddToPortfolio, modifier = Modifier.fillMaxWidth()) {
-            Text(if (isHolding) "Position erhöhen" else "Zum Depot hinzufügen", fontWeight = FontWeight.Black)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilledTonalButton(onClick = onAddToPortfolio, modifier = Modifier.weight(1f)) {
+                Text(if (isHolding) "Position erhöhen" else "Zum Depot hinzufügen", fontWeight = FontWeight.Black)
+            }
+            OutlinedButton(onClick = onEditRecommendation, modifier = Modifier.weight(1f)) {
+                Icon(Icons.Default.Edit, null)
+                Spacer(Modifier.width(6.dp))
+                Text("Empfehlung")
+            }
         }
     }
 }
@@ -2245,8 +2462,9 @@ private fun profitColor(value: Double?): Color = when {
 }
 
 private fun recommendationColor(label: String) = when (label.uppercase()) {
-    "KAUFEN" -> RadarGreen
-    "BEOBACHTEN" -> RadarYellow
+    "KAUFEN", "NACHKAUFEN" -> RadarGreen
+    "BEOBACHTEN", "HALTEN" -> RadarYellow
+    "REDUZIEREN" -> Color(0xFFFFB15A)
     "VERKAUF PRÜFEN", "VERKAUFEN" -> RadarRed
     "NICHT KAUFEN" -> Color(0xFFFF8B6A)
     else -> RadarBlue
