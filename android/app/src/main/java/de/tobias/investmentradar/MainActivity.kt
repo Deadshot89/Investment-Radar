@@ -1254,7 +1254,7 @@ private fun PurchaseHistoryDialog(
                 OutlinedTextField(
                     value = amountText,
                     onValueChange = { amountText = sanitizeDecimalInput(it); errorText = null },
-                    label = { Text(if (entryType == "BUY") "Tatsächliche Belastung inkl. Gebühren" else "Netto-Gutschrift nach Gebühren") },
+                    label = { Text(if (entryType == "BUY") "Tatsächliche Belastung inkl. Gebühren" else "Netto-Verkaufserlös nach Gebühren") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -1268,9 +1268,13 @@ private fun PurchaseHistoryDialog(
                 if (editingId == null) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                         Column(Modifier.weight(1f)) {
-                            Text("Budgetwirksam", fontWeight = FontWeight.Bold)
+                            Text(if (entryType == "BUY") "Budgetwirksam" else "Im Geldverlauf erfassen", fontWeight = FontWeight.Bold)
                             Text(
-                                if (budgetRelevant) "Verändert den Investment-Kontostand." else "Nur historische Depotbuchung – verändert das Budget nicht.",
+                                when {
+                                    entryType == "BUY" && budgetRelevant -> "Verändert den Investment-Kontostand."
+                                    entryType == "SELL" && budgetRelevant -> "Dokumentiert den Verkaufserlös. Er erhöht App-Cash und Kaufbudget nicht."
+                                    else -> "Nur historische Depotbuchung – verändert das Budget nicht."
+                                },
                                 color = RadarMuted,
                                 style = MaterialTheme.typography.bodySmall
                             )
@@ -1298,7 +1302,7 @@ private fun PurchaseHistoryDialog(
                 if (editingId == null) {
                     Text(
                         if (budgetRelevant) {
-                            if (entryType == "BUY") "Erst diese Bestätigung bucht die tatsächliche Belastung vom Budget ab." else "Erst diese Bestätigung schreibt die Netto-Gutschrift dem Budget gut."
+                            if (entryType == "BUY") "Erst diese Bestätigung bucht die tatsächliche Belastung vom Budget ab." else "Erst diese Bestätigung erfasst den Verkaufserlös im Geldverlauf. Er bleibt privat und erhöht App-Cash und Kaufbudget nicht."
                         } else {
                             "Historische Depotbuchung: Stückzahl und Einstand werden ergänzt, der Investment-Kontostand bleibt unverändert."
                         },
@@ -1605,6 +1609,12 @@ private fun NeonStatStrip(entries: List<Pair<String, String>>, accent: Color) {
             }
         }
     }
+}
+
+private fun visibleBudgetHistoryNote(note: String): String = when {
+    note.startsWith("Geldbedarf:") -> note.substringAfter(" · ", "Privater Verkaufserlös")
+    " · Geldbedarf:" in note -> note.substringBefore(" · Geldbedarf:")
+    else -> note
 }
 
 @Composable
@@ -1918,7 +1928,12 @@ private fun MoneyManagementScreen(
             item { Text("Noch keine Geldbewegungen vorhanden.", color = RadarMuted) }
         } else {
             items(current.history.take(30)) { entry ->
-                val accent = if (entry.isCredit) RadarGreen else RadarBlue
+                val isSale = entry.title == "Verkauf"
+                val accent = when {
+                    isSale -> RadarYellow
+                    entry.isCredit -> RadarGreen
+                    else -> RadarBlue
+                }
                 NeonPanel(accent = accent) {
                     Row(
                         Modifier.fillMaxWidth(),
@@ -1929,9 +1944,9 @@ private fun MoneyManagementScreen(
                             Text(entry.title, fontWeight = FontWeight.Black)
                             Text(entry.date, color = RadarMuted, style = MaterialTheme.typography.bodySmall)
                         }
-                        Text(formatSignedMoney(entry.amountEur), color = accent, fontWeight = FontWeight.Black)
+                        Text(if (isSale) formatMoney(kotlin.math.abs(entry.amountEur)) else formatSignedMoney(entry.amountEur), color = accent, fontWeight = FontWeight.Black)
                     }
-                    val details = listOf(entry.itemId, entry.note).filter { it.isNotBlank() }.joinToString(" · ")
+                    val details = listOf(entry.itemId, visibleBudgetHistoryNote(entry.note)).filter { it.isNotBlank() }.joinToString(" · ")
                     if (details.isNotBlank()) Text(details, color = RadarMuted, style = MaterialTheme.typography.bodySmall)
                 }
             }
