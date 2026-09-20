@@ -154,6 +154,7 @@ fun InvestmentRadarUi(
     var pendingActionAmountEur by remember { mutableStateOf<Double?>(null) }
     var pendingActionShares by remember { mutableStateOf<Double?>(null) }
     var pendingActionPrefillMessage by remember { mutableStateOf<String?>(null) }
+    var pendingActionSaleNote by remember { mutableStateOf<String?>(null) }
     var investmentDialogItem by remember { mutableStateOf<InvestmentItem?>(null) }
     var investmentDialogEntryType by remember { mutableStateOf("BUY") }
     var customAssetDialog by remember { mutableStateOf(false) }
@@ -196,6 +197,7 @@ fun InvestmentRadarUi(
                             pendingActionAmountEur = null
                             pendingActionShares = null
                             pendingActionPrefillMessage = null
+                            pendingActionSaleNote = null
                         }
                         AppOverlay.CUSTOM_ASSET -> customAssetDialog = false
                         AppOverlay.EDIT_CUSTOM_ASSET -> editingCustomAsset = null
@@ -462,6 +464,7 @@ fun InvestmentRadarUi(
                                                 pendingActionAmountEur = prefill.amountEur.takeIf { it > 0.0 }
                                                 pendingActionShares = prefill.shares
                                                 pendingActionPrefillMessage = prefill.message
+                                                pendingActionSaleNote = null
                                                 investmentDialogEntryType = "BUY"
                                                 investmentDialogItem = item
                                             } else {
@@ -480,6 +483,7 @@ fun InvestmentRadarUi(
                                                 pendingActionAmountEur = prefill.amountEur.takeIf { it > 0.0 }
                                                 pendingActionShares = prefill.shares
                                                 pendingActionPrefillMessage = prefill.message
+                                                pendingActionSaleNote = null
                                                 investmentDialogEntryType = "SELL"
                                                 investmentDialogItem = item
                                             } else {
@@ -552,6 +556,7 @@ fun InvestmentRadarUi(
                                                 pendingActionAmountEur = prefill.amountEur.takeIf { it > 0.0 }
                                                 pendingActionShares = prefill.shares
                                                 pendingActionPrefillMessage = prefill.message
+                                                pendingActionSaleNote = null
                                                 investmentDialogEntryType = "BUY"
                                                 investmentDialogItem = item
                                             } else {
@@ -570,6 +575,7 @@ fun InvestmentRadarUi(
                                                 pendingActionAmountEur = prefill.amountEur.takeIf { it > 0.0 }
                                                 pendingActionShares = prefill.shares
                                                 pendingActionPrefillMessage = prefill.message
+                                                pendingActionSaleNote = null
                                                 investmentDialogEntryType = "SELL"
                                                 investmentDialogItem = item
                                             } else {
@@ -634,6 +640,7 @@ fun InvestmentRadarUi(
                             pendingActionAmountEur = prefill.amountEur.takeIf { it > 0.0 }
                             pendingActionShares = prefill.shares
                             pendingActionPrefillMessage = prefill.message
+                            pendingActionSaleNote = null
                             investmentDialogEntryType = "BUY"
                             investmentDialogItem = item
                         } else {
@@ -652,6 +659,7 @@ fun InvestmentRadarUi(
                             pendingActionAmountEur = prefill.amountEur.takeIf { it > 0.0 }
                             pendingActionShares = prefill.shares
                             pendingActionPrefillMessage = prefill.message
+                            pendingActionSaleNote = null
                             investmentDialogEntryType = "SELL"
                             investmentDialogItem = item
                         } else {
@@ -684,13 +692,23 @@ fun InvestmentRadarUi(
                 pendingActionAmountEur = null
                 pendingActionShares = null
                 pendingActionPrefillMessage = null
+                pendingActionSaleNote = null
             },
             onUpsertPurchase = { purchase, fee -> vm.upsertPurchase(item.id, purchase, fee) },
             onDeletePurchase = { purchaseId -> vm.removePurchase(item.id, purchaseId) },
             onUpsertSale = { sale, fee -> vm.upsertSale(item.id, sale, fee) },
             onDeleteSale = { saleId -> vm.removeSale(item.id, saleId) },
             onExecutePurchase = { purchase, fee -> vm.executeBuy(item.id, purchase, feeEur = fee) },
-            onExecuteSale = { sale, fee -> vm.executeSale(item.id, sale, feeEur = fee) }
+            onExecuteSale = { sale, fee ->
+                val saved = vm.executeSale(
+                    itemId = item.id,
+                    sale = sale,
+                    feeEur = fee,
+                    note = pendingActionSaleNote ?: "Verkauf ausgeführt"
+                )
+                if (saved) pendingActionSaleNote = null
+                saved
+            }
         )
     }
 
