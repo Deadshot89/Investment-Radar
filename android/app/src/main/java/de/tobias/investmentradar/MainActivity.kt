@@ -409,6 +409,7 @@ fun InvestmentRadarUi(
                                 onEditBudget = { budgetDialog = true },
                                 onOpenRadar = { selectedDetailId = null; tab = 1 },
                                 onOpenPortfolio = { selectedDetailId = null; tab = 2 },
+                                onOpenInstrument = { id -> detailReturnTab = 0; selectedDetailId = id },
                                 onAddToPortfolio = { investmentDialogItem = it }
                             )
                             1 -> RadarScreenV2(
@@ -769,6 +770,7 @@ private fun DashboardScreen(
     onEditBudget: () -> Unit,
     onOpenRadar: () -> Unit,
     onOpenPortfolio: () -> Unit,
+    onOpenInstrument: (String) -> Unit,
     onAddToPortfolio: (InvestmentItem) -> Unit
 ) {
     val context = LocalContext.current
@@ -855,8 +857,14 @@ private fun DashboardScreen(
                     }
                     StatusPill(if (reviewItems.isNotEmpty()) "PRÜFEN" else "AKTUELL")
                 }
-                RelevantRow("Kaufkandidaten", buyCandidates.take(3).joinToString { dashboardInstrumentLabel(it) }.ifBlank { "Keine" }, RadarGreen)
-                RelevantRow("Prüfsignale", reviewItems.joinToString { dashboardInstrumentLabel(it) }.ifBlank { "Keine" }, if (reviewItems.isEmpty()) RadarMuted else RadarYellow)
+                buyCandidates.take(3).forEach { candidate ->
+                    RelevantInstrumentRow("Kaufkandidat", candidate, RadarGreen) { onOpenInstrument(candidate.id) }
+                }
+                if (buyCandidates.isEmpty()) RelevantRow("Kaufkandidaten", "Keine", RadarMuted)
+                reviewItems.take(3).forEach { candidate ->
+                    RelevantInstrumentRow("Prüfsignal", candidate, RadarYellow) { onOpenInstrument(candidate.id) }
+                }
+                if (reviewItems.isEmpty()) RelevantRow("Prüfsignale", "Keine", RadarMuted)
                 RelevantRow("Watchlist", "${watchlistIds.size} Werte", RadarPurple)
                 if (missingQuoteItems.isNotEmpty()) RelevantRow("Kursdaten fehlen", missingQuoteItems.joinToString { dashboardInstrumentLabel(it) }, RadarYellow)
                 concentrationWarning?.let { (item, share) ->
@@ -1038,6 +1046,25 @@ private fun CustomInvestmentDialog(
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } }
     )
+}
+
+@Composable
+private fun RelevantInstrumentRow(label: String, item: InvestmentItem, accent: Color, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(Color(0x0DFFFFFF), RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(label, color = RadarMuted, style = MaterialTheme.typography.labelSmall)
+            Text(dashboardInstrumentLabel(item), color = accent, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+        }
+        Text("Öffnen ›", color = accent, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
+    }
 }
 
 @Composable
