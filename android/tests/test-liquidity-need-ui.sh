@@ -15,7 +15,7 @@ grep -Fq 'Geldbedarf vollständig gedeckt.' "$MAIN" || fail 'Abschlussstatus des
 grep -Fq 'App-Cash entnehmen' "$MAIN" || fail 'Cash-Anteil kann nicht privat entnommen werden.'
 grep -Fq 'onExecuteLiquiditySale' "$MAIN" || fail 'Verkaufsvorschlag öffnet keine manuelle Verkaufsmaske.'
 grep -Fq 'onExecuteLiquiditySale: (LiquiditySaleSuggestion, String) -> Unit' "$MAIN" || fail 'Verkaufsvorschlag muss Liquiditätsvorschlag und Flow-Kennung übergeben.'
-grep -Fq 'onClick = { onExecuteLiquiditySale(suggestion) }' "$MAIN" || fail 'Verkaufsvorschlag verliert beim Öffnen der Verkaufsmaske Daten.'
+grep -Fq 'onClick = { onExecuteLiquiditySale(suggestion, liquidityFlowTag) }' "$MAIN" || fail 'Verkaufsvorschlag verliert beim Öffnen der Verkaufsmaske Daten oder Flow-Kennung.'
 grep -Fq 'pendingActionAmountEur = suggestion.amountEur' "$MAIN" || fail 'Empfohlener Verkaufsbetrag wird nicht vorbefüllt.'
 grep -Fq 'pendingActionShares = suggestion.shares' "$MAIN" || fail 'Empfohlene Stückzahl wird nicht vorbefüllt.'
 grep -Fq 'append("Geldbedarf: ")' "$MAIN" || fail 'Geldbedarf-Kontext fehlt in der Verkaufsmaske.'
