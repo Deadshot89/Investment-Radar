@@ -855,12 +855,12 @@ private fun DashboardScreen(
                     }
                     StatusPill(if (reviewItems.isNotEmpty()) "PRÜFEN" else "AKTUELL")
                 }
-                RelevantRow("Kaufkandidaten", buyCandidates.take(3).joinToString { it.ticker }.ifBlank { "Keine" }, RadarGreen)
-                RelevantRow("Prüfsignale", reviewItems.joinToString { it.ticker }.ifBlank { "Keine" }, if (reviewItems.isEmpty()) RadarMuted else RadarYellow)
+                RelevantRow("Kaufkandidaten", buyCandidates.take(3).joinToString { dashboardInstrumentLabel(it) }.ifBlank { "Keine" }, RadarGreen)
+                RelevantRow("Prüfsignale", reviewItems.joinToString { dashboardInstrumentLabel(it) }.ifBlank { "Keine" }, if (reviewItems.isEmpty()) RadarMuted else RadarYellow)
                 RelevantRow("Watchlist", "${watchlistIds.size} Werte", RadarPurple)
-                if (missingQuoteItems.isNotEmpty()) RelevantRow("Kursdaten fehlen", missingQuoteItems.joinToString { it.ticker }, RadarYellow)
+                if (missingQuoteItems.isNotEmpty()) RelevantRow("Kursdaten fehlen", missingQuoteItems.joinToString { dashboardInstrumentLabel(it) }, RadarYellow)
                 concentrationWarning?.let { (item, share) ->
-                    RelevantRow("Konzentration", "${item.ticker} ${String.format(Locale.GERMANY, "%.1f", share)} %", RadarRed)
+                    RelevantRow("Konzentration", "${dashboardInstrumentLabel(item)} ${String.format(Locale.GERMANY, "%.1f", share)} %", RadarRed)
                 }
                 TextButton(onClick = onOpenRadar, modifier = Modifier.align(Alignment.End)) { Text("Radar öffnen") }
             }
@@ -2186,3 +2186,5 @@ private fun alertDarkColor(level: String) = when (level.uppercase()) {
     "BUY" -> Color(0xFF123126)
     else -> RadarSurface2
 }
+
+private fun dashboardInstrumentLabel(item: InvestmentItem): String = item.name.trim().takeIf { it.isNotBlank() } ?: item.ticker.trim().takeIf { it.isNotBlank() } ?: item.id
