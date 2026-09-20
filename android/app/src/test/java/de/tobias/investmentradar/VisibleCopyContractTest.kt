@@ -43,7 +43,10 @@ class VisibleCopyContractTest {
         )
         val source = candidates.firstOrNull(File::isFile)?.readText()
             ?: error("Could not locate MainActivity.kt")
-        assertTrue(source.contains("RelevantInstrumentRow(\"Kaufkandidat\", candidate, RadarGreen) { onOpenInstrument(candidate.id) }"))
+        assertTrue(source.contains("label = \"Kaufkandidat\""))
+        assertTrue(source.contains("item = candidate"))
+        assertTrue(source.contains("onOpen = { onOpenInstrument(candidate.id) }"))
+        assertTrue(source.contains("onEdit = { editingRecommendationId = candidate.id }"))
         assertTrue(source.contains("dashboardInstrumentLabel(item)"))
         assertTrue(!source.contains("RelevantRow(\"Kaufkandidaten\", buyCandidates.take(3).joinToString { it.ticker }"))
     }

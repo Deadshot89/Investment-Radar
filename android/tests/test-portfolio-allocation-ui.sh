@@ -2,8 +2,9 @@
 set -euo pipefail
 SRC="android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt"
 
-# 2.3 hat genau einen gemeinsamen PortfolioAdvisorPlan am Root.
-grep -q 'val advisorPlan = PortfolioAdvisorEngine.allocate' "$SRC"
+# Es gibt genau einen automatischen AdvisorPlan; manuelle Overrides liegen transparent darüber.
+grep -q 'val automaticAdvisorPlan = PortfolioAdvisorEngine.allocate' "$SRC"
+grep -q 'val advisorPlan = RecommendationOverrideEngine.apply' "$SRC"
 grep -q 'PortfolioAnalysis.values(s.data.items, positions, customItems)' "$SRC"
 grep -q 'SavingsPlanBudget.monthlyAmounts' "$SRC"
 grep -q 'advisorPlan = advisorPlan' "$SRC"
@@ -20,4 +21,4 @@ if grep -q 'RecommendationEngine.plan' "$SRC"; then
   exit 1
 fi
 
-echo "PASS shared Investment Radar 2.3 advisor plan"
+echo "PASS shared advisor plan with persistent manual recommendation overrides"
