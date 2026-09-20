@@ -167,8 +167,8 @@ data class InvestmentBudgetViewState(
         private fun balanceEffect(entry: BudgetJournalEntry): Double = when (entry.type) {
             BudgetJournalType.MONTHLY_DEPOSIT,
             BudgetJournalType.EXTRA_DEPOSIT,
-            BudgetJournalType.SELL_CREDIT,
             BudgetJournalType.ADJUSTMENT_CREDIT -> entry.amountEur
+            BudgetJournalType.SELL_CREDIT -> 0.0 // Verkaufserlös wird privat verwendet und verlässt Investment Radar.
             BudgetJournalType.BUY_DEBIT,
             BudgetJournalType.ADJUSTMENT_DEBIT -> -entry.amountEur
         }

@@ -150,8 +150,6 @@ data class PortfolioPosition(
         val price = currentPrice?.takeIf { it.isFinite() && it >= 0.0 }
         return when {
             tracked != null && price != null -> tracked * price
-            tracked != null -> snapshotValueEur?.takeIf { it.isFinite() && it >= 0.0 }
-            snapshotValueEur?.let { it.isFinite() && it >= 0.0 } == true -> snapshotValueEur
             shares <= EPSILON && sales.isNotEmpty() -> 0.0
             shares > EPSILON && price != null -> shares * price
             else -> null

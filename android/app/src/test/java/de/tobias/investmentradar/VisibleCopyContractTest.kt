@@ -35,4 +35,17 @@ class VisibleCopyContractTest {
             matches.isEmpty()
         )
     }
+    @Test fun liveDashboardUsesInstrumentNamesForRelevantRows() {
+        val candidates = listOf(
+            File(System.getProperty("user.dir"), "src/main/java/de/tobias/investmentradar/MainActivity.kt"),
+            File(System.getProperty("user.dir"), "app/src/main/java/de/tobias/investmentradar/MainActivity.kt"),
+            File(System.getProperty("user.dir"), "android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt")
+        )
+        val source = candidates.firstOrNull(File::isFile)?.readText()
+            ?: error("Could not locate MainActivity.kt")
+        assertTrue(source.contains("RelevantInstrumentRow(\"Kaufkandidat\", candidate, RadarGreen) { onOpenInstrument(candidate.id) }"))
+        assertTrue(source.contains("dashboardInstrumentLabel(item)"))
+        assertTrue(!source.contains("RelevantRow(\"Kaufkandidaten\", buyCandidates.take(3).joinToString { it.ticker }"))
+    }
+
 }

@@ -82,7 +82,7 @@ class InvestmentBudgetMoneyFlowTest {
     }
 
     @Test
-    fun partialSaleReturnsOnlyActualNetProceedsAndKeepsFeeExplanatory() {
+    fun partialSaleRecordsActualNetProceedsWithoutReturningThemToAppCash() {
         val base = PortfolioPosition("msft").upsertPurchaseIfValid(
             PortfolioPurchase("old-buy", "2026-09-01", 100.0, 1.0)
         )!!
@@ -106,7 +106,9 @@ class InvestmentBudgetMoneyFlowTest {
         )
         assertNull(sold.error)
         assertEquals(0.5, sold.position!!.shares, 0.000001)
-        assertEquals(59.0, InvestmentBudgetJournalEngine.summarize(sold.entries, emptyList()).availableEur, 0.000001)
+        val saleSummary = InvestmentBudgetJournalEngine.summarize(sold.entries, emptyList())
+        assertEquals(0.0, saleSummary.availableEur, 0.000001)
+        assertEquals(59.0, saleSummary.saleCreditsEur, 0.000001)
         assertEquals(1.0, sold.entries.single { it.id == "partial-sale" }.feeEur, 0.000001)
     }
 
@@ -179,7 +181,7 @@ class InvestmentBudgetMoneyFlowTest {
         assertEquals(reconciled, restarted)
     }
     @Test
-    fun liquidityNeedPartialSaleAndWithdrawalCloseCashGap() {
+    fun liquidityNeedKeepsSaleProceedsPrivateAndWithdrawsOnlyExistingCash() {
         val position = PortfolioPosition("weak").upsertPurchaseIfValid(
             PortfolioPurchase("buy-weak", "2026-09-01", 100.0, 10.0)
         )!!
@@ -228,13 +230,15 @@ class InvestmentBudgetMoneyFlowTest {
 
         assertNull(sold.error)
         assertEquals(3.0, sold.position!!.shares, 0.000001)
-        assertEquals(120.0, InvestmentBudgetJournalEngine.summarize(sold.entries, sold.reservations).availableEur, 0.000001)
+        val soldSummary = InvestmentBudgetJournalEngine.summarize(sold.entries, sold.reservations)
+        assertEquals(50.0, soldSummary.availableEur, 0.000001)
+        assertEquals(70.0, soldSummary.saleCreditsEur, 0.000001)
 
         val withdrawn = InvestmentBudgetCommands.addAdjustment(
             sold.entries,
             BudgetAdjustmentCommand(
                 eventId = "liquidity-withdrawal",
-                amountEur = 120.0,
+                amountEur = plan.cashUsedEur,
                 date = "2026-09-18",
                 credit = false,
                 note = "Auszahlung / Geldbedarf"
@@ -267,7 +271,7 @@ class InvestmentBudgetMoneyFlowTest {
     }
 
     @Test
-    fun saleCreditNeverTurnsIntoNewBuyBudget() {
+    fun saleCreditNeverTurnsIntoAppCashOrNewBuyBudget() {
         val entries = listOf(
             BudgetJournalEntry("monthly-budget-2026-09", BudgetJournalType.MONTHLY_DEPOSIT, 100.0, "2026-09-01"),
             BudgetJournalEntry("buy-month", BudgetJournalType.BUY_DEBIT, 40.0, "2026-09-03", "msft"),
@@ -279,7 +283,7 @@ class InvestmentBudgetMoneyFlowTest {
             today = LocalDate.of(2026, 9, 18)
         )
 
-        assertEquals(560.0, view.availableEur, 0.000001)
+        assertEquals(60.0, view.availableEur, 0.000001)
         assertEquals(60.0, view.monthlyAvailableEur, 0.000001)
         assertEquals(60, view.advisorBudgetEur)
     }

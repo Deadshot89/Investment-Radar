@@ -409,6 +409,7 @@ fun InvestmentRadarUi(
                                 onEditBudget = { budgetDialog = true },
                                 onOpenRadar = { selectedDetailId = null; tab = 1 },
                                 onOpenPortfolio = { selectedDetailId = null; tab = 2 },
+                                onOpenInstrument = { id -> detailReturnTab = 0; selectedDetailId = id },
                                 onAddToPortfolio = { investmentDialogItem = it }
                             )
                             1 -> RadarScreenV2(
@@ -769,6 +770,7 @@ private fun DashboardScreen(
     onEditBudget: () -> Unit,
     onOpenRadar: () -> Unit,
     onOpenPortfolio: () -> Unit,
+    onOpenInstrument: (String) -> Unit,
     onAddToPortfolio: (InvestmentItem) -> Unit
 ) {
     val context = LocalContext.current
@@ -855,12 +857,18 @@ private fun DashboardScreen(
                     }
                     StatusPill(if (reviewItems.isNotEmpty()) "PRÜFEN" else "AKTUELL")
                 }
-                RelevantRow("Kaufkandidaten", buyCandidates.take(3).joinToString { it.ticker }.ifBlank { "Keine" }, RadarGreen)
-                RelevantRow("Prüfsignale", reviewItems.joinToString { it.ticker }.ifBlank { "Keine" }, if (reviewItems.isEmpty()) RadarMuted else RadarYellow)
+                buyCandidates.take(3).forEach { candidate ->
+                    RelevantInstrumentRow("Kaufkandidat", candidate, RadarGreen) { onOpenInstrument(candidate.id) }
+                }
+                if (buyCandidates.isEmpty()) RelevantRow("Kaufkandidaten", "Keine", RadarMuted)
+                reviewItems.take(3).forEach { candidate ->
+                    RelevantInstrumentRow("Prüfsignal", candidate, RadarYellow) { onOpenInstrument(candidate.id) }
+                }
+                if (reviewItems.isEmpty()) RelevantRow("Prüfsignale", "Keine", RadarMuted)
                 RelevantRow("Watchlist", "${watchlistIds.size} Werte", RadarPurple)
-                if (missingQuoteItems.isNotEmpty()) RelevantRow("Kursdaten fehlen", missingQuoteItems.joinToString { it.ticker }, RadarYellow)
+                if (missingQuoteItems.isNotEmpty()) RelevantRow("Kursdaten fehlen", missingQuoteItems.joinToString { dashboardInstrumentLabel(it) }, RadarYellow)
                 concentrationWarning?.let { (item, share) ->
-                    RelevantRow("Konzentration", "${item.ticker} ${String.format(Locale.GERMANY, "%.1f", share)} %", RadarRed)
+                    RelevantRow("Konzentration", "${dashboardInstrumentLabel(item)} ${String.format(Locale.GERMANY, "%.1f", share)} %", RadarRed)
                 }
                 TextButton(onClick = onOpenRadar, modifier = Modifier.align(Alignment.End)) { Text("Radar öffnen") }
             }
@@ -1038,6 +1046,25 @@ private fun CustomInvestmentDialog(
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } }
     )
+}
+
+@Composable
+private fun RelevantInstrumentRow(label: String, item: InvestmentItem, accent: Color, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(Color(0x0DFFFFFF), RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(label, color = RadarMuted, style = MaterialTheme.typography.labelSmall)
+            Text(dashboardInstrumentLabel(item), color = accent, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+        }
+        Text("Öffnen ›", color = accent, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
+    }
 }
 
 @Composable
@@ -1597,7 +1624,7 @@ private fun MoneyManagementScreen(
                 Text("Gesamtes Cash inkl. Übertrag · kein Kaufbudget", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
                 Text(formatMoney(current.availableEur), style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Black, color = RadarGreen)
                 Text(
-                    "Käufe werden erst nach deiner Bestätigung abgezogen. Verkäufe werden erst nach deiner Bestätigung gutgeschrieben.",
+                    "Käufe werden erst nach deiner Bestätigung abgezogen. Verkäufe werden erfasst; ihre Erlöse werden privat verwendet und erhöhen dein App-Cash nicht.",
                     color = RadarMuted,
                     style = MaterialTheme.typography.bodySmall
                 )
@@ -2186,3 +2213,5 @@ private fun alertDarkColor(level: String) = when (level.uppercase()) {
     "BUY" -> Color(0xFF123126)
     else -> RadarSurface2
 }
+
+private fun dashboardInstrumentLabel(item: InvestmentItem): String = item.name.trim().takeIf { it.isNotBlank() } ?: item.ticker.trim().takeIf { it.isNotBlank() } ?: item.id

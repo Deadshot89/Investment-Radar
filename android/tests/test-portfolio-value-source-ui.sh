@@ -2,15 +2,14 @@
 set -euo pipefail
 
 UI="android/app/src/main/java/de/tobias/investmentradar/PortfolioDashboard.kt"
+LIVE="android/app/src/main/java/de/tobias/investmentradar/LivePortfolioCard.kt"
 
-# Imported snapshot without tracked shares must be labeled as imported fallback.
-grep -q 'Importierter Depotwert' "$UI"
-
-# Once tracked shares and a usable quote exist, the UI must say the value is live-derived.
+grep -q 'Historischer Import · kein aktueller Wert' "$UI"
 grep -q 'Live-Kurs × Stückzahl' "$UI"
-
-# The footer must distinguish snapshot fallback from active live tracking and imported cost basis.
 grep -q 'Live-Tracking aktiv · Einstand importiert' "$UI"
-grep -q 'Depotwert und Einstand importiert' "$UI"
+grep -q 'Historischer Depotwert gespeichert · Einstand importiert' "$UI"
+grep -q 'Nicht vollständig berechenbar' "$UI"
+grep -q 'Nicht vollständig berechenbar' "$LIVE"
+grep -q 'Position(en) ohne belastbaren aktuellen Wert' "$LIVE"
 
-echo 'PASS portfolio value source is explicit for imported cost basis and live-tracked holdings'
+echo 'PASS current portfolio values are explicitly live-derived or marked incomplete'

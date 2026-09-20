@@ -28,7 +28,7 @@ sealed interface UiState {
 class MainViewModel(app: Application) : AndroidViewModel(app) {
     init {
         InvestmentBudgetStore.ensureInitialized(app)
-        UserPortfolioSeed.ensureSeeded(app)
+        // Portfolio data is loaded only from persisted user data. Never auto-seed holdings or values.
     }
 
     private val _state = MutableStateFlow<UiState>(UiState.Loading)
@@ -132,11 +132,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     AlertPolicy.isRelevantForPortfolio(alert, _holdingIds.value)
                 }
                 val mergedAlerts = AlertStore.mergeRemote(application, relevantAlerts)
+                refreshBudgetState(application)
                 _alerts.value = AlertCenterState.reconcileCurrentAnalysis(
                     mergedAlerts,
-                    nextDashboard.items.associateBy { item -> item.id }
+                    nextDashboard.items.associateBy { item -> item.id },
+                    availablePurchaseBudgetEur = _budgetState.value.advisorBudgetEur
                 )
-                refreshBudgetState(application)
                 persistAdvisorPlan(application, nextDashboard)
                 _refreshNotice.value = null
                 _state.value = UiState.Ready(nextDashboard)

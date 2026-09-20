@@ -17,14 +17,16 @@ class InvestmentBudgetJournalTest {
     }
 
     @Test
-    fun `sale proceeds return to available money`() {
+    fun `sale proceeds leave investment radar and never become cash or buying power`() {
         val entries = listOf(
             BudgetJournalEntry("month-2026-09", BudgetJournalType.MONTHLY_DEPOSIT, 100.0, "2026-09-01"),
             BudgetJournalEntry("buy-msft-1", BudgetJournalType.BUY_DEBIT, 40.0, "2026-09-02", itemId = "msft"),
             BudgetJournalEntry("sell-msft-1", BudgetJournalType.SELL_CREDIT, 25.0, "2026-09-08", itemId = "msft")
         )
         val summary = InvestmentBudgetJournalEngine.summarize(entries, emptyList())
-        assertEquals(85.0, summary.availableEur, 0.0001)
+        assertEquals(60.0, summary.availableEur, 0.0001)
+        assertEquals(60.0, summary.cashBalanceEur, 0.0001)
+        assertEquals(25.0, summary.saleCreditsEur, 0.0001)
     }
 
     @Test

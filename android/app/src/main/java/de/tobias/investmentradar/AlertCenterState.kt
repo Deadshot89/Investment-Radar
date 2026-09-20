@@ -55,7 +55,8 @@ object AlertCenterState {
 
     fun reconcileCurrentAnalysis(
         items: List<StoredAlert>,
-        analysisById: Map<String, InvestmentItem>
+        analysisById: Map<String, InvestmentItem>,
+        availablePurchaseBudgetEur: Int = Int.MAX_VALUE
     ): List<StoredAlert> {
         if (analysisById.isEmpty()) return items
         return items.map { stored ->
@@ -63,16 +64,18 @@ object AlertCenterState {
             val current = analysisById[stored.alert.itemId] ?: return@map stored
             val forecastBlocked = current.forecast?.quality.equals("NICHT_BELASTBAR", ignoreCase = true)
             val qualityBlocked = currentBuyQualityBlocked(current)
+            val budgetBlocked = availablePurchaseBudgetEur <= 0
             val buyStillValid = current.recommendation.equals("BUY", ignoreCase = true) &&
                 !forecastBlocked &&
                 !qualityBlocked &&
-                !current.portfolioOnly
+                !current.portfolioOnly &&
+                !budgetBlocked
             if (buyStillValid) stored else stored.copy(
                 alert = stored.alert.copy(
                     level = "REVIEW",
                     message = listOf(
                         stored.alert.message.takeIf { it.isNotBlank() },
-                        "Die aktuelle Datenbasis bestätigt diesen früheren Kaufalarm nicht mehr. Daten und Analyse erneut prüfen."
+                        if (budgetBlocked) "Kein Kaufbudget mehr verfügbar. Dieser frühere Kaufalarm ist keine aktuelle Kaufaufforderung." else "Die aktuelle Datenbasis bestätigt diesen früheren Kaufalarm nicht mehr. Daten und Analyse erneut prüfen."
                     ).filterNotNull().joinToString(" ")
                 )
             )
