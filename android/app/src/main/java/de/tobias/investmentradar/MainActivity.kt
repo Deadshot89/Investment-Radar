@@ -971,8 +971,21 @@ private fun DashboardScreen(
                 )
                 LiveForecastSummary(top)
                 ScoreBreakdownCard(top)
-                FilledTonalButton(onClick = { onAddToPortfolio(top) }, modifier = Modifier.fillMaxWidth()) {
-                    Text(if (topInDepot) "Position erhöhen" else "Zum Depot hinzufügen", fontWeight = FontWeight.Black)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = { onEditRecommendation(top, amount, false) },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Default.Edit, contentDescription = null)
+                        Spacer(Modifier.width(6.dp))
+                        Text("Empfehlung bearbeiten", fontWeight = FontWeight.Black)
+                    }
+                    OutlinedButton(
+                        onClick = { onAddToPortfolio(top) },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(if (topInDepot) "Position erhöhen" else "Zum Depot", fontWeight = FontWeight.Bold)
+                    }
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
