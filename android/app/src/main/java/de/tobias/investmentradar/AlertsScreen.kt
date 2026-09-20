@@ -304,7 +304,7 @@ private fun AlertCard(
     val shape = RoundedCornerShape(18.dp)
     val isForecast = alertBadgeLabel(alert) == "PROGNOSE"
     val dataQuality = alertDataQuality(alert, advisorCandidate, item)
-    val guidance = alertActionGuidance(alert, advisorCandidate)
+    val guidance = alertActionGuidance(alert, advisorCandidate, item)
     val concretePlan = plannedActionForAlert(alert, actionPlan, dataQuality)
     val nextStep = concretePlan ?: guidance.action
     val importance = alertImportance(alert, isHolding, dataQuality)
@@ -433,9 +433,9 @@ private fun alertReviewCondition(alert: SignalAlert, dataQuality: AlertDataQuali
 private fun formatEur(value: Double): String = String.format(Locale.GERMANY, "%.0f €", value)
 private fun formatSignedEur(value: Double?): String = value?.let { String.format(Locale.GERMANY, "%+.0f €", it) } ?: "–"
 
-private fun alertActionGuidance(alert: SignalAlert, candidate: PortfolioAdvisorCandidate? = null): AlertActionGuidance {
+private fun alertActionGuidance(alert: SignalAlert, candidate: PortfolioAdvisorCandidate? = null, item: InvestmentItem? = null): AlertActionGuidance {
     val level = alert.level.trim().uppercase(Locale.GERMANY)
-    val quality = alertDataQuality(alert, candidate)
+    val quality = alertDataQuality(alert, candidate, item)
     if (quality.blocksBuyDecision) {
         return AlertActionGuidance(
             status = "DATEN PRÜFEN",
