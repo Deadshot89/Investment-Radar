@@ -1624,7 +1624,7 @@ private fun MoneyManagementScreen(
                 Text("Gesamtes Cash inkl. Übertrag · kein Kaufbudget", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
                 Text(formatMoney(current.availableEur), style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Black, color = RadarGreen)
                 Text(
-                    "Käufe werden erst nach deiner Bestätigung abgezogen. Verkäufe werden erst nach deiner Bestätigung gutgeschrieben.",
+                    "Käufe werden erst nach deiner Bestätigung abgezogen. Verkäufe werden erfasst; ihre Erlöse werden privat verwendet und erhöhen dein App-Cash nicht.",
                     color = RadarMuted,
                     style = MaterialTheme.typography.bodySmall
                 )
