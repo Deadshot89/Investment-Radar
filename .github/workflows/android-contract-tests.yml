@@ -38,6 +38,8 @@ jobs:
             android/tests/test-recommendation-share-prefill-ui.sh \
             android/tests/test-exit-strategy-ui.sh \
             android/tests/test-liquidity-need-ui.sh \
+            android/tests/test-direct-recommendation-edit-ui.sh \
+            android/tests/test-current-docs-contract.sh \
             android/tests/test-portfolio-allocation-ui.sh \
             android/tests/test-portfolio-advisor-2-3-ui.sh \
             android/tests/test-portfolio-dashboard-ui.sh \
