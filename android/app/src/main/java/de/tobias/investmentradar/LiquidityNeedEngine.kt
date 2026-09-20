@@ -38,7 +38,42 @@ data class LiquidityNeedPlan(
     val noSaleNeeded: Boolean get() = saleNeededEur <= 0.01
 }
 
+data class LiquidityNeedProgress(
+    val requestedEur: Double,
+    val privateSaleCoveredEur: Double,
+    val withdrawnCashEur: Double
+) {
+    val coveredEur: Double get() = (privateSaleCoveredEur + withdrawnCashEur).coerceAtMost(requestedEur)
+    val remainingEur: Double get() = (requestedEur - coveredEur).coerceAtLeast(0.0)
+    val complete: Boolean get() = remainingEur <= 0.01
+}
+
 object LiquidityNeedEngine {
+    fun progress(
+        requestedEur: Double,
+        history: List<BudgetHistoryItem>,
+        flowTag: String
+    ): LiquidityNeedProgress {
+        val requested = requestedEur.takeIf { it.isFinite() }?.coerceAtLeast(0.0) ?: 0.0
+        if (flowTag.isBlank()) return LiquidityNeedProgress(requested, 0.0, 0.0)
+
+        val tagged = history.filter { item ->
+            item.note.contains(flowTag, ignoreCase = false)
+        }
+        val privateSales = tagged
+            .filter { it.isCredit }
+            .sumOf { it.amountEur.coerceAtLeast(0.0) }
+        val withdrawals = tagged
+            .filterNot { it.isCredit }
+            .sumOf { kotlin.math.abs(it.amountEur) }
+
+        return LiquidityNeedProgress(
+            requestedEur = requested,
+            privateSaleCoveredEur = privateSales.coerceAtMost(requested),
+            withdrawnCashEur = withdrawals.coerceAtMost(requested)
+        )
+    }
+
     fun plan(
         requestedEur: Double,
         availableCashEur: Double,
