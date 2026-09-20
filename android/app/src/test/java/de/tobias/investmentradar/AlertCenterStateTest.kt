@@ -180,4 +180,28 @@ class AlertCenterStateTest {
         assertEquals("REVIEW", reconciled.single().alert.level)
         assertTrue(reconciled.single().alert.message.contains("aktuelle Datenbasis", ignoreCase = true))
     }
+    @Test fun openBuyIsDowngradedWhenMonthlyPurchaseBudgetIsExhausted() {
+        val openBuy = StoredAlert(SignalAlert("open-buy", "apple", "BUY", "NACHKAUFEN · 11 € – Apple", "Bestehende Position mit Nachkauf-Signal", "2026-09-20T10:00:00Z"))
+        val current = testInvestmentItem(id = "apple", type = "AKTIE", recommendation = "BUY", coverage = 90).copy(
+            forecast = RadarForecast(quality = "GUT", confidencePct = 90),
+            dataQuality = RadarDataQuality(
+                quoteCoverage = 100,
+                historyCoverage = 90,
+                fundamentalCoverage = 90,
+                forecastInputCoverage = 90,
+                overallCoverage = 90,
+                qualityTier = "GUT"
+            )
+        )
+
+        val reconciled = AlertCenterState.reconcileCurrentAnalysis(
+            listOf(openBuy),
+            mapOf("apple" to current),
+            availablePurchaseBudgetEur = 0
+        )
+
+        assertEquals("REVIEW", reconciled.single().alert.level)
+        assertTrue(reconciled.single().alert.message.contains("Kein Kaufbudget", ignoreCase = true))
+    }
+
 }
