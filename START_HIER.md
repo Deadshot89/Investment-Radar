@@ -1,51 +1,90 @@
-# START HIER – Investment Radar Live 1.1.9
+# START HIER – Investment Radar 2.5.20
+
+**Android:** 2.5.20 / versionCode 90  
+**Backend:** 2.1.0  
+**API-Schema:** 2026-09-14.1
+
+Diese Datei beschreibt den aktuellen Einstieg. Historische Hotfix- und Plan-Dokumente bleiben als Verlauf im Repository, sind aber nicht automatisch die aktuelle Fachspezifikation.
 
 ## A. Azure Flex Consumption
 
 Die Function App ist für **Flex Consumption / Linux / Node.js 22** vorgesehen.
 
-Nach dem Erstellen der Function App brauchst du aus Azure:
-- Ressourcenname der Function App, z. B. `InvestmentRadar`
-- **Standarddomäne** aus der Übersicht, vollständig inklusive `https://`
+Benötigt werden aus Azure:
+- Ressourcenname der Function App
+- vollständige Standarddomäne inklusive `https://`
 - Publish Profile
 
-## B. GitHub eintragen
+## B. GitHub Actions konfigurieren
 
-Repository -> Settings -> Secrets and variables -> Actions
+Repository → **Settings → Secrets and variables → Actions**
 
-**Variables**
-- `AZURE_FUNCTIONAPP_NAME` = Azure Ressourcenname
-- `INVESTMENT_API_BASE_URL` = vollständige Standarddomäne, z. B. `https://investmentradar-....germanywestcentral-01.azurewebsites.net`
+### Variables
+- `AZURE_FUNCTIONAPP_NAME`
+- `INVESTMENT_API_BASE_URL`
 
-**Secret**
-- `AZURE_FUNCTIONAPP_PUBLISH_PROFILE` = kompletter XML-Inhalt der Publish-Profile-Datei
+### Secrets
+- `AZURE_FUNCTIONAPP_PUBLISH_PROFILE`
+- `ANDROID_KEYSTORE_BASE64`
+- `ANDROID_KEYSTORE_PASSWORD`
+- `ANDROID_KEY_ALIAS`
+- `ANDROID_KEY_PASSWORD`
+- `FIREBASE_APP_ID`
+- `FIREBASE_API_KEY`
+- `FIREBASE_PROJECT_ID`
+- `FIREBASE_SENDER_ID`
 
-Den Publish-Profile-Inhalt niemals im Chat oder Repository veröffentlichen.
+Den Publish-Profile-Inhalt und private Schlüssel niemals im Repository veröffentlichen.
 
-## C. Workflows
+## C. Azure App Settings
 
-1. `Deploy Backend` starten.
-2. Der Workflow deployt mit `sku: flexconsumption` und `remote-build: true`.
-3. Health-Check läuft gegen `${INVESTMENT_API_BASE_URL}/api/health`.
-4. Erst wenn das grün ist, `Build Android APK` starten.
-5. Der Android-Build verwendet exakt dieselbe `INVESTMENT_API_BASE_URL`.
+Erforderlich bzw. je nach aktivierter Funktion:
+- `TWELVE_DATA_API_KEY`
+- `FIREBASE_SERVICE_ACCOUNT_JSON`
+- `AzureWebJobsStorage`
 
-## D. Firebase / Marktdaten
+Optional:
+- `ALERT_TOPIC`
+- `ADMIN_API_KEY`
+- `GOOGLE_SHEET_ID`
+- `GOOGLE_SERVICE_ACCOUNT_JSON`
 
-Für den ersten Health-Test noch nicht zwingend nötig. Für Live-Kurse und Push später ergänzen:
-- `TWELVE_DATA_API_KEY` in Azure
-- `FIREBASE_SERVICE_ACCOUNT_JSON` in Azure
-- `FIREBASE_APP_ID`, `FIREBASE_API_KEY`, `FIREBASE_PROJECT_ID`, `FIREBASE_SENDER_ID` in GitHub Secrets
+## D. Backend deployen und prüfen
 
+1. Workflow **Deploy Backend** starten.
+2. `${INVESTMENT_API_BASE_URL}/api/health` prüfen.
+3. Erwartete Kernwerte:
+   - `ok: true`
+   - `backendVersion: 2.1.0`
+   - `apiSchemaVersion: 2026-09-14.1`
+   - `sourceRevision` gesetzt
+   - `deployId` gesetzt und nicht `development`
+   - `universeTarget: 2000`
 
-## E. Einmalige Android-Signierung
+## E. Android Release
 
-Vor dem ersten 1.1.9-Build auf Windows im Projektordner PowerShell öffnen und `scripts\create-android-signing-key.ps1` ausführen. Die dabei abgefragten Passwörter sicher notieren und den erzeugten `investment-radar-release.jks` außerhalb des Repositories sichern.
+Die produktive App wird mit einem dauerhaft erhaltenen Keystore signiert. Der Keystore darf nach einer veröffentlichten Version nicht ersetzt werden, sonst akzeptiert Android spätere Updates nicht mehr.
 
-Danach GitHub -> Settings -> Secrets and variables -> Actions -> Secrets:
-- `ANDROID_KEYSTORE_BASE64` = kompletter Inhalt von `ANDROID_KEYSTORE_BASE64.txt`
-- `ANDROID_KEYSTORE_PASSWORD` = beim Erstellen gewähltes Keystore-Passwort
-- `ANDROID_KEY_ALIAS` = `investment-radar`
-- `ANDROID_KEY_PASSWORD` = beim Erstellen gewähltes Schlüssel-Passwort
+Aktueller Stand:
+- `versionName = 2.5.20`
+- `versionCode = 90`
 
-Die alte, vor 1.1.9 installierte Investment-Radar-App einmal deinstallieren. Anschließend die signierte 1.1.9-Release-APK installieren. Danach künftig nicht mehr deinstallieren, sondern einfach über die bestehende App aktualisieren.
+Vor einem Release müssen grün sein:
+1. Android Contract Tests
+2. Android JVM Tests
+3. Build Android APK
+4. Android Instrumented UI Tests
+
+Der Build prüft zusätzlich APK-Signatur und Live-Backend-Kompatibilität. Produktive In-App-Veröffentlichungen erfolgen nur von `main`.
+
+## F. Aktuelle Fachregeln
+
+- Monatsbudget für Käufe: **100 €**, sofern der Nutzer es nicht bewusst ändert.
+- Bestätigte Käufe reduzieren das verfügbare Monatsbudget.
+- Verkaufserlöse werden privat verwendet und erhöhen **weder App-Cash noch Kaufbudget**.
+- Historische Snapshots dürfen nicht als aktuelle Marktwerte ausgegeben werden.
+- Fehlende Daten werden sichtbar als Datenlücke behandelt und nicht erfunden.
+- Empfehlungen können direkt bearbeitet werden; dabei wird die konkrete Transaktionsausführung angepasst, nicht still die automatische Analyse überschrieben.
+- Die App führt **keine Orders automatisch aus**.
+
+Weitere Details stehen in `README.md`, `SETUP.md`, `android/README.md` und `backend/README.md`.
