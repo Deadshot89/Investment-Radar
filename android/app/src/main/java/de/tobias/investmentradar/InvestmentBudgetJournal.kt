@@ -74,7 +74,8 @@ object InvestmentBudgetJournalEngine {
             .associateBy { it.id }
             .values
             .sumOf { it.amountEur }
-        val cashBalance = monthly + extra + sales + credits - buys - debits
+        // Sale proceeds leave Investment Radar for private use and must never become app cash or buying power.
+        val cashBalance = monthly + extra + credits - buys - debits
 
         return InvestmentBudgetSummary(
             monthlyDepositsEur = monthly,
