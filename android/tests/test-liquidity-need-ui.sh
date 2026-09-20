@@ -14,7 +14,7 @@ grep -Fq 'onRecordWithdrawal(plan.cashUsedEur, liquidityFlowTag)' "$MAIN" || fai
 grep -Fq 'Geldbedarf vollständig gedeckt.' "$MAIN" || fail 'Abschlussstatus des Geldbedarfs fehlt.'
 grep -Fq 'App-Cash entnehmen' "$MAIN" || fail 'Cash-Anteil kann nicht privat entnommen werden.'
 grep -Fq 'onExecuteLiquiditySale' "$MAIN" || fail 'Verkaufsvorschlag öffnet keine manuelle Verkaufsmaske.'
-grep -Fq 'onExecuteLiquiditySale: (LiquiditySaleSuggestion) -> Unit' "$MAIN" || fail 'Verkaufsvorschlag muss den vollständigen Liquiditätsvorschlag übergeben.'
+grep -Fq 'onExecuteLiquiditySale: (LiquiditySaleSuggestion, String) -> Unit' "$MAIN" || fail 'Verkaufsvorschlag muss Liquiditätsvorschlag und Flow-Kennung übergeben.'
 grep -Fq 'onClick = { onExecuteLiquiditySale(suggestion) }' "$MAIN" || fail 'Verkaufsvorschlag verliert beim Öffnen der Verkaufsmaske Daten.'
 grep -Fq 'pendingActionAmountEur = suggestion.amountEur' "$MAIN" || fail 'Empfohlener Verkaufsbetrag wird nicht vorbefüllt.'
 grep -Fq 'pendingActionShares = suggestion.shares' "$MAIN" || fail 'Empfohlene Stückzahl wird nicht vorbefüllt.'
