@@ -1,59 +1,109 @@
-# Investment Radar Live
+# Investment Radar
 
-Android-Live-App mit Push-Benachrichtigungen fuer Aktien und ETFs.
+Investment Radar ist eine Android-App für die persönliche Beobachtung, Analyse und Verwaltung von Aktien und ETFs. Die App verbindet Live-Marktdaten mit einem regelbasierten Advisor, einem monatlichen Kaufbudget, Depot-/Watchlist-Funktionen und manueller Transaktionserfassung.
 
-## Enthalten
+**Aktueller Android-Stand:** 2.5.20 / versionCode 90  
+**Backend:** 2.1.0  
+**API-Schema:** 2026-09-14.1
 
-- Android-App (Kotlin + Jetpack Compose)
-- Live-Dashboard mit Marktampel, Top-Pick und 100-EUR-Plan
-- Live-Kurse ueber einen serverseitigen Marktdaten-Provider
-- Trade-Republic-Suchname und ISIN
-- FCM Push-Benachrichtigungen
-- Verkaufs-/Pruefsignale mit Deduplizierung
-- Azure Functions Backend
-- optionale automatische Synchronisation mit dem bestehenden Google-Sheet
-- GitHub Actions zum APK-Build und Backend-Deploy
+## Kernfunktionen
+
+- Android-App mit Kotlin und Jetpack Compose
+- Live-Dashboard für Aktien und ETFs
+- Radar-Universum mit Zielgröße von mindestens 2.000 Trade-Republic-verifizierten Instrumenten
+- Analyse V2 mit Qualität, Bewertung, Wachstum, Momentum, Risiko und Datenqualität
+- klare persönliche Aktionen wie NACHKAUFEN, HALTEN, REDUZIEREN und VERKAUFEN
+- monatliches Kaufbudget mit strikt getrenntem App-Cash
+- bestätigte Käufe reduzieren das verfügbare Monatsbudget
+- Verkaufserlöse werden als privat verwendet dokumentiert und erhöhen weder App-Cash noch Kaufbudget
+- Funktion „ICH BRAUCHE GELD“ mit getrenntem App-Cash- und Verkaufsanteil
+- direkte Bearbeitung einer Empfehlung mit vorbefülltem Betrag und – bei belastbarem Kurs – Stückzahl
+- Depot, Watchlist, Sparplan-Kontext und Exit-Strategien
+- Trade-Republic-Weiterleitung
+- Push-Benachrichtigungen über Firebase Cloud Messaging
+- In-App-Update über signierte Release-APK
+- Azure-Functions-Backend
+- optionale Google-Sheets-Anbindung
+- GitHub-Actions-Gates für Contracts, JVM-Tests, signierte APK und instrumentierte UI-Tests
 
 ## Architektur
 
-Android App -> Azure Functions API -> Twelve Data
-                         -> Firebase Cloud Messaging
-                         -> Azure Blob State
+```text
+Android App
+   |
+   v
+Azure Functions API
+   |-- Marktdaten / Historie / Fundamentaldaten
+   |-- Analyse V2 / Radar
+   |-- Trade-Republic-Instrumentuniversum
+   |-- Firebase Cloud Messaging
+   |-- Azure Blob State
+   '-- optionale Google-Sheets-Anbindung
+```
 
-Geheime API-Schluessel liegen nur im Backend, nicht in der Android-App.
+Geheime API-Schlüssel und Firebase-Service-Zugangsdaten liegen ausschließlich im Backend bzw. in GitHub/Azure-Secrets. Sie werden nicht in der Android-App eingecheckt.
+
+## Daten- und Budgetregeln
+
+Investment Radar unterscheidet bewusst zwischen Kaufbudget und sonstigem Geld:
+
+- Das monatliche Kaufbudget ist der einzige Rahmen für neue Kaufempfehlungen.
+- Bestätigte Käufe reduzieren diesen Rahmen.
+- Übertrag und Zusatz-Cash erhöhen das Kaufbudget nicht automatisch.
+- Verkaufserlöse werden für private Verwendung erfasst und nicht als neues App-Cash behandelt.
+- Historische Depotwerte oder gespeicherte Snapshots dürfen nicht als aktuelle Marktwerte ausgegeben werden.
+- Fehlende oder unzuverlässige Daten werden sichtbar als Datenqualitätsproblem behandelt.
+
+Die App führt **keine Orders automatisch aus**.
+
+## Empfehlungen bearbeiten
+
+Im Dashboard werden Instrument, Signal und Betrag getrennt dargestellt. Über **Bearbeiten** kann die konkrete Ausführung direkt angepasst werden:
+
+- Kauf- oder Verkaufsmodus wird aus der Aktion abgeleitet.
+- empfohlener Betrag wird vorbefüllt
+- Stückzahl wird bei vorhandenem belastbarem EUR-Kurs berechnet
+- Betrag und Stückzahl bleiben vor der Bestätigung editierbar
+- die zugrunde liegende automatische Analyse wird dadurch nicht still überschrieben
+
+## Release- und Qualitätsgates
+
+Vor einem Android-Release prüft die CI unter anderem:
+
+1. Source-/UI-Contracts
+2. Android JVM Unit Tests
+3. signierten Release-Build
+4. APK-Signatur
+5. Live-Backend-Kompatibilität
+6. Backend-Version, API-Schema und exakte Backend-Revision
+7. Radar-Zielgröße von mindestens 2.000 Instrumenten
+8. instrumentierte UI-Smoke-Tests auf Phone- und Tablet-Konfigurationen
+
+Produktive APK-Veröffentlichungen sind auf `main` beschränkt.
 
 ## Schnellstart
 
 1. `SETUP.md` abarbeiten.
-2. Backend nach Azure Functions deployen.
-3. Android-Konfiguration in `android/gradle.properties` bzw. GitHub Secrets eintragen.
-4. GitHub Workflow `Build Android APK` starten.
-5. APK aus den Workflow-Artefakten installieren.
+2. Backend über den Workflow **Deploy Backend** veröffentlichen.
+3. `${INVESTMENT_API_BASE_URL}/api/health` prüfen.
+4. Android-Build über **Build Android APK** starten.
+5. Signierte APK bzw. das In-App-Update verwenden.
 
-## Wichtiger Hinweis
+## Dauerhafte Android-Signierung
 
-Die App fuehrt keine Orders aus. Signale sind Entscheidungshilfen, keine Renditegarantie und keine automatische Anlageberatung.
+Seit 1.1.9 werden produktive APKs mit einem dauerhaften Keystore signiert. Der private Keystore liegt nicht im Repository.
 
-
-### Wichtig vor dem APK-Build
-
-Die Live-App benötigt eine echte Azure-Backend-Adresse. Version 1.1.9 baut bewusst keine APK ohne `INVESTMENT_API_BASE_URL` und ohne dauerhafte Android-Signierung. Bei Flex Consumption wird ausschließlich die echte Azure-Standarddomäne verwendet. Der Backend-Workflow ist erst grün, wenn der Deploy erfolgt ist und `/api/health` erreichbar ist.
-
-
-### Flex Consumption 1.1.9
-
-Backend-Deploy: `sku: flexconsumption`, `remote-build: true`. Health-Check und Android-App verwenden die Repository-Variable `INVESTMENT_API_BASE_URL`.
-
-
-## Dauerhafte Android-Signierung ab 1.1.9
-
-GitHub baut ab 1.1.9 eine signierte Release-APK. Der private Keystore liegt **nicht** im Repository. Einmalig `scripts/create-android-signing-key.ps1` auf einem Windows-PC mit installiertem Java ausführen und anschließend diese GitHub Secrets setzen:
+Benötigte GitHub Secrets:
 
 - `ANDROID_KEYSTORE_BASE64`
 - `ANDROID_KEYSTORE_PASSWORD`
 - `ANDROID_KEY_ALIAS`
 - `ANDROID_KEY_PASSWORD`
 
-Den erzeugten `investment-radar-release.jks` zusätzlich offline sichern. Ohne denselben Keystore können spätere APKs nicht als Update installiert werden.
+Zusätzlich benötigt der Android-Build Firebase-Konfiguration und eine gültige `INVESTMENT_API_BASE_URL`.
 
-Die vor 1.1.9 installierte Debug-App muss einmal deinstalliert werden. Danach 1.1.9 installieren. Ab dann funktionieren Updates mit demselben Signierschlüssel.
+Der einmal verwendete Produktions-Keystore muss dauerhaft erhalten bleiben, sonst lassen sich spätere APKs nicht als Update installieren.
+
+## Hinweis
+
+Investment Radar ist ein Analyse- und Entscheidungswerkzeug. Es führt keine automatischen Trades aus und garantiert keine Rendite.
