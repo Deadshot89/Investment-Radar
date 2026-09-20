@@ -1105,21 +1105,57 @@ private fun CustomInvestmentDialog(
 }
 
 @Composable
-private fun RelevantInstrumentRow(label: String, item: InvestmentItem, accent: Color, onClick: () -> Unit) {
-    Row(
+private fun RelevantInstrumentRow(
+    label: String,
+    item: InvestmentItem,
+    accent: Color,
+    amountEur: Int,
+    onOpen: () -> Unit,
+    onEdit: () -> Unit
+) {
+    Column(
         Modifier
             .fillMaxWidth()
             .background(Color(0x0DFFFFFF), RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Column(Modifier.weight(1f)) {
-            Text(label, color = RadarMuted, style = MaterialTheme.typography.labelSmall)
-            Text(dashboardInstrumentLabel(item), color = accent, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+        Text(label, color = RadarMuted, style = MaterialTheme.typography.labelSmall)
+        Text(dashboardInstrumentLabel(item), color = accent, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Surface(
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(12.dp),
+                color = accent.copy(alpha = 0.08f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = 0.24f))
+            ) {
+                Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+                    Text("Signal", color = RadarMuted, style = MaterialTheme.typography.labelSmall)
+                    Text(RecommendationPresentation.label(item), color = accent, fontWeight = FontWeight.Black)
+                }
+            }
+            Surface(
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(12.dp),
+                color = Color(0x0AFFFFFF),
+                border = androidx.compose.foundation.BorderStroke(1.dp, RadarGlow.copy(alpha = 0.24f))
+            ) {
+                Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+                    Text("Betrag", color = RadarMuted, style = MaterialTheme.typography.labelSmall)
+                    Text(if (amountEur > 0) "$amountEur €" else "manuell", color = RadarText, fontWeight = FontWeight.Black)
+                }
+            }
         }
-        Text("Öffnen ›", color = accent, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = onOpen, modifier = Modifier.weight(1f)) {
+                Text("Öffnen")
+            }
+            Button(onClick = onEdit, modifier = Modifier.weight(1f)) {
+                Icon(Icons.Default.Edit, contentDescription = null)
+                Spacer(Modifier.width(6.dp))
+                Text("Bearbeiten", fontWeight = FontWeight.Black)
+            }
+        }
     }
 }
 
