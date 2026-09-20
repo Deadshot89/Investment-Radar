@@ -48,7 +48,7 @@ class InvestmentBudgetExecutionServiceTest {
     }
 
     @Test
-    fun `confirmed sale credits proceeds and removes shares`() {
+    fun `confirmed sale records proceeds without increasing app cash and removes shares`() {
         val position = PortfolioPosition(itemId = "msft", investedAmount = 40.0, shares = 1.0)
         val result = InvestmentBudgetExecutionService.executeSale(
             position = position,
@@ -58,7 +58,9 @@ class InvestmentBudgetExecutionServiceTest {
         )
         assertNull(result.error)
         assertEquals(0.5, result.position?.shares ?: 0.0, 0.000001)
-        assertEquals(125.0, InvestmentBudgetJournalEngine.summarize(result.entries, result.reservations).availableEur, 0.000001)
+        val saleSummary = InvestmentBudgetJournalEngine.summarize(result.entries, result.reservations)
+        assertEquals(100.0, saleSummary.availableEur, 0.000001)
+        assertEquals(25.0, saleSummary.saleCreditsEur, 0.000001)
     }
 
     @Test
@@ -138,7 +140,7 @@ class InvestmentBudgetExecutionServiceTest {
     }
 
     @Test
-    fun `editing and deleting executed sale keep credit synchronized`() {
+    fun `editing and deleting executed sale keep history synchronized without changing app cash`() {
         val base = PortfolioPosition("msci").upsertPurchaseIfValid(
             PortfolioPurchase("buy-old", "2026-08-31", 50.0, 5.0)
         )!!
@@ -155,7 +157,9 @@ class InvestmentBudgetExecutionServiceTest {
             PortfolioSale("sell-msci", "2026-09-10", 18.0, 1.0)
         )
         assertNull(revised.error)
-        assertEquals(118.0, InvestmentBudgetJournalEngine.summarize(revised.entries, revised.reservations).availableEur, 0.000001)
+        val revisedSummary = InvestmentBudgetJournalEngine.summarize(revised.entries, revised.reservations)
+        assertEquals(100.0, revisedSummary.availableEur, 0.000001)
+        assertEquals(18.0, revisedSummary.saleCreditsEur, 0.000001)
         assertEquals(18.0, revised.entries.single { it.id == "sell-msci" }.amountEur, 0.000001)
 
         val deleted = InvestmentBudgetExecutionService.deleteSale(revised.position!!, revised.entries, "sell-msci")
