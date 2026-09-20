@@ -303,7 +303,7 @@ private fun AlertCard(
     val accent = alertAccentColor(alert)
     val shape = RoundedCornerShape(18.dp)
     val isForecast = alertBadgeLabel(alert) == "PROGNOSE"
-    val dataQuality = alertDataQuality(alert, advisorCandidate)
+    val dataQuality = alertDataQuality(alert, advisorCandidate, item)
     val guidance = alertActionGuidance(alert, advisorCandidate)
     val concretePlan = plannedActionForAlert(alert, actionPlan, dataQuality)
     val nextStep = concretePlan ?: guidance.action
@@ -454,7 +454,7 @@ private fun alertActionGuidance(alert: SignalAlert, candidate: PortfolioAdvisorC
     }
 }
 
-private fun alertDataQuality(alert: SignalAlert, candidate: PortfolioAdvisorCandidate? = null): AlertDataQuality {
+private fun alertDataQuality(alert: SignalAlert, candidate: PortfolioAdvisorCandidate? = null, item: InvestmentItem? = null): AlertDataQuality {
     val combined = "${alert.title} ${alert.message}".uppercase(Locale.GERMANY)
     val hasDataGap = listOf(
         "DATEN FEHLEN",
@@ -466,10 +466,25 @@ private fun alertDataQuality(alert: SignalAlert, candidate: PortfolioAdvisorCand
         "HISTORIE FEHLT",
         "FUNDAMENTALDATEN FEHLEN"
     ).any { it in combined } || candidate?.advisor?.reliable == false || (candidate?.coveragePct != null && candidate.coveragePct < 50)
+    val missingDetails = buildList {
+        item?.dataQuality?.missingBlocks.orEmpty().forEach { block ->
+            add(when (block.trim().lowercase(Locale.GERMANY)) {
+                "quote", "quotes", "price", "kurs" -> "Kursdaten"
+                "history", "historie" -> "Historie"
+                "fundamentals", "fundamental", "fundamentaldaten" -> "Fundamentaldaten"
+                "forecast", "forecast_inputs", "forecastinputs", "prognose" -> "Prognosedaten"
+                else -> block.replace('_', ' ').replaceFirstChar { it.uppercase() }
+            })
+        }
+        if ((item?.dataQuality?.quoteCoverage ?: 100) < 50) add("Kursdaten")
+        if ((item?.dataQuality?.historyCoverage ?: 100) < 50) add("Historie")
+        if ((item?.dataQuality?.fundamentalCoverage ?: 100) < 50) add("Fundamentaldaten")
+        if ((item?.dataQuality?.forecastInputCoverage ?: 100) < 50) add("Prognosedaten")
+    }.distinct()
     return if (hasDataGap) {
         AlertDataQuality(
             label = "UNVOLLSTÄNDIG",
-            detail = "Keine Kaufentscheidung bei unvollständigen Daten",
+            detail = if (missingDetails.isEmpty()) "Datenabdeckung reicht noch nicht für eine Kaufentscheidung" else "Fehlt/zu schwach: " + missingDetails.joinToString(", "),
             blocksBuyDecision = true
         )
     } else {
