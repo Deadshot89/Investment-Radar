@@ -21,7 +21,7 @@ if grep -q 'accent.copy(alpha = 0.10f), RadarSurface.copy(alpha = 0.99f)' "$SRC"
 fi
 
 # The glare fix remains present in the current Android 2.5.21 release candidate.
-if ! grep -q 'versionCode = 91' "$BUILD" || ! grep -q 'versionName = "2.5.21' "$BUILD"; then
+if ! grep -q 'versionCode = 91' "$BUILD" || ! grep -q 'versionName = "2.5.21"' "$BUILD"; then
   echo "Expected the current release candidate to be Android 2.5.21 (code 91)"
   exit 1
 fi
