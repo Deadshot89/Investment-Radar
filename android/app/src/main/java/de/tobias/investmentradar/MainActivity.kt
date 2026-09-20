@@ -412,6 +412,28 @@ fun InvestmentRadarUi(
                                 onOpenRadar = { selectedDetailId = null; tab = 1 },
                                 onOpenPortfolio = { selectedDetailId = null; tab = 2 },
                                 onOpenInstrument = { id -> detailReturnTab = 0; selectedDetailId = id },
+                                onEditRecommendation = { item, recommendedAmountEur, sellMode ->
+                                    val actionType = if (sellMode) {
+                                        when (advisorById[item.id]?.action) {
+                                            PortfolioAdvisorAction.REDUZIEREN -> ActionType.REDUCE
+                                            else -> ActionType.SELL
+                                        }
+                                    } else {
+                                        if (positions[item.id]?.isActiveHolding() == true) ActionType.BUY_MORE else ActionType.OPEN_POSITION
+                                    }
+                                    val prefill = RecommendationTradePrefill.calculate(
+                                        type = actionType,
+                                        amountEur = recommendedAmountEur.toDouble().takeIf { it > 0.0 },
+                                        priceEur = euroComparablePrice(item),
+                                        heldShares = positions[item.id]?.shares
+                                    )
+                                    pendingActionAmountEur = prefill.amountEur.takeIf { it > 0.0 }
+                                    pendingActionShares = prefill.shares
+                                    pendingActionPrefillMessage = "Empfehlung direkt bearbeiten · ${prefill.message}"
+                                    pendingActionSaleNote = null
+                                    investmentDialogEntryType = if (sellMode) "SELL" else "BUY"
+                                    investmentDialogItem = item
+                                },
                                 onAddToPortfolio = { investmentDialogItem = it }
                             )
                             1 -> RadarScreenV2(
@@ -790,6 +812,7 @@ private fun DashboardScreen(
     onOpenRadar: () -> Unit,
     onOpenPortfolio: () -> Unit,
     onOpenInstrument: (String) -> Unit,
+    onEditRecommendation: (InvestmentItem, Int, Boolean) -> Unit,
     onAddToPortfolio: (InvestmentItem) -> Unit
 ) {
     val context = LocalContext.current
@@ -877,11 +900,25 @@ private fun DashboardScreen(
                     StatusPill(if (reviewItems.isNotEmpty()) "PRÜFEN" else "AKTUELL")
                 }
                 buyCandidates.take(3).forEach { candidate ->
-                    RelevantInstrumentRow("Kaufkandidat", candidate, RadarGreen) { onOpenInstrument(candidate.id) }
+                    RelevantInstrumentRow(
+                        label = "Kaufkandidat",
+                        item = candidate,
+                        accent = RadarGreen,
+                        amountEur = allocations[candidate.id] ?: 0,
+                        onOpen = { onOpenInstrument(candidate.id) },
+                        onEdit = { onEditRecommendation(candidate, allocations[candidate.id] ?: 0, false) }
+                    )
                 }
                 if (buyCandidates.isEmpty()) RelevantRow("Kaufkandidaten", "Keine", RadarMuted)
                 reviewItems.take(3).forEach { candidate ->
-                    RelevantInstrumentRow("Prüfsignal", candidate, RadarYellow) { onOpenInstrument(candidate.id) }
+                    RelevantInstrumentRow(
+                        label = "Prüfsignal",
+                        item = candidate,
+                        accent = RadarYellow,
+                        amountEur = 0,
+                        onOpen = { onOpenInstrument(candidate.id) },
+                        onEdit = { onEditRecommendation(candidate, 0, true) }
+                    )
                 }
                 if (reviewItems.isEmpty()) RelevantRow("Prüfsignale", "Keine", RadarMuted)
                 RelevantRow("Watchlist", "${watchlistIds.size} Werte", RadarPurple)
@@ -934,8 +971,21 @@ private fun DashboardScreen(
                 )
                 LiveForecastSummary(top)
                 ScoreBreakdownCard(top)
-                FilledTonalButton(onClick = { onAddToPortfolio(top) }, modifier = Modifier.fillMaxWidth()) {
-                    Text(if (topInDepot) "Position erhöhen" else "Zum Depot hinzufügen", fontWeight = FontWeight.Black)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = { onEditRecommendation(top, amount, false) },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Default.Edit, contentDescription = null)
+                        Spacer(Modifier.width(6.dp))
+                        Text("Empfehlung bearbeiten", fontWeight = FontWeight.Black)
+                    }
+                    OutlinedButton(
+                        onClick = { onAddToPortfolio(top) },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(if (topInDepot) "Position erhöhen" else "Zum Depot", fontWeight = FontWeight.Bold)
+                    }
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
@@ -1068,21 +1118,57 @@ private fun CustomInvestmentDialog(
 }
 
 @Composable
-private fun RelevantInstrumentRow(label: String, item: InvestmentItem, accent: Color, onClick: () -> Unit) {
-    Row(
+private fun RelevantInstrumentRow(
+    label: String,
+    item: InvestmentItem,
+    accent: Color,
+    amountEur: Int,
+    onOpen: () -> Unit,
+    onEdit: () -> Unit
+) {
+    Column(
         Modifier
             .fillMaxWidth()
             .background(Color(0x0DFFFFFF), RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Column(Modifier.weight(1f)) {
-            Text(label, color = RadarMuted, style = MaterialTheme.typography.labelSmall)
-            Text(dashboardInstrumentLabel(item), color = accent, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+        Text(label, color = RadarMuted, style = MaterialTheme.typography.labelSmall)
+        Text(dashboardInstrumentLabel(item), color = accent, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Surface(
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(12.dp),
+                color = accent.copy(alpha = 0.08f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = 0.24f))
+            ) {
+                Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+                    Text("Signal", color = RadarMuted, style = MaterialTheme.typography.labelSmall)
+                    Text(RecommendationPresentation.label(item), color = accent, fontWeight = FontWeight.Black)
+                }
+            }
+            Surface(
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(12.dp),
+                color = Color(0x0AFFFFFF),
+                border = androidx.compose.foundation.BorderStroke(1.dp, RadarGlow.copy(alpha = 0.24f))
+            ) {
+                Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+                    Text("Betrag", color = RadarMuted, style = MaterialTheme.typography.labelSmall)
+                    Text(if (amountEur > 0) "$amountEur €" else "manuell", color = RadarText, fontWeight = FontWeight.Black)
+                }
+            }
         }
-        Text("Öffnen ›", color = accent, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = onOpen, modifier = Modifier.weight(1f)) {
+                Text("Öffnen")
+            }
+            Button(onClick = onEdit, modifier = Modifier.weight(1f)) {
+                Icon(Icons.Default.Edit, contentDescription = null)
+                Spacer(Modifier.width(6.dp))
+                Text("Bearbeiten", fontWeight = FontWeight.Black)
+            }
+        }
     }
 }
 
