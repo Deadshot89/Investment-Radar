@@ -1613,16 +1613,25 @@ private fun MoneyManagementScreen(
     actionCenter: DepotActionCenterState,
     liquidityHoldings: List<LiquidityHolding>,
     onOpenBudgetEditor: () -> Unit,
-    onExecuteLiquiditySale: (LiquiditySaleSuggestion) -> Unit,
-    onRecordWithdrawal: (Double) -> Boolean,
+    onExecuteLiquiditySale: (LiquiditySaleSuggestion, String) -> Unit,
+    onRecordWithdrawal: (Double, String) -> Boolean,
     onExecuteAction: (DepotActionCenterItem) -> Unit
 ) {
     var liquidityNeedText by rememberSaveable { mutableStateOf("") }
     var useCashFirst by rememberSaveable { mutableStateOf(true) }
-    var withdrawalBooked by rememberSaveable { mutableStateOf(false) }
+    var liquidityFlowId by rememberSaveable { mutableStateOf(UUID.randomUUID().toString()) }
     val liquidityNeed = parseDecimal(liquidityNeedText)?.takeIf { it > 0.0 }
-    val liquidityPlan = remember(liquidityNeed, useCashFirst, current.availableEur, liquidityHoldings) {
-        liquidityNeed?.let {
+    val liquidityFlowTag = "Geldbedarf:$liquidityFlowId"
+    val liquidityProgress = liquidityNeed?.let {
+        LiquidityNeedEngine.progress(
+            requestedEur = it,
+            history = current.history,
+            flowTag = liquidityFlowTag
+        )
+    }
+    val remainingLiquidityNeed = liquidityProgress?.remainingEur
+    val liquidityPlan = remember(remainingLiquidityNeed, useCashFirst, current.availableEur, liquidityHoldings) {
+        remainingLiquidityNeed?.takeIf { it > 0.01 }?.let {
             LiquidityNeedEngine.plan(
                 requestedEur = it,
                 availableCashEur = if (useCashFirst) current.availableEur else 0.0,
@@ -1686,8 +1695,9 @@ private fun MoneyManagementScreen(
                 OutlinedTextField(
                     value = liquidityNeedText,
                     onValueChange = {
-                        liquidityNeedText = sanitizeDecimalInput(it)
-                        withdrawalBooked = false
+                        val next = sanitizeDecimalInput(it)
+                        if (next != liquidityNeedText) liquidityFlowId = UUID.randomUUID().toString()
+                        liquidityNeedText = next
                     },
                     label = { Text("Benötigter Betrag in €") },
                     singleLine = true,
@@ -1697,8 +1707,8 @@ private fun MoneyManagementScreen(
                     listOf(50, 100, 250, 500).forEach { preset ->
                         AssistChip(
                             onClick = {
+                                liquidityFlowId = UUID.randomUUID().toString()
                                 liquidityNeedText = preset.toString()
-                                withdrawalBooked = false
                             },
                             label = { Text("$preset €") }
                         )
@@ -1719,10 +1729,7 @@ private fun MoneyManagementScreen(
                     }
                     Switch(
                         checked = useCashFirst,
-                        onCheckedChange = {
-                            useCashFirst = it
-                            withdrawalBooked = false
-                        }
+                        onCheckedChange = { useCashFirst = it }
                     )
                 }
 
