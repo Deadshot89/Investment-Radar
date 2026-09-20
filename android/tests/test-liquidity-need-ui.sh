@@ -12,7 +12,7 @@ grep -Fq 'onRecordWithdrawal: (Double, String) -> Boolean' "$MAIN" || fail 'Cash
 grep -Fq 'pendingActionSaleNote = "$flowTag · privater Verkaufserlös"' "$MAIN" || fail 'Privater Verkaufserlös wird nicht eindeutig markiert.'
 grep -Fq 'onRecordWithdrawal(plan.cashUsedEur, liquidityFlowTag)' "$MAIN" || fail 'Nur der tatsächlich verwendete Cash-Anteil muss ausgebucht werden.'
 grep -Fq 'Geldbedarf vollständig gedeckt.' "$MAIN" || fail 'Abschlussstatus des Geldbedarfs fehlt.'
-grep -Fq 'Auszahlung verbuchen' "$MAIN" || fail 'Auszahlung kann nicht gebucht werden.'
+grep -Fq 'App-Cash entnehmen' "$MAIN" || fail 'Cash-Anteil kann nicht privat entnommen werden.'
 grep -Fq 'onExecuteLiquiditySale' "$MAIN" || fail 'Verkaufsvorschlag öffnet keine manuelle Verkaufsmaske.'
 grep -Fq 'onExecuteLiquiditySale: (LiquiditySaleSuggestion) -> Unit' "$MAIN" || fail 'Verkaufsvorschlag muss den vollständigen Liquiditätsvorschlag übergeben.'
 grep -Fq 'onClick = { onExecuteLiquiditySale(suggestion) }' "$MAIN" || fail 'Verkaufsvorschlag verliert beim Öffnen der Verkaufsmaske Daten.'
