@@ -47,6 +47,9 @@ fun PortfolioDashboard(
         itemById[id]?.name ?: customById[id]?.name ?: id
     }
     val costBasisComplete = metrics.positions.filter { it.active }.all { it.costBasisKnown }
+    val missingValueNames = metrics.positions.filter { it.active && !it.hasUsablePrice }.map { row ->
+        itemById[row.itemId]?.name ?: customById[row.itemId]?.name ?: row.itemId
+    }
     var trackedSharesDialogItemId by remember { mutableStateOf<String?>(null) }
 
     if (showSavingsPlans) {
@@ -111,7 +114,10 @@ fun PortfolioDashboard(
                     fontWeight = FontWeight.Black
                 )
                 if (!metrics.currentValueComplete && metrics.calculableCurrentValue > 0.0) {
-                    PortfolioDashboardValue("Berechenbarer Teil", portfolioMoney(metrics.calculableCurrentValue))
+                    PortfolioDashboardValue(
+                        "Berechenbarer Teil",
+                        "${portfolioMoney(metrics.calculableCurrentValue)} · ${metrics.calculablePositionCount} von ${metrics.heldPositionCount} Positionen"
+                    )
                 }
                 PortfolioDashboardValue("Einstand", if (costBasisComplete) portfolioMoney(metrics.investedCostBasis) else "Nicht vollständig erfasst")
                 PortfolioDashboardValue("Positionen", metrics.heldPositionCount.toString())
@@ -124,13 +130,25 @@ fun PortfolioDashboard(
                 val profitPct = metrics.totalProfitLossPct
                 PortfolioDashboardValue(
                     "Gewinn / Verlust",
-                    if (profit != null && profitPct != null) "${portfolioSignedMoney(profit)} · ${portfolioSignedPercent(profitPct)}" else "Nicht vollständig berechenbar"
+                    when {
+                        profit != null && profitPct != null -> "${portfolioSignedMoney(profit)} · ${portfolioSignedPercent(profitPct)}"
+                        metrics.partialProfitLoss != null && metrics.partialProfitLossPct != null ->
+                            "${portfolioSignedMoney(metrics.partialProfitLoss)} · ${portfolioSignedPercent(metrics.partialProfitLossPct)} · ${metrics.performancePositionCount} von ${metrics.heldPositionCount}"
+                        else -> "Nicht vollständig berechenbar"
+                    }
                 )
                 if (!costBasisComplete) {
                     Text("Für einzelne Depotwerte fehlen Einstandsdaten. Depotwert und Gewichtung bleiben korrekt; fehlende Performance wird nicht erfunden.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 if (!metrics.currentValueComplete) {
-                    Text("${metrics.missingPriceCount} Position(en) ohne belastbaren aktuellen Wert – Depotgesamtwert und Performance werden nicht behauptet.", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                    Text(
+                        "${metrics.missingPriceCount} Position(en) ohne belastbaren aktuellen Wert: ${missingValueNames.joinToString()}. Der berechenbare Teil bleibt sichtbar; ein vollständiger Depotgesamtwert wird nicht behauptet.",
+                        color = MaterialTheme.colorScheme.error,
+                        fontWeight = FontWeight.Bold
+                    )
+                    missingValueNames.forEach { name ->
+                        Text("Prüfen: $name · Kurs oder Stückzahl fehlt", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    }
                 }
             }
         }

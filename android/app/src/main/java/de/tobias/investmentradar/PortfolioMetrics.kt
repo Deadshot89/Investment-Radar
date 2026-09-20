@@ -20,6 +20,10 @@ data class PortfolioMetricsSummary(
     val calculableCurrentValue: Double,
     val currentValueComplete: Boolean,
     val missingPriceCount: Int,
+    val calculablePositionCount: Int,
+    val partialProfitLoss: Double?,
+    val partialProfitLossPct: Double?,
+    val performancePositionCount: Int,
     val totalProfitLoss: Double?,
     val totalProfitLossPct: Double?,
     val heldPositionCount: Int,
@@ -61,6 +65,7 @@ object PortfolioMetrics {
         val missingPriceCount = activeDrafts.count { !it.hasUsablePrice }
         val currentValueComplete = missingPriceCount == 0
         val calculableCurrentValue = activeDrafts.sumOf { it.currentValue ?: 0.0 }
+        val calculablePositionCount = activeDrafts.count { it.currentValue != null }
         val weightDenominator = calculableCurrentValue.takeIf { it > 0.0 }
 
         val metrics = drafts.map { draft ->
@@ -107,6 +112,10 @@ object PortfolioMetrics {
         val activeMetrics = metrics.filter { it.active }
         val investedCostBasis = activeMetrics.filter { it.costBasisKnown }.sumOf { it.investedCostBasis }
         val performanceDenominator = activeMetrics.filter { it.costBasisKnown }.sumOf { it.investedCostBasis }
+        val performanceMetrics = activeMetrics.filter { it.currentValue != null && it.totalProfitLoss != null && it.costBasisKnown }
+        val partialProfitLoss = performanceMetrics.takeIf { it.isNotEmpty() }?.sumOf { it.totalProfitLoss ?: 0.0 }
+        val partialPerformanceCostBasis = performanceMetrics.sumOf { it.investedCostBasis }
+        val partialProfitLossPct = if (partialProfitLoss != null && partialPerformanceCostBasis > 0.0) partialProfitLoss / partialPerformanceCostBasis * 100.0 else null
         val completeTotalProfitLoss = if (currentValueComplete && activeMetrics.all { it.totalProfitLoss != null }) metrics.sumOf { it.totalProfitLoss ?: 0.0 } else null
         val completeTotalProfitLossPct = if (completeTotalProfitLoss != null && performanceDenominator > 0.0) completeTotalProfitLoss / performanceDenominator * 100.0 else null
         val largest = metrics.asSequence().filter { it.active && it.weightPct != null }.maxByOrNull { it.weightPct ?: Double.NEGATIVE_INFINITY }
@@ -116,6 +125,10 @@ object PortfolioMetrics {
             calculableCurrentValue = calculableCurrentValue,
             currentValueComplete = currentValueComplete,
             missingPriceCount = missingPriceCount,
+            calculablePositionCount = calculablePositionCount,
+            partialProfitLoss = partialProfitLoss,
+            partialProfitLossPct = partialProfitLossPct,
+            performancePositionCount = performanceMetrics.size,
             totalProfitLoss = completeTotalProfitLoss,
             totalProfitLossPct = completeTotalProfitLossPct,
             heldPositionCount = activeDrafts.size,
