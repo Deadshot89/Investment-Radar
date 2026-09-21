@@ -36,6 +36,7 @@ fun LivePortfolioCard(
     val itemById = remember(items) { items.associateBy { it.id } }
     val customById = remember(customItems) { customItems.associateBy { it.id } }
     val largestName = summary.largestPositionId?.let { id -> itemById[id]?.name ?: customById[id]?.name ?: id }
+    val missingValueNames = summary.missingValueItemIds.map { id -> itemById[id]?.name ?: customById[id]?.name ?: id }
     val accent = Color(0xFF2EE59D)
     val muted = Color(0xFF91A1B7)
     val surface = Color(0xFF101C2D)
@@ -64,7 +65,17 @@ fun LivePortfolioCard(
                             fontWeight = FontWeight.Bold
                         )
                         if (summary.currentValue > 0.0) {
-                            Text("Berechenbarer Teil: ${formatLiveMoney(summary.currentValue)}", color = muted, style = MaterialTheme.typography.bodySmall)
+                            Text(
+                                "Berechenbarer Teil: ${formatLiveMoney(summary.currentValue)} · ${summary.calculablePositionCount} von ${summary.positionCount} Positionen",
+                                color = muted,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            Text(
+                                "Prüfen: ${missingValueNames.joinToString()} · Kurs oder Stückzahl fehlt",
+                                color = Color(0xFFFF6577),
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
                 }
@@ -72,7 +83,16 @@ fun LivePortfolioCard(
             }
 
             LivePortfolioValue("Einstand", if (summary.performanceComplete) formatLiveMoney(summary.costBasis) else "Nicht vollständig erfasst", muted)
-            LivePortfolioValue("Gewinn / Verlust", if (summary.performanceComplete) "${formatLiveSignedMoney(summary.profitLoss)} · ${formatLiveSignedPercent(summary.profitLossPct)}" else "Nicht vollständig berechenbar", if (summary.profitLoss < 0.0) Color(0xFFFF6577) else accent)
+            val shownProfitLoss = if (summary.performanceComplete) summary.profitLoss else summary.partialProfitLoss
+            val shownProfitLossPct = if (summary.performanceComplete) summary.profitLossPct else summary.partialProfitLossPct
+            LivePortfolioValue(
+                "Gewinn / Verlust",
+                if (shownProfitLoss != null && shownProfitLossPct != null) {
+                    "${formatLiveSignedMoney(shownProfitLoss)} · ${formatLiveSignedPercent(shownProfitLossPct)}" +
+                        if (!summary.performanceComplete) " · ${summary.performancePositionCount} von ${summary.positionCount}" else ""
+                } else "Nicht berechenbar",
+                if ((shownProfitLoss ?: 0.0) < 0.0) Color(0xFFFF6577) else accent
+            )
             LivePortfolioValue("Positionen", summary.positionCount.toString(), muted)
             LivePortfolioValue(
                 "Größte Position",
