@@ -1,5 +1,7 @@
 # Investment Budget Ledger Implementation Plan
 
+> **Status 2026-09-22: HISTORISCH / ÜBERHOLT.** Dieses Implementierungsdokument beschreibt einen früheren Entwurfsstand. Die aktuelle Fachregel lautet: **Verkaufserlöse werden privat verwendet und erhöhen weder App-Cash noch Kaufbudget.** Für den aktuellen Stand gelten `README.md`, `SETUP.md` und die getestete Implementierung auf `main`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace the static monthly budget with a persisted cash ledger tied to executed investment trades and portfolio aggregation.
