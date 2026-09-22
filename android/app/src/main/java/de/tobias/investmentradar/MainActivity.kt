@@ -1819,40 +1819,6 @@ private fun MoneyManagementScreen(
         }
 
         item {
-            NeonPanel(accent = RadarBlue) {
-                Text("DATENSICHERUNG", color = RadarBlue, fontWeight = FontWeight.Black)
-                Text(
-                    "Sichert Depot, Käufe/Verkäufe, Budget, Watchlist, Sparpläne, eigene Werte, Exit-Strategien und Alarm-Einstellungen.",
-                    color = RadarMuted,
-                    style = MaterialTheme.typography.bodySmall
-                )
-                Text(
-                    "Die Backup-Datei enthält persönliche Finanzdaten im Klartext. Speichere sie nur an einem geschützten Ort. Wiederherstellen ersetzt die lokalen App-Daten durch den Stand aus der gewählten Datei.",
-                    color = RadarYellow,
-                    style = MaterialTheme.typography.bodySmall
-                )
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Button(
-                        onClick = onExportBackup,
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = RadarBlue)
-                    ) {
-                        Text("Backup exportieren", fontWeight = FontWeight.Bold)
-                    }
-                    OutlinedButton(
-                        onClick = { confirmBackupRestore = true },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("Backup wiederherstellen", fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        }
-
-        item {
             NeonStatStrip(
                 entries = listOf(
                     "Für Käufe frei" to formatMoney(current.monthlyAvailableEur),
@@ -2024,6 +1990,40 @@ private fun MoneyManagementScreen(
                         ) {
                             Text("${formatMoney(plan.cashUsedEur)} App-Cash entnehmen", fontWeight = FontWeight.Black)
                         }
+                    }
+                }
+            }
+        }
+
+        item {
+            NeonPanel(accent = RadarBlue) {
+                Text("DATENSICHERUNG", color = RadarBlue, fontWeight = FontWeight.Black)
+                Text(
+                    "Sichert Depot, Käufe/Verkäufe, Budget, Watchlist, Sparpläne, eigene Werte, Exit-Strategien und Alarm-Einstellungen.",
+                    color = RadarMuted,
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Text(
+                    "Die Backup-Datei enthält persönliche Finanzdaten im Klartext. Speichere sie nur an einem geschützten Ort. Wiederherstellen ersetzt die lokalen App-Daten durch den Stand aus der gewählten Datei.",
+                    color = RadarYellow,
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = onExportBackup,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = RadarBlue)
+                    ) {
+                        Text("Backup exportieren", fontWeight = FontWeight.Bold)
+                    }
+                    OutlinedButton(
+                        onClick = { confirmBackupRestore = true },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Backup wiederherstellen", fontWeight = FontWeight.Bold)
                     }
                 }
             }
