@@ -1,5 +1,7 @@
 # Investment Budget Ledger Design
 
+> **Status 2026-09-22: HISTORISCH / ÜBERHOLT.** Diese Designspezifikation enthält eine frühere Cash-Logik. Aktuell gilt: **Verkaufserlöse bleiben privat und erhöhen weder App-Cash noch Kaufbudget.** Aktuelle Fachregeln stehen in `README.md` und `SETUP.md` und sind durch Regressionstests abgesichert.
+
 ## Ziel
 Das bisherige statische Monatsbudget wird durch einen echten Geldkreislauf ersetzt. Ein bestätigter Kauf reduziert verfügbares Budget; ein Verkauf erhöht es wieder; zusätzliche Einzahlungen wie Wechselgeld erhöhen das verfügbare Kapital. Empfehlungen reservieren Geld, verändern den Ist-Bestand aber erst nach Bestätigung.
 
