@@ -190,7 +190,7 @@ fun InvestmentRadarUi(
             runCatching {
                 val input = context.contentResolver.openInputStream(uri)
                     ?: error("Backup-Datei konnte nicht geöffnet werden.")
-                val raw = input.bufferedReader(Charsets.UTF_8).use { reader -> reader.readText() }
+                val raw = input.use(UserDataBackupManager::readJson)
                 val restoredValueCount = UserDataBackupManager.restoreJson(context, raw)
                 vm.reloadLocalUserDataAfterRestore(previousHoldingIds)
                 restoredValueCount
