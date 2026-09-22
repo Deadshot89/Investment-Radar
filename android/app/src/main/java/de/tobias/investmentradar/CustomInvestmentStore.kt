@@ -12,7 +12,10 @@ data class CustomInvestment(
     val type: String,
     val tradeRepublicUrl: String = "",
     val risk: Int = 3,
-    val manualPriceEur: Double? = null
+    val manualPriceEur: Double? = null,
+    val fixedPrincipalEur: Double? = null,
+    val fixedMaturityValueEur: Double? = null,
+    val maturityLabel: String = ""
 ) {
     fun fallbackItem(error: String? = null, manual: Double? = manualPriceEur) = InvestmentItem(
         id = id,
@@ -24,18 +27,18 @@ data class CustomInvestment(
         status = "EIGEN",
         allocation = 0,
         risk = risk,
-        price = manual,
-        priceEur = manual,
-        currency = if (manual != null) "EUR" else "",
+        price = manual ?: fixedPrincipalEur,
+        priceEur = manual ?: fixedPrincipalEur,
+        currency = if (manual != null || fixedPrincipalEur != null) "EUR" else "",
         fxRateToEur = null,
         fxSource = "",
         fxDelayed = false,
         fxAsOf = null,
         percentChange = null,
         marketOpen = null,
-        dataSource = if (manual != null) "Manueller EUR-Kurs" else "",
-        dataDelayed = manual != null,
-        dataError = if (manual != null) null else error
+        dataSource = when { manual != null -> "Manueller EUR-Kurs"; fixedPrincipalEur != null -> "Festzins-Nennwert"; else -> "" },
+        dataDelayed = manual != null || fixedPrincipalEur != null,
+        dataError = if (manual != null || fixedPrincipalEur != null) null else error
     )
 }
 
@@ -58,10 +61,13 @@ object CustomInvestmentStore {
                         name = o.optString("name", ticker).trim().ifBlank { ticker },
                         ticker = ticker,
                         isin = o.optString("isin").trim().uppercase(),
-                        type = if (o.optString("type").equals("ETF", true)) "ETF" else "Aktie",
+                        type = when (o.optString("type").trim().lowercase()) { "etf" -> "ETF"; "festzins" -> "Festzins"; else -> "Aktie" },
                         tradeRepublicUrl = o.optString("tradeRepublicUrl").trim(),
                         risk = o.optInt("risk", 3).coerceIn(1, 5),
-                        manualPriceEur = o.optDouble("manualPriceEur").takeIf { it.isFinite() && it > 0.0 }
+                        manualPriceEur = o.optDouble("manualPriceEur").takeIf { it.isFinite() && it > 0.0 },
+                        fixedPrincipalEur = o.optDouble("fixedPrincipalEur").takeIf { it.isFinite() && it > 0.0 },
+                        fixedMaturityValueEur = o.optDouble("fixedMaturityValueEur").takeIf { it.isFinite() && it > 0.0 },
+                        maturityLabel = o.optString("maturityLabel").trim()
                     ))
                 }
             }
@@ -146,7 +152,12 @@ object CustomInvestmentStore {
                 .put("type", item.type)
                 .put("tradeRepublicUrl", item.tradeRepublicUrl)
                 .put("risk", item.risk)
-                .apply { item.manualPriceEur?.let { put("manualPriceEur", it) } })
+                .apply {
+                    item.manualPriceEur?.let { put("manualPriceEur", it) }
+                    item.fixedPrincipalEur?.let { put("fixedPrincipalEur", it) }
+                    item.fixedMaturityValueEur?.let { put("fixedMaturityValueEur", it) }
+                    if (item.maturityLabel.isNotBlank()) put("maturityLabel", item.maturityLabel)
+                })
         }
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY, array.toString()).apply()
     }
