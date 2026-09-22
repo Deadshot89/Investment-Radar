@@ -21,6 +21,8 @@ grep -Fq 'android:fullBackupContent="false"' "$MANIFEST" || fail 'Full Backup mu
 grep -Fq 'Text("DATENSICHERUNG"' "$MAIN" || fail 'Datensicherung ist in der Geldverwaltung nicht erreichbar.'
 grep -Fq 'Text("Backup exportieren"' "$MAIN" || fail 'Backup-Export fehlt in der UI.'
 grep -Fq 'Text("Backup wiederherstellen"' "$MAIN" || fail 'Backup-Restore fehlt in der UI.'
+grep -Fq 'Text("Backup wiederherstellen?")' "$MAIN" || fail 'Destruktiver Restore hat keine Bestätigung.'
+grep -Fq 'Text("Datei auswählen")' "$MAIN" || fail 'Restore-Bestätigung öffnet den Dateidialog nicht.'
 grep -Fq 'UserDataBackupManager.restoreJson' "$MAIN" || fail 'Backup-Restore ist nicht mit dem Manager verdrahtet.'
 grep -Fq 'reloadLocalUserDataAfterRestore' "$VM" || fail 'Nach Restore werden lokale ViewModel-Daten nicht neu geladen.'
 grep -Fq 'SCHEMA_VERSION = 1' "$BACKUP" || fail 'Backup-Format ist nicht versioniert.'
