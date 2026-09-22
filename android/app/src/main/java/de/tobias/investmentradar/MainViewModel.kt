@@ -523,6 +523,31 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun localAlerts(): List<SignalAlert> = _alerts.value.map { it.alert }
 
+    fun reloadLocalUserDataAfterRestore(previousHoldingIds: Set<String>) {
+        val app = getApplication<Application>()
+        InvestmentBudgetStore.ensureInitialized(app)
+        SavingsPlanStore.ensureSeeded(app)
+
+        val restoredPositions = PortfolioStore.readPositions(app)
+        val restoredHoldingIds = restoredPositions.keys
+        if (FirebaseBootstrap.isConfigured()) {
+            (previousHoldingIds - restoredHoldingIds).forEach { itemId ->
+                FirebaseMessaging.getInstance().unsubscribeFromTopic(holdingTopic(itemId))
+            }
+        }
+
+        _positions.value = restoredPositions
+        _holdingIds.value = restoredHoldingIds
+        _customItems.value = CustomInvestmentStore.read(app)
+        _exitStrategies.value = ExitStrategyStore.readAll(app)
+        _watchlistIds.value = WatchlistStore.read(app)
+        _alerts.value = AlertStore.readStored(app)
+        _alertPreferences.value = AlertPreferencesStore.read(app)
+        refreshBudgetState(app)
+        PushDiagnosticsStore.refreshRegistration(app)
+        refresh(silent = true)
+    }
+
     private fun refreshBudgetState(app: Application) {
         InvestmentBudgetStore.ensureCurrentMonth(app)
         _budgetState.value = InvestmentBudgetStore.viewState(

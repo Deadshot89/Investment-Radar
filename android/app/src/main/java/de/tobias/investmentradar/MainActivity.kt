@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -165,6 +166,49 @@ fun InvestmentRadarUi(
     var updateStatusMessage by remember { mutableStateOf<String?>(null) }
     var updateCheckRequested by remember { mutableIntStateOf(0) }
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    val exportBackupLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri != null) {
+            runCatching {
+                val payload = UserDataBackupManager.exportJson(context, BuildConfig.VERSION_NAME)
+                val output = context.contentResolver.openOutputStream(uri, "wt")
+                    ?: error("Backup-Datei konnte nicht geöffnet werden.")
+                output.bufferedWriter(Charsets.UTF_8).use { writer -> writer.write(payload) }
+            }.onSuccess {
+                Toast.makeText(context, "Backup erfolgreich gespeichert.", Toast.LENGTH_LONG).show()
+            }.onFailure { error ->
+                Toast.makeText(context, "Backup fehlgeschlagen: ${error.message}", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+    val restoreBackupLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            val previousHoldingIds = holdingIds.toSet()
+            runCatching {
+                val input = context.contentResolver.openInputStream(uri)
+                    ?: error("Backup-Datei konnte nicht geöffnet werden.")
+                val raw = input.use { stream -> UserDataBackupManager.readJson(stream) }
+                val restoredValueCount = UserDataBackupManager.restoreJson(context, raw)
+                vm.reloadLocalUserDataAfterRestore(previousHoldingIds)
+                restoredValueCount
+            }.onSuccess { restoredValueCount ->
+                Toast.makeText(
+                    context,
+                    "Backup wiederhergestellt · $restoredValueCount Werte.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }.onFailure { error ->
+                Toast.makeText(
+                    context,
+                    "Wiederherstellung abgebrochen: ${error.message}",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+    }
 
     val activeOverlay = when {
         budgetDialog -> AppOverlay.BUDGET
@@ -545,6 +589,13 @@ fun InvestmentRadarUi(
                                 actionCenter = moneyActionCenter,
                                 liquidityHoldings = liquidityHoldings,
                                 onOpenBudgetEditor = { budgetDialog = true },
+                                onExportBackup = {
+                                    val stamp = SimpleDateFormat("yyyy-MM-dd-HHmm", Locale.US).format(Date())
+                                    exportBackupLauncher.launch("investment-radar-backup-$stamp.json")
+                                },
+                                onRestoreBackup = {
+                                    restoreBackupLauncher.launch(arrayOf("application/json", "text/plain"))
+                                },
                                 onExecuteLiquiditySale = { suggestion, flowTag ->
                                     val item = liquidityItemsById[suggestion.itemId]
                                     if (item != null) {
@@ -1709,11 +1760,14 @@ private fun MoneyManagementScreen(
     actionCenter: DepotActionCenterState,
     liquidityHoldings: List<LiquidityHolding>,
     onOpenBudgetEditor: () -> Unit,
+    onExportBackup: () -> Unit,
+    onRestoreBackup: () -> Unit,
     onExecuteLiquiditySale: (LiquiditySaleSuggestion, String) -> Unit,
     onRecordWithdrawal: (Double, String) -> Boolean,
     onExecuteAction: (DepotActionCenterItem) -> Unit
 ) {
     var liquidityNeedText by rememberSaveable { mutableStateOf("") }
+    var confirmBackupRestore by rememberSaveable { mutableStateOf(false) }
     var useCashFirst by rememberSaveable { mutableStateOf(true) }
     var liquidityFlowId by rememberSaveable { mutableStateOf(UUID.randomUUID().toString()) }
     val liquidityNeed = parseDecimal(liquidityNeedText)?.takeIf { it > 0.0 }
@@ -1942,6 +1996,40 @@ private fun MoneyManagementScreen(
         }
 
         item {
+            NeonPanel(accent = RadarBlue) {
+                Text("DATENSICHERUNG", color = RadarBlue, fontWeight = FontWeight.Black)
+                Text(
+                    "Sichert Depot, Käufe/Verkäufe, Budget, Watchlist, Sparpläne, eigene Werte, Exit-Strategien und Alarm-Einstellungen.",
+                    color = RadarMuted,
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Text(
+                    "Die Backup-Datei enthält persönliche Finanzdaten im Klartext. Speichere sie nur an einem geschützten Ort. Wiederherstellen ersetzt die lokalen App-Daten durch den Stand aus der gewählten Datei.",
+                    color = RadarYellow,
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = onExportBackup,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = RadarBlue)
+                    ) {
+                        Text("Backup exportieren", fontWeight = FontWeight.Bold)
+                    }
+                    OutlinedButton(
+                        onClick = { confirmBackupRestore = true },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Backup wiederherstellen", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+
+        item {
             NeonPanel(accent = if (actionCenter.isEmpty) RadarMuted else RadarCyan) {
                 Text("WAS SOLL ICH JETZT TUN?", color = RadarCyan, fontWeight = FontWeight.Black)
                 Text(
@@ -2039,6 +2127,29 @@ private fun MoneyManagementScreen(
         }
 
         item { Spacer(Modifier.height(84.dp)) }
+    }
+
+    if (confirmBackupRestore) {
+        AlertDialog(
+            onDismissRequest = { confirmBackupRestore = false },
+            title = { Text("Backup wiederherstellen?") },
+            text = {
+                Text(
+                    "Die lokalen Depot-, Budget-, Watchlist- und Sparplandaten werden durch den Stand aus der ausgewählten Backup-Datei ersetzt. Bei einer ungültigen oder unvollständigen Datei wird nichts geändert."
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        confirmBackupRestore = false
+                        onRestoreBackup()
+                    }
+                ) { Text("Datei auswählen") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmBackupRestore = false }) { Text("Abbrechen") }
+            }
+        )
     }
 }
 
