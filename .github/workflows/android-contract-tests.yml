@@ -66,6 +66,7 @@ jobs:
               failed=1
             fi
           done
+          # This contract derives the documented Android version directly from build.gradle.kts.
           if ! bash scripts/test-current-docs.sh; then
             echo "FAIL scripts/test-current-docs.sh"
             failed=1
