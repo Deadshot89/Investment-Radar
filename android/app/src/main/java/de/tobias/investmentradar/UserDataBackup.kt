@@ -2,6 +2,8 @@ package de.tobias.investmentradar
 
 import android.content.Context
 import android.content.SharedPreferences
+import java.io.ByteArrayOutputStream
+import java.io.InputStream
 import org.json.JSONArray
 import org.json.JSONObject
 import java.time.Instant
@@ -115,6 +117,8 @@ object UserDataBackupCodec {
 }
 
 object UserDataBackupManager {
+    const val MAX_BACKUP_BYTES = 5 * 1024 * 1024
+
     val preferenceFiles: List<String> = listOf(
         "investment_radar_portfolio",
         "investment_radar_budget",
@@ -127,6 +131,23 @@ object UserDataBackupManager {
         "investment_radar_alerts",
         "investment_radar_alert_preferences"
     )
+
+    fun readJson(input: InputStream, maxBytes: Int = MAX_BACKUP_BYTES): String {
+        require(maxBytes > 0) { "Ungültige maximale Backup-Größe." }
+        val output = ByteArrayOutputStream()
+        val buffer = ByteArray(8192)
+        var total = 0
+        while (true) {
+            val read = input.read(buffer)
+            if (read < 0) break
+            total += read
+            require(total <= maxBytes) {
+                "Backup-Datei ist größer als ${maxBytes / (1024 * 1024).coerceAtLeast(1)} MB."
+            }
+            output.write(buffer, 0, read)
+        }
+        return output.toString(Charsets.UTF_8.name())
+    }
 
     fun exportJson(
         context: Context,
