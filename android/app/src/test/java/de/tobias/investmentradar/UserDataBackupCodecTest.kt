@@ -2,6 +2,7 @@ package de.tobias.investmentradar
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import java.io.ByteArrayInputStream
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -39,6 +40,12 @@ class UserDataBackupCodecTest {
 
         val futureSchema = """{"format":"investment-radar-user-backup","schemaVersion":99,"preferences":{}}"""
         assertTrue(runCatching { UserDataBackupCodec.decode(futureSchema) }.isFailure)
+    }
+
+    @Test
+    fun `oversized backup input is rejected before parsing`() {
+        val input = ByteArrayInputStream("12345".toByteArray())
+        assertTrue(runCatching { UserDataBackupManager.readJson(input, maxBytes = 4) }.isFailure)
     }
 
     @Test
