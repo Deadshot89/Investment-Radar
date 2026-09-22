@@ -20,10 +20,10 @@ if grep -q 'accent.copy(alpha = 0.10f), RadarSurface.copy(alpha = 0.99f)' "$SRC"
   exit 1
 fi
 
-# The glare fix remains present in the current Android 2.5.22 release candidate.
-if ! grep -q 'versionCode = 92' "$BUILD" || ! grep -q 'versionName = "2.5.22"' "$BUILD"; then
-  echo "Expected the current release candidate to be Android 2.5.22 (code 92)"
+# The glare fix remains present in the current Android 2.5.23 release candidate.
+if ! grep -q 'versionCode = 93' "$BUILD" || ! grep -q 'versionName = "2.5.23"' "$BUILD"; then
+  echo "Expected the current release candidate to be Android 2.5.23 (code 93)"
   exit 1
 fi
 
-echo "History card glare and Android 2.5.22 release contract OK"
+echo "History card glare and Android 2.5.23 release contract OK"
