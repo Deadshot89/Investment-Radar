@@ -1767,6 +1767,7 @@ private fun MoneyManagementScreen(
     onExecuteAction: (DepotActionCenterItem) -> Unit
 ) {
     var liquidityNeedText by rememberSaveable { mutableStateOf("") }
+    var confirmBackupRestore by rememberSaveable { mutableStateOf(false) }
     var useCashFirst by rememberSaveable { mutableStateOf(true) }
     var liquidityFlowId by rememberSaveable { mutableStateOf(UUID.randomUUID().toString()) }
     val liquidityNeed = parseDecimal(liquidityNeedText)?.takeIf { it > 0.0 }
@@ -1842,7 +1843,7 @@ private fun MoneyManagementScreen(
                         Text("Backup exportieren", fontWeight = FontWeight.Bold)
                     }
                     OutlinedButton(
-                        onClick = onRestoreBackup,
+                        onClick = { confirmBackupRestore = true },
                         modifier = Modifier.weight(1f)
                     ) {
                         Text("Backup wiederherstellen", fontWeight = FontWeight.Bold)
@@ -2126,6 +2127,29 @@ private fun MoneyManagementScreen(
         }
 
         item { Spacer(Modifier.height(84.dp)) }
+    }
+
+    if (confirmBackupRestore) {
+        AlertDialog(
+            onDismissRequest = { confirmBackupRestore = false },
+            title = { Text("Backup wiederherstellen?") },
+            text = {
+                Text(
+                    "Die lokalen Depot-, Budget-, Watchlist- und Sparplandaten werden durch den Stand aus der ausgewählten Backup-Datei ersetzt. Bei einer ungültigen oder unvollständigen Datei wird nichts geändert."
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        confirmBackupRestore = false
+                        onRestoreBackup()
+                    }
+                ) { Text("Datei auswählen") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmBackupRestore = false }) { Text("Abbrechen") }
+            }
+        )
     }
 }
 
