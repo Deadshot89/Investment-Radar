@@ -10,6 +10,28 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class UserDataBackupInstrumentedTest {
     @Test
+    fun incompleteBackupIsRejectedWithoutChangingExistingData() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val budgetPrefs = context.getSharedPreferences("investment_radar_budget", 0)
+        budgetPrefs.edit().putString("entries_v1", "sentinel").commit()
+
+        try {
+            val incomplete = UserDataBackupCodec.encode(
+                preferences = mapOf(
+                    "investment_radar_budget" to mapOf("entries_v1" to "other")
+                ),
+                appVersion = "instrumented-test",
+                createdAt = "2026-09-22T12:00:00Z"
+            )
+
+            assertTrue(runCatching { UserDataBackupManager.restoreJson(context, incomplete) }.isFailure)
+            assertEquals("sentinel", budgetPrefs.getString("entries_v1", null))
+        } finally {
+            budgetPrefs.edit().clear().commit()
+        }
+    }
+
+    @Test
     fun exportThenRestoreRecoversFinancialPreferences() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         UserDataBackupManager.preferenceFiles.forEach { fileName ->
