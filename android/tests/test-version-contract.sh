@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Final Integration Contract für Investment Radar 2.5.23 / Android 2.5.23.
+# Final Integration Contract für Investment Radar 2.5.24 / Android 2.5.24.
 # Combined main budget debit + monthly purchase-cap release candidate.
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 GRADLE_FILE="$ROOT/android/app/build.gradle.kts"
@@ -21,9 +21,9 @@ fail() {
   exit 1
 }
 
-grep -Fq 'versionCode = 93' "$GRADLE_FILE" || fail 'Android versionCode muss 93 sein.'
-grep -Fq 'versionName = "2.5.23"' "$GRADLE_FILE" || fail 'Android versionName muss 2.5.23 sein.'
-grep -Fq 'Release candidate: Investment Radar 2.5.23' "$GRADLE_FILE" || fail 'Release-Kandidat muss 2.5.23 benennen.'
+grep -Fq 'versionCode = 94' "$GRADLE_FILE" || fail 'Android versionCode muss 94 sein.'
+grep -Fq 'versionName = "2.5.24"' "$GRADLE_FILE" || fail 'Android versionName muss 2.5.24 sein.'
+grep -Fq 'Release candidate: Investment Radar 2.5.24' "$GRADLE_FILE" || fail 'Release-Kandidat muss 2.5.24 benennen.'
 grep -Fq 'EXPECTED_BACKEND_VERSION: "2.1.0"' "$WORKFLOW_FILE" || fail 'Backend-Vertrag muss bei 2.1.0 bleiben.'
 
 if grep -Fq 'versionCode = 80' "$GRADLE_FILE"; then
@@ -38,4 +38,4 @@ for temp_artifact in "$TEMP_NAV_WORKFLOW" "$TEMP_DETAIL_WORKFLOW" "$TEMP_TASK10_
   fi
 done
 
-echo 'PASS: Android 2.5.23/code93 mit Backend-Vertrag 2.1.0 und bereinigtem Release-Branch.'
+echo 'PASS: Android 2.5.24/code94 mit Backend-Vertrag 2.1.0 und bereinigtem Release-Branch.'

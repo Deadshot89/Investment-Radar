@@ -157,7 +157,7 @@ fun PortfolioDashboard(
             item {
                 PortfolioDashboardCard {
                     Text("Noch keine Positionen", fontWeight = FontWeight.Black)
-                    Text("Füge eine Aktie oder einen ETF hinzu oder erfasse einen Kauf im Radar.")
+                    Text("Füge eine Aktie, einen ETF oder einen Festzins-Wert hinzu oder erfasse einen Kauf im Radar.")
                 }
             }
         }
@@ -165,6 +165,7 @@ fun PortfolioDashboard(
         items(metrics.positions, key = { it.itemId }) { row ->
             val item = itemById[row.itemId] ?: customById[row.itemId]?.fallbackItem()
             val custom = customById[row.itemId]
+            val isFixedIncome = custom?.type.equals("Festzins", ignoreCase = true)
             val advisor = advisorById[row.itemId]
             val allocation = allocationById[row.itemId]
             val position = positions[row.itemId]
@@ -183,8 +184,27 @@ fun PortfolioDashboard(
                 }
 
                 HorizontalDivider()
-                PortfolioDashboardValue("Aktueller Wert", row.currentValue?.let(::portfolioMoney) ?: "Kurs fehlt")
-                if (importedSnapshot) {
+                PortfolioDashboardValue(
+                    if (isFixedIncome) "Anlagewert" else "Aktueller Wert",
+                    row.currentValue?.let(::portfolioMoney) ?: if (isFixedIncome) "Anlagebetrag fehlt" else "Kurs fehlt"
+                )
+                if (isFixedIncome) {
+                    custom?.fixedMaturityValueEur?.let { maturityValue ->
+                        PortfolioDashboardValue("Auszahlung bei Fälligkeit", portfolioMoney(maturityValue))
+                        custom.fixedPrincipalEur?.takeIf { it > 0.0 }?.let { principal ->
+                            val expectedReturn = maturityValue - principal
+                            val expectedReturnPct = expectedReturn / principal * 100.0
+                            PortfolioDashboardValue(
+                                "Erwarteter Ertrag",
+                                "${portfolioSignedMoney(expectedReturn)} · ${portfolioSignedPercent(expectedReturnPct)}"
+                            )
+                        }
+                    }
+                    custom?.maturityLabel?.takeIf { it.isNotBlank() }?.let {
+                        PortfolioDashboardValue("Fälligkeit", it)
+                    }
+                }
+                if (importedSnapshot && !isFixedIncome) {
                     PortfolioDashboardValue(
                         "Wertbasis",
                         if (liveTrackedValue) "Live-Kurs × Stückzahl" else "Historischer Import · kein aktueller Wert"
@@ -202,26 +222,26 @@ fun PortfolioDashboard(
                     }
                 )
                 PortfolioDashboardValue("Gewichtung", row.weightPct?.let(::portfolioPercent) ?: if (row.active) "Unvollständig" else "–")
-                if (importedSnapshot) {
+                if (importedSnapshot && !isFixedIncome) {
                     PortfolioDashboardValue(
                         "Stückzahl",
                         position?.trackedShares?.let(::portfolioShares) ?: "Nicht erfasst"
                     )
                 }
 
-                if (item != null) {
+                if (item != null && !isFixedIncome) {
                     HorizontalDivider()
                     PortfolioDashboardValue("Empfehlung", RecommendationPresentation.label(item))
                     PortfolioDashboardValue("Score", RecommendationPresentation.scoreText(item.scoreTotal))
                 }
-                advisor?.let {
+                if (!isFixedIncome) advisor?.let {
                     PortfolioDashboardValue("Berater", portfolioAdvisorActionLabel(it.action))
                     PortfolioDashboardValue("Zusatz diesen Monat", "${allocation?.amountEur ?: 0} €")
                     PortfolioDashboardValue("Konfidenz", "${it.advisor.confidencePct} %")
                     it.advisor.reasons.take(2).forEach { reason -> Text("• $reason", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
                 }
 
-                if (importedSnapshot) {
+                if (importedSnapshot && !isFixedIncome) {
                     OutlinedButton(onClick = { trackedSharesDialogItemId = row.itemId }, modifier = Modifier.fillMaxWidth()) {
                         Text(if (position?.trackedShares == null) "Stückzahl ergänzen" else "Stückzahl ändern")
                     }
@@ -234,10 +254,12 @@ fun PortfolioDashboard(
                     }
                 }
 
-                Button(onClick = { onOpenDetail(row.itemId) }, modifier = Modifier.fillMaxWidth()) { Text("Details") }
-                if (item != null) {
-                    OutlinedButton(onClick = { onEdit(item) }, modifier = Modifier.fillMaxWidth()) { Text("Transaktionen verwalten") }
-                    OutlinedButton(onClick = { TradeRepublicNavigator.open(context, item) }, modifier = Modifier.fillMaxWidth()) { Text("Trade Republic öffnen") }
+                if (!isFixedIncome) {
+                    Button(onClick = { onOpenDetail(row.itemId) }, modifier = Modifier.fillMaxWidth()) { Text("Details") }
+                    if (item != null) {
+                        OutlinedButton(onClick = { onEdit(item) }, modifier = Modifier.fillMaxWidth()) { Text("Transaktionen verwalten") }
+                        OutlinedButton(onClick = { TradeRepublicNavigator.open(context, item) }, modifier = Modifier.fillMaxWidth()) { Text("Trade Republic öffnen") }
+                    }
                 }
                 if (custom != null) {
                     OutlinedButton(onClick = { onEditCustom(custom) }, modifier = Modifier.fillMaxWidth()) { Text("Stammdaten bearbeiten") }
@@ -249,7 +271,7 @@ fun PortfolioDashboard(
                 if (row.active && !row.hasUsablePrice) {
                     Text("Aktueller Wert fehlt – historische Snapshotwerte werden nicht als heutiger Depotwert verwendet.", color = MaterialTheme.colorScheme.error)
                 }
-                position?.let {
+                if (!isFixedIncome) position?.let {
                     Text(
                         when {
                             importedSnapshot && liveTrackedValue && row.costBasisKnown -> "Live-Tracking aktiv · Einstand importiert"

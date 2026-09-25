@@ -54,6 +54,7 @@ jobs:
             android/tests/test-trade-republic-navigator-wiring.sh \
             android/tests/test-history-card-glare.sh \
             android/tests/test-trade-republic-current-depot.sh \
+            android/tests/test-fixed-income-custom-asset.sh \
             android/tests/test-savings-plans-ui.sh \
             android/tests/test-release-backend-gate.sh \
             android/tests/test-release-hardening.sh \
