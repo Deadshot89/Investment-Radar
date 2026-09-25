@@ -165,6 +165,7 @@ fun PortfolioDashboard(
         items(metrics.positions, key = { it.itemId }) { row ->
             val item = itemById[row.itemId] ?: customById[row.itemId]?.fallbackItem()
             val custom = customById[row.itemId]
+            val isFixedIncome = custom?.type.equals("Festzins", ignoreCase = true)
             val advisor = advisorById[row.itemId]
             val allocation = allocationById[row.itemId]
             val position = positions[row.itemId]
@@ -183,8 +184,27 @@ fun PortfolioDashboard(
                 }
 
                 HorizontalDivider()
-                PortfolioDashboardValue("Aktueller Wert", row.currentValue?.let(::portfolioMoney) ?: "Kurs fehlt")
-                if (importedSnapshot) {
+                PortfolioDashboardValue(
+                    if (isFixedIncome) "Anlagewert" else "Aktueller Wert",
+                    row.currentValue?.let(::portfolioMoney) ?: if (isFixedIncome) "Anlagebetrag fehlt" else "Kurs fehlt"
+                )
+                if (isFixedIncome) {
+                    custom?.fixedMaturityValueEur?.let { maturityValue ->
+                        PortfolioDashboardValue("Auszahlung bei Fälligkeit", portfolioMoney(maturityValue))
+                        custom.fixedPrincipalEur?.takeIf { it > 0.0 }?.let { principal ->
+                            val expectedReturn = maturityValue - principal
+                            val expectedReturnPct = expectedReturn / principal * 100.0
+                            PortfolioDashboardValue(
+                                "Erwarteter Ertrag",
+                                "${portfolioSignedMoney(expectedReturn)} · ${portfolioSignedPercent(expectedReturnPct)}"
+                            )
+                        }
+                    }
+                    custom?.maturityLabel?.takeIf { it.isNotBlank() }?.let {
+                        PortfolioDashboardValue("Fälligkeit", it)
+                    }
+                }
+                if (importedSnapshot && !isFixedIncome) {
                     PortfolioDashboardValue(
                         "Wertbasis",
                         if (liveTrackedValue) "Live-Kurs × Stückzahl" else "Historischer Import · kein aktueller Wert"
@@ -202,19 +222,19 @@ fun PortfolioDashboard(
                     }
                 )
                 PortfolioDashboardValue("Gewichtung", row.weightPct?.let(::portfolioPercent) ?: if (row.active) "Unvollständig" else "–")
-                if (importedSnapshot) {
+                if (importedSnapshot && !isFixedIncome) {
                     PortfolioDashboardValue(
                         "Stückzahl",
                         position?.trackedShares?.let(::portfolioShares) ?: "Nicht erfasst"
                     )
                 }
 
-                if (item != null) {
+                if (item != null && !isFixedIncome) {
                     HorizontalDivider()
                     PortfolioDashboardValue("Empfehlung", RecommendationPresentation.label(item))
                     PortfolioDashboardValue("Score", RecommendationPresentation.scoreText(item.scoreTotal))
                 }
-                advisor?.let {
+                if (!isFixedIncome) advisor?.let {
                     PortfolioDashboardValue("Berater", portfolioAdvisorActionLabel(it.action))
                     PortfolioDashboardValue("Zusatz diesen Monat", "${allocation?.amountEur ?: 0} €")
                     PortfolioDashboardValue("Konfidenz", "${it.advisor.confidencePct} %")
