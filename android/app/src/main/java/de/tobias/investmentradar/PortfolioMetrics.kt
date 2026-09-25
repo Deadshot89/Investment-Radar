@@ -47,18 +47,28 @@ object PortfolioMetrics {
             val active: Boolean,
             val usablePrice: Double?,
             val currentValue: Double?,
-            val hasUsablePrice: Boolean
+            val hasUsablePrice: Boolean,
+            val fixedIncomePrincipal: Double?
         )
 
         val drafts = positions.values.map { position ->
             val id = position.itemId
+            val custom = customById[id]
+            val fixedIncomePrincipal = custom
+                ?.takeIf { it.type.equals("Festzins", ignoreCase = true) }
+                ?.fixedPrincipalEur
+                ?.takeIf { it.isFinite() && it > 0.0 }
             val marketPrice = itemById[id]?.priceEur?.takeIf { it.isFinite() && it > 0.0 }
-            val manualPrice = customById[id]?.manualPriceEur?.takeIf { it.isFinite() && it > 0.0 }
+            val manualPrice = custom?.manualPriceEur?.takeIf { it.isFinite() && it > 0.0 }
             val usablePrice = marketPrice ?: manualPrice
-            val active = position.isActiveHolding()
-            val currentValue = if (active) position.currentValue(usablePrice) else 0.0
+            val active = fixedIncomePrincipal != null || position.isActiveHolding()
+            val currentValue = when {
+                !active -> 0.0
+                fixedIncomePrincipal != null -> fixedIncomePrincipal
+                else -> position.currentValue(usablePrice)
+            }
             val hasUsablePrice = !active || currentValue != null
-            Draft(id, position, active, usablePrice, currentValue, hasUsablePrice)
+            Draft(id, position, active, usablePrice, currentValue, hasUsablePrice, fixedIncomePrincipal)
         }
 
         val activeDrafts = drafts.filter { it.active }
@@ -70,24 +80,34 @@ object PortfolioMetrics {
 
         val metrics = drafts.map { draft ->
             val position = draft.position
-            val realized = position.realizedProfitLoss()
-            val costBasisKnown = !draft.active || position.performanceCostBasisKnown
+            val fixedIncome = draft.fixedIncomePrincipal != null
+            val rowCostBasis = when {
+                !draft.active -> 0.0
+                fixedIncome -> draft.fixedIncomePrincipal ?: 0.0
+                else -> position.activeCostBasis
+            }
+            val realized = if (fixedIncome) 0.0 else position.realizedProfitLoss()
+            val costBasisKnown = !draft.active || fixedIncome || position.performanceCostBasisKnown
             val unrealized = when {
                 !draft.active -> 0.0
+                fixedIncome -> 0.0
                 !costBasisKnown -> null
                 else -> position.unrealizedProfitLoss(draft.usablePrice)
             }
             val unrealizedPct = when {
                 !draft.active || !costBasisKnown -> null
+                fixedIncome -> 0.0
                 else -> position.unrealizedProfitLossPercent(draft.usablePrice)
             }
             val total = when {
                 !draft.active -> realized
+                fixedIncome -> 0.0
                 !costBasisKnown -> null
                 else -> position.totalProfitLoss(draft.usablePrice)
             }
             val totalPct = when {
                 !draft.active -> if (position.totalPurchasedAmount > 0.0) realized / position.totalPurchasedAmount * 100.0 else null
+                fixedIncome -> 0.0
                 !costBasisKnown -> null
                 else -> position.totalProfitLossPercent(draft.usablePrice)
             }
@@ -96,7 +116,7 @@ object PortfolioMetrics {
             PortfolioPositionMetrics(
                 itemId = draft.itemId,
                 active = draft.active,
-                investedCostBasis = if (draft.active) position.activeCostBasis else 0.0,
+                investedCostBasis = rowCostBasis,
                 costBasisKnown = costBasisKnown,
                 currentValue = draft.currentValue,
                 unrealizedProfitLoss = unrealized,
