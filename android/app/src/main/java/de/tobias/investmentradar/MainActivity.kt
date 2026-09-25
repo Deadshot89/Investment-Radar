@@ -1112,6 +1112,9 @@ private fun CustomInvestmentDialog(
     var tradeRepublicUrl by remember(existing?.id) { mutableStateOf(existing?.tradeRepublicUrl.orEmpty()) }
     var risk by remember(existing?.id) { mutableIntStateOf(existing?.risk ?: 3) }
     var manualPriceText by remember(existing?.id) { mutableStateOf(existing?.manualPriceEur?.let(::formatEditableNumber).orEmpty()) }
+    var fixedPrincipalText by remember(existing?.id) { mutableStateOf(existing?.fixedPrincipalEur?.let(::formatEditableNumber).orEmpty()) }
+    var fixedMaturityValueText by remember(existing?.id) { mutableStateOf(existing?.fixedMaturityValueEur?.let(::formatEditableNumber).orEmpty()) }
+    var maturityLabel by remember(existing?.id) { mutableStateOf(existing?.maturityLabel.orEmpty()) }
     var dateText by remember(existing?.id) { mutableStateOf(todayPurchaseDate()) }
     var amountText by remember(existing?.id) { mutableStateOf("") }
     var sharesText by remember(existing?.id) { mutableStateOf("") }
@@ -1119,21 +1122,29 @@ private fun CustomInvestmentDialog(
     val amount = parseDecimal(amountText)
     val shares = parseDecimal(sharesText)
     val manualPrice = parseDecimal(manualPriceText)?.takeIf { it > 0.0 }
-    val newValid = existing != null || (isValidPurchaseDate(dateText) && amount != null && amount > 0 && shares != null && shares > 0)
+    val fixedPrincipal = parseDecimal(fixedPrincipalText)?.takeIf { it > 0.0 }
+    val fixedMaturityValue = parseDecimal(fixedMaturityValueText)?.takeIf { it > 0.0 }
+    val isFixedIncome = type == "Festzins"
+    val newValid = if (isFixedIncome) {
+        fixedPrincipal != null
+    } else {
+        existing != null || (isValidPurchaseDate(dateText) && amount != null && amount > 0 && shares != null && shares > 0)
+    }
     val metaValid = name.isNotBlank() && ticker.isNotBlank()
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (existing == null) "Aktie/ETF hinzufügen" else "Eigenen Wert bearbeiten") },
+        title = { Text(if (existing == null) "Wert hinzufügen" else "Eigenen Wert bearbeiten") },
         text = {
             Column(Modifier.heightIn(max = 600.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Eigene Werte", color = RadarPurple, fontWeight = FontWeight.Black)
                 OutlinedTextField(name, { name = it.take(80) }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(ticker, { ticker = it.uppercase().filter { ch -> ch.isLetterOrDigit() || ch in ".-" }.take(20) }, label = { Text("Ticker") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(ticker, { ticker = it.uppercase().filter { ch -> ch.isLetterOrDigit() || ch in ".-" }.take(20) }, label = { Text("Ticker / Kürzel") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(isin, { isin = it.uppercase().filter(Char::isLetterOrDigit).take(20) }, label = { Text("ISIN") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(selected = type == "Aktie", onClick = { type = "Aktie" }, label = { Text("Aktie") }, modifier = Modifier.weight(1f))
                     FilterChip(selected = type == "ETF", onClick = { type = "ETF" }, label = { Text("ETF") }, modifier = Modifier.weight(1f))
+                    FilterChip(selected = type == "Festzins", onClick = { type = "Festzins" }, label = { Text("Festzins") }, modifier = Modifier.weight(1f))
                 }
                 Text("Risiko", color = RadarMuted, style = MaterialTheme.typography.labelSmall)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -1141,26 +1152,83 @@ private fun CustomInvestmentDialog(
                         FilterChip(selected = risk == level, onClick = { risk = level }, label = { Text(level.toString()) }, modifier = Modifier.weight(1f))
                     }
                 }
-                OutlinedTextField(tradeRepublicUrl, { tradeRepublicUrl = it.take(250) }, label = { Text("Trade-Republic-Link (optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(manualPriceText, { manualPriceText = sanitizeDecimalInput(it) }, label = { Text("MANUELLER EUR-KURS (optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                Text("Nur als Fallback, wenn keine Kursquelle den Wert findet.", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
-                if (existing == null) {
+
+                if (isFixedIncome) {
                     HorizontalDivider(color = RadarSurface2)
-                    Text("Ersten Kauf erfassen", fontWeight = FontWeight.Black)
-                    OutlinedTextField(dateText, { dateText = it.filter { ch -> ch.isDigit() || ch == '.' }.take(10) }, label = { Text("Kaufdatum (TT.MM.JJJJ)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(amountText, { amountText = sanitizeDecimalInput(it) }, label = { Text("Investierter Betrag in €") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(sharesText, { sharesText = sanitizeDecimalInput(it) }, label = { Text("Stückzahl / Anteile") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    val unitPrice = if (amount != null && shares != null && shares > 0) amount / shares else null
-                    Text("Kaufkurs: ${unitPrice?.let(::formatMoney) ?: "–"}", color = RadarGreen, fontWeight = FontWeight.Bold)
+                    Text("Festzins-Daten", fontWeight = FontWeight.Black)
+                    OutlinedTextField(
+                        fixedPrincipalText,
+                        { fixedPrincipalText = sanitizeDecimalInput(it) },
+                        label = { Text("Anlagebetrag / Nennwert in €") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        fixedMaturityValueText,
+                        { fixedMaturityValueText = sanitizeDecimalInput(it) },
+                        label = { Text("Erwartete Auszahlung bei Fälligkeit in € (optional)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        maturityLabel,
+                        { maturityLabel = it.take(40) },
+                        label = { Text("Fälligkeit (optional, z. B. Dez. 2026)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (fixedPrincipal != null && fixedMaturityValue != null) {
+                        val expectedReturn = fixedMaturityValue - fixedPrincipal
+                        val expectedReturnPct = expectedReturn / fixedPrincipal * 100.0
+                        Text(
+                            "Erwarteter Ertrag: ${formatMoney(expectedReturn)} · ${String.format(Locale.GERMANY, "%+.2f %%", expectedReturnPct)}",
+                            color = if (expectedReturn < 0.0) RadarRed else RadarGreen,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Text(
+                        "Festzins wird mit dem Anlagebetrag im Depot geführt. Die Fälligkeitsauszahlung wird separat angezeigt und nicht vorzeitig als Gewinn verbucht.",
+                        color = RadarMuted,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                } else {
+                    OutlinedTextField(tradeRepublicUrl, { tradeRepublicUrl = it.take(250) }, label = { Text("Trade-Republic-Link (optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(manualPriceText, { manualPriceText = sanitizeDecimalInput(it) }, label = { Text("MANUELLER EUR-KURS (optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    Text("Nur als Fallback, wenn keine Kursquelle den Wert findet.", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
+                    if (existing == null) {
+                        HorizontalDivider(color = RadarSurface2)
+                        Text("Ersten Kauf erfassen", fontWeight = FontWeight.Black)
+                        OutlinedTextField(dateText, { dateText = it.filter { ch -> ch.isDigit() || ch == '.' }.take(10) }, label = { Text("Kaufdatum (TT.MM.JJJJ)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(amountText, { amountText = sanitizeDecimalInput(it) }, label = { Text("Investierter Betrag in €") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(sharesText, { sharesText = sanitizeDecimalInput(it) }, label = { Text("Stückzahl / Anteile") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        val unitPrice = if (amount != null && shares != null && shares > 0) amount / shares else null
+                        Text("Kaufkurs: ${unitPrice?.let(::formatMoney) ?: "–"}", color = RadarGreen, fontWeight = FontWeight.Bold)
+                    }
+                    Text("Der aktuelle Kurs wird anschließend automatisch über das Investment-Radar-Backend geladen. Falls der Ticker nicht gefunden wird, bleibt die Position trotzdem gespeichert.", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
                 }
-                Text("Der aktuelle Kurs wird anschließend automatisch über das Investment-Radar-Backend geladen. Falls der Ticker nicht gefunden wird, bleibt die Position trotzdem gespeichert.", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
             }
         },
         confirmButton = {
             Button(enabled = metaValid && newValid, onClick = {
                 val id = existing?.id ?: CustomInvestmentStore.createId(ticker, isin)
-                val item = CustomInvestment(id, name.trim(), ticker.trim().uppercase(), isin.trim().uppercase(), type, tradeRepublicUrl.trim(), risk, manualPrice)
-                val purchase = if (existing == null) PortfolioPurchase(UUID.randomUUID().toString(), dateText, amount!!, shares!!) else null
+                val item = CustomInvestment(
+                    id = id,
+                    name = name.trim(),
+                    ticker = ticker.trim().uppercase(),
+                    isin = isin.trim().uppercase(),
+                    type = type,
+                    tradeRepublicUrl = if (isFixedIncome) "" else tradeRepublicUrl.trim(),
+                    risk = risk,
+                    manualPriceEur = if (isFixedIncome) null else manualPrice,
+                    fixedPrincipalEur = if (isFixedIncome) fixedPrincipal else null,
+                    fixedMaturityValueEur = if (isFixedIncome) fixedMaturityValue else null,
+                    maturityLabel = if (isFixedIncome) maturityLabel.trim() else ""
+                )
+                val purchase = if (existing == null && !isFixedIncome) {
+                    PortfolioPurchase(UUID.randomUUID().toString(), dateText, amount!!, shares!!)
+                } else {
+                    null
+                }
                 onSave(item, purchase)
             }) { Text(if (existing == null) "Hinzufügen" else "Speichern") }
         },
