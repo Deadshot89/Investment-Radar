@@ -6,6 +6,27 @@ import org.junit.Test
 
 class PortfolioAnalysisTest {
     @Test
+    fun fixedIncomeUsesPrincipalWithoutQuoteOrShares() {
+        val custom = CustomInvestment(
+            id = "fixed",
+            name = "Festzins Dez. 2026",
+            ticker = "FIXED2026",
+            isin = "",
+            type = "Festzins",
+            fixedPrincipalEur = 2_000.0,
+            fixedMaturityValueEur = 2_007.0
+        )
+
+        val values = PortfolioAnalysis.values(
+            items = emptyList(),
+            positions = mapOf("fixed" to PortfolioPosition("fixed")),
+            customItems = listOf(custom)
+        )
+
+        assertEquals(2_000.0, values.getValue("fixed"), 0.001)
+    }
+
+    @Test
     fun usesMarketValueWhenQuoteExistsAndOmitsHoldingWithoutCurrentValue() {
         val values = PortfolioAnalysis.values(
             items = listOf(

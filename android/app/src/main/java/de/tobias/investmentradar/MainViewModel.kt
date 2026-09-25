@@ -40,10 +40,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private var refreshJob: Job? = null
 
     private val initialPositions = PortfolioStore.readPositions(app)
+    private val initialCustomItems = CustomInvestmentStore.read(app)
+    private val initialFixedIncomePrincipalById = initialCustomItems
+        .filter { it.type.equals("Festzins", ignoreCase = true) }
+        .mapNotNull { item ->
+            item.fixedPrincipalEur
+                ?.takeIf { it.isFinite() && it > 0.0 }
+                ?.let { item.id to it }
+        }
+        .toMap()
     private val _budgetState = MutableStateFlow(
         InvestmentBudgetStore.viewState(
             app,
-            activeInvestedEur = initialPositions.values.sumOf { it.activeCostBasis }
+            activeInvestedEur = initialPositions.values.sumOf { position ->
+                initialFixedIncomePrincipalById[position.itemId] ?: position.activeCostBasis
+            }
         )
     )
     val budgetState: StateFlow<InvestmentBudgetViewState> = _budgetState.asStateFlow()
@@ -54,7 +65,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _positions = MutableStateFlow(initialPositions)
     val positions: StateFlow<Map<String, PortfolioPosition>> = _positions.asStateFlow()
 
-    private val _customItems = MutableStateFlow(CustomInvestmentStore.read(app))
+    private val _customItems = MutableStateFlow(initialCustomItems)
     val customItems: StateFlow<List<CustomInvestment>> = _customItems.asStateFlow()
 
     private val _exitStrategies = MutableStateFlow(ExitStrategyStore.readAll(app))
@@ -114,12 +125,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 promoteCustomPortfolioAssets(application, (radarBuyItems + dashboard.items).distinctBy { it.id })
                 val customQuotes = _customItems.value.map { custom ->
                     async {
-                        try {
-                            ApiClient.loadCustomQuote(custom)
-                        } catch (error: CancellationException) {
-                            throw error
-                        } catch (error: Exception) {
-                            custom.fallbackItem(error.message ?: "Kursdaten fehlen", custom.manualPriceEur)
+                        if (custom.type.equals("Festzins", ignoreCase = true)) {
+                            custom.fallbackItem()
+                        } else {
+                            try {
+                                ApiClient.loadCustomQuote(custom)
+                            } catch (error: CancellationException) {
+                                throw error
+                            } catch (error: Exception) {
+                                custom.fallbackItem(error.message ?: "Kursdaten fehlen", custom.manualPriceEur)
+                            }
                         }
                     }
                 }.awaitAll()
@@ -160,7 +175,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val advisorBudgetEur = _budgetState.value.advisorBudgetEur
         val portfolioValues = PortfolioAnalysis.values(dashboard.items, _positions.value, _customItems.value)
         val monthlySavings = SavingsPlanBudget.monthlyAmounts(SavingsPlanStore.readPlans(application))
-        val candidates = dashboard.items.map { item ->
+        val fixedIncomeIds = _customItems.value
+            .filter { it.type.equals("Festzins", ignoreCase = true) }
+            .mapTo(mutableSetOf()) { it.id }
+        val candidates = dashboard.items.filterNot { it.id in fixedIncomeIds }.map { item ->
             PortfolioAdvisorCandidateFactory.create(
                 item = item,
                 isHolding = item.id in _holdingIds.value,
@@ -443,6 +461,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             executeBuy(item.id, initialPurchase, BudgetJournalSource.MANUAL)
         } else {
             savePosition(_positions.value[item.id] ?: PortfolioPosition(item.id))
+            refreshBudgetState(app)
         }
         refresh(silent = true)
     }
@@ -451,6 +470,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val app = getApplication<Application>()
         CustomInvestmentStore.save(app, item)
         _customItems.value = CustomInvestmentStore.read(app)
+        refreshBudgetState(app)
         refresh(silent = true)
     }
 
@@ -550,9 +570,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun refreshBudgetState(app: Application) {
         InvestmentBudgetStore.ensureCurrentMonth(app)
+        val fixedIncomePrincipalById = _customItems.value
+            .filter { it.type.equals("Festzins", ignoreCase = true) }
+            .mapNotNull { item ->
+                item.fixedPrincipalEur
+                    ?.takeIf { it.isFinite() && it > 0.0 }
+                    ?.let { item.id to it }
+            }
+            .toMap()
         _budgetState.value = InvestmentBudgetStore.viewState(
             app,
-            activeInvestedEur = _positions.value.values.sumOf { it.activeCostBasis }
+            activeInvestedEur = _positions.value.values.sumOf { position ->
+                fixedIncomePrincipalById[position.itemId] ?: position.activeCostBasis
+            }
         )
     }
 

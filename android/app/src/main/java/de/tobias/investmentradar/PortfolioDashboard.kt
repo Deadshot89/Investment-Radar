@@ -157,7 +157,7 @@ fun PortfolioDashboard(
             item {
                 PortfolioDashboardCard {
                     Text("Noch keine Positionen", fontWeight = FontWeight.Black)
-                    Text("Füge eine Aktie oder einen ETF hinzu oder erfasse einen Kauf im Radar.")
+                    Text("Füge eine Aktie, einen ETF oder einen Festzins-Wert hinzu oder erfasse einen Kauf im Radar.")
                 }
             }
         }
@@ -241,7 +241,7 @@ fun PortfolioDashboard(
                     it.advisor.reasons.take(2).forEach { reason -> Text("• $reason", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
                 }
 
-                if (importedSnapshot) {
+                if (importedSnapshot && !isFixedIncome) {
                     OutlinedButton(onClick = { trackedSharesDialogItemId = row.itemId }, modifier = Modifier.fillMaxWidth()) {
                         Text(if (position?.trackedShares == null) "Stückzahl ergänzen" else "Stückzahl ändern")
                     }
@@ -254,10 +254,12 @@ fun PortfolioDashboard(
                     }
                 }
 
-                Button(onClick = { onOpenDetail(row.itemId) }, modifier = Modifier.fillMaxWidth()) { Text("Details") }
-                if (item != null) {
-                    OutlinedButton(onClick = { onEdit(item) }, modifier = Modifier.fillMaxWidth()) { Text("Transaktionen verwalten") }
-                    OutlinedButton(onClick = { TradeRepublicNavigator.open(context, item) }, modifier = Modifier.fillMaxWidth()) { Text("Trade Republic öffnen") }
+                if (!isFixedIncome) {
+                    Button(onClick = { onOpenDetail(row.itemId) }, modifier = Modifier.fillMaxWidth()) { Text("Details") }
+                    if (item != null) {
+                        OutlinedButton(onClick = { onEdit(item) }, modifier = Modifier.fillMaxWidth()) { Text("Transaktionen verwalten") }
+                        OutlinedButton(onClick = { TradeRepublicNavigator.open(context, item) }, modifier = Modifier.fillMaxWidth()) { Text("Trade Republic öffnen") }
+                    }
                 }
                 if (custom != null) {
                     OutlinedButton(onClick = { onEditCustom(custom) }, modifier = Modifier.fillMaxWidth()) { Text("Stammdaten bearbeiten") }
@@ -269,7 +271,7 @@ fun PortfolioDashboard(
                 if (row.active && !row.hasUsablePrice) {
                     Text("Aktueller Wert fehlt – historische Snapshotwerte werden nicht als heutiger Depotwert verwendet.", color = MaterialTheme.colorScheme.error)
                 }
-                position?.let {
+                if (!isFixedIncome) position?.let {
                     Text(
                         when {
                             importedSnapshot && liveTrackedValue && row.costBasisKnown -> "Live-Tracking aktiv · Einstand importiert"
