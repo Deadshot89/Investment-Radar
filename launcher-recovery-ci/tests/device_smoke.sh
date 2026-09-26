@@ -26,6 +26,20 @@ tap_text() {
   sleep 2
 }
 
+dismiss_system_ui_anr() {
+  for _ in 1 2 3; do
+    dump_ui /sdcard/system-dialog.xml build/device/system-dialog.xml
+    if grep -q "System UI isn.t responding" build/device/system-dialog.xml; then
+      local coords
+      coords="$(python3 tests/tap_text.py build/device/system-dialog.xml "Wait")"
+      adb shell input tap $coords
+      sleep 3
+    else
+      return 0
+    fi
+  done
+}
+
 adb install -r "$APK" | tee build/device/install.txt
 adb shell pm list packages | tr -d '\r' | grep -Fx "package:$PKG"
 
@@ -37,6 +51,7 @@ adb shell am start -W   -a android.intent.action.MAIN   -c android.intent.catego
 sleep 2
 foreground | tee build/device/home-foreground.txt
 grep -q "$PKG" build/device/home-foreground.txt
+dismiss_system_ui_anr
 adb exec-out screencap -p > build/device/home.png
 
 tap_text "Apps"
@@ -76,6 +91,7 @@ test "$booted" = "1"
 
 adb shell input keyevent KEYCODE_HOME
 sleep 3
+dismiss_system_ui_anr
 adb shell cmd package resolve-activity --brief --user 0   -a android.intent.action.MAIN   -c android.intent.category.HOME   | tr -d '\r' | tee build/device/home-resolved-after-reboot.txt
 grep -q "$PKG" build/device/home-resolved-after-reboot.txt
 foreground | tee build/device/home-after-reboot.txt
