@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+mkdir -p build/device
+APK="app/build/outputs/apk/debug/app-debug.apk"
+PKG="de.tobias.launcher.recovery"
+COMPONENT="$PKG/.MainActivity"
+
+foreground() {
+  adb shell dumpsys activity activities     | tr -d '\r'     | grep -E 'mResumedActivity|topResumedActivity|ResumedActivity'     | head -20
+}
+
+dump_ui() {
+  local remote="$1"
+  local local_file="$2"
+  adb shell uiautomator dump "$remote" >/dev/null
+  adb pull "$remote" "$local_file" >/dev/null
+}
+
+tap_text() {
+  local wanted="$1"
+  dump_ui /sdcard/window.xml build/device/window.xml
+  local coords
+  coords="$(python3 tests/tap_text.py build/device/window.xml "$wanted")"
+  adb shell input tap $coords
+  sleep 2
+}
+
+adb install -r "$APK" | tee build/device/install.txt
+adb shell pm list packages | tr -d '\r' | grep -Fx "package:$PKG"
+
+adb shell cmd package set-home-activity --user 0 "$COMPONENT" | tee build/device/set-home.txt
+adb shell cmd package resolve-activity --brief --user 0   -a android.intent.action.MAIN   -c android.intent.category.HOME   | tr -d '\r' | tee build/device/home-resolved.txt
+grep -q "$PKG" build/device/home-resolved.txt
+
+adb shell am start -W   -a android.intent.action.MAIN   -c android.intent.category.HOME   | tee build/device/home-start.txt
+sleep 2
+foreground | tee build/device/home-foreground.txt
+grep -q "$PKG" build/device/home-foreground.txt
+adb exec-out screencap -p > build/device/home.png
+
+tap_text "Apps"
+adb exec-out screencap -p > build/device/drawer.png
+dump_ui /sdcard/drawer.xml build/device/drawer.xml
+grep -q 'text="Settings"' build/device/drawer.xml
+
+coords="$(python3 tests/tap_text.py build/device/drawer.xml "Settings")"
+adb shell input tap $coords
+sleep 2
+foreground | tee build/device/app-launch-foreground.txt
+grep -q 'com.android.settings' build/device/app-launch-foreground.txt
+
+adb shell input keyevent KEYCODE_HOME
+sleep 2
+foreground | tee build/device/home-after-app.txt
+grep -q "$PKG" build/device/home-after-app.txt
+
+adb shell am force-stop "$PKG"
+sleep 1
+adb shell input keyevent KEYCODE_HOME
+sleep 3
+foreground | tee build/device/home-after-force-stop.txt
+grep -q "$PKG" build/device/home-after-force-stop.txt
+
+adb reboot
+adb wait-for-device
+booted=0
+for _ in $(seq 1 90); do
+  if [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; then
+    booted=1
+    break
+  fi
+  sleep 2
+done
+test "$booted" = "1"
+
+adb shell input keyevent KEYCODE_HOME
+sleep 3
+adb shell cmd package resolve-activity --brief --user 0   -a android.intent.action.MAIN   -c android.intent.category.HOME   | tr -d '\r' | tee build/device/home-resolved-after-reboot.txt
+grep -q "$PKG" build/device/home-resolved-after-reboot.txt
+foreground | tee build/device/home-after-reboot.txt
+grep -q "$PKG" build/device/home-after-reboot.txt
+adb exec-out screencap -p > build/device/home-after-reboot.png
+
+adb logcat -d -v brief > build/device/logcat.txt
+if grep -A20 -B5 'FATAL EXCEPTION' build/device/logcat.txt | grep -q "$PKG"; then
+  echo "Launcher crash found in logcat" >&2
+  exit 1
+fi
+
+printf '%s\n'   'PASS: APK install'   'PASS: default HOME resolution'   'PASS: HOME foreground'   'PASS: app drawer'   'PASS: launch Settings from drawer'   'PASS: return HOME'   'PASS: HOME after force-stop'   'PASS: default HOME persisted after reboot'   'PASS: HOME foreground after reboot'   'PASS: no launcher fatal exception in logcat'   | tee build/device/RESULT.txt
