@@ -1,0 +1,79 @@
+name: Launcher Recovery P0 CI
+
+on:
+  push:
+    branches:
+      - launcher-recovery-p0-ci
+    paths:
+      - 'launcher-recovery-ci/**'
+      - '.github/workflows/launcher-recovery-p0-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build-launcher:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout isolated branch
+        uses: actions/checkout@v5
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Prepare Android SDK 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "\${ANDROID_HOME:-}"
+          echo "\$ANDROID_HOME/cmdline-tools/latest/bin" >> "\$GITHUB_PATH"
+          echo "\$ANDROID_HOME/platform-tools" >> "\$GITHUB_PATH"
+          yes | "\$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || true
+          "\$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "platforms;android-36" "build-tools;35.0.0"
+
+      - name: Set up Gradle 8.13
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Run launcher contract regression test
+        working-directory: launcher-recovery-ci
+        run: python3 tests/test_launcher_contract.py
+
+      - name: Build debug APK
+        working-directory: launcher-recovery-ci
+        run: gradle --no-daemon --stacktrace :app:assembleDebug
+
+      - name: Verify APK and launcher manifest
+        working-directory: launcher-recovery-ci
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          test -s "\$APK"
+          "\$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "\$APK" | tee build/apksigner.txt
+          "\$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer" manifest print "\$APK" > build/manifest.xml
+          grep -q 'android.intent.category.HOME' build/manifest.xml
+          grep -q 'android.intent.category.DEFAULT' build/manifest.xml
+          grep -q 'android.intent.category.LAUNCHER' build/manifest.xml
+          if grep -q 'android.permission.QUERY_ALL_PACKAGES' build/manifest.xml; then
+            echo 'Forbidden QUERY_ALL_PACKAGES permission found in built APK.' >&2
+            exit 1
+          fi
+          sha256sum "\$APK" | tee build/apk-sha256.txt
+
+      - name: Upload verified APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: launcher-recovery-p0-debug-apk
+          path: |
+            launcher-recovery-ci/app/build/outputs/apk/debug/app-debug.apk
+            launcher-recovery-ci/build/apksigner.txt
+            launcher-recovery-ci/build/manifest.xml
+            launcher-recovery-ci/build/apk-sha256.txt
+          if-no-files-found: error
+          retention-days: 7
