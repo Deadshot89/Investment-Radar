@@ -29,11 +29,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -n "\${ANDROID_HOME:-}"
-          echo "\$ANDROID_HOME/cmdline-tools/latest/bin" >> "\$GITHUB_PATH"
-          echo "\$ANDROID_HOME/platform-tools" >> "\$GITHUB_PATH"
-          yes | "\$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || true
-          "\$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "platforms;android-36" "build-tools;35.0.0"
+          test -n "${ANDROID_HOME:-}"
+          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "platforms;android-36" "build-tools;35.0.0"
 
       - name: Set up Gradle 8.13
         uses: gradle/actions/setup-gradle@v4
@@ -54,9 +54,9 @@ jobs:
         run: |
           set -euo pipefail
           APK="app/build/outputs/apk/debug/app-debug.apk"
-          test -s "\$APK"
-          "\$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "\$APK" | tee build/apksigner.txt
-          "\$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer" manifest print "\$APK" > build/manifest.xml
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK" | tee build/apksigner.txt
+          "$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer" manifest print "$APK" > build/manifest.xml
           grep -q 'android.intent.category.HOME' build/manifest.xml
           grep -q 'android.intent.category.DEFAULT' build/manifest.xml
           grep -q 'android.intent.category.LAUNCHER' build/manifest.xml
@@ -64,7 +64,7 @@ jobs:
             echo 'Forbidden QUERY_ALL_PACKAGES permission found in built APK.' >&2
             exit 1
           fi
-          sha256sum "\$APK" | tee build/apk-sha256.txt
+          sha256sum "$APK" | tee build/apk-sha256.txt
 
       - name: Upload verified APK
         uses: actions/upload-artifact@v4
