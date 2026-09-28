@@ -76,4 +76,59 @@ class LiquidityNeedEngineTest {
         assertEquals(350.0, plan.uncoveredEur, 0.001)
         assertEquals(150.0, plan.coveredEur, 0.001)
     }
+    @Test
+    fun unreliableHoldingIsNeverSuggestedForAutomaticLiquiditySale() {
+        val unreliableMeta = LiquidityHolding(
+            itemId = "META",
+            instrumentName = "Meta Platforms",
+            currentValueEur = 946.83,
+            shares = 1.436,
+            advisorAction = PortfolioAdvisorAction.KEINE_BELASTBARE_BEWERTUNG,
+            advisorScore = 72,
+            dataReliable = false,
+            forecastDirection = null,
+            profitLossPct = 20.5
+        )
+
+        val plan = LiquidityNeedEngine.plan(
+            requestedEur = 200.0,
+            availableCashEur = 0.0,
+            holdings = listOf(unreliableMeta)
+        )
+
+        assertTrue(plan.suggestions.isEmpty())
+        assertEquals(200.0, plan.uncoveredEur, 0.001)
+    }
+
+    @Test
+    fun reliableSellCandidateIsPreferredWhileUnreliableLargeHoldingIsExcluded() {
+        val unreliableMeta = LiquidityHolding(
+            itemId = "META",
+            instrumentName = "Meta Platforms",
+            currentValueEur = 946.83,
+            shares = 1.436,
+            advisorAction = PortfolioAdvisorAction.KEINE_BELASTBARE_BEWERTUNG,
+            advisorScore = 72,
+            dataReliable = false,
+            forecastDirection = null,
+            profitLossPct = 20.5
+        )
+        val reliableSell = holding(
+            id = "SELL",
+            value = 110.0,
+            action = PortfolioAdvisorAction.VERKAUFEN,
+            score = 40
+        )
+
+        val plan = LiquidityNeedEngine.plan(
+            requestedEur = 200.0,
+            availableCashEur = 0.0,
+            holdings = listOf(unreliableMeta, reliableSell)
+        )
+
+        assertEquals(listOf("SELL"), plan.suggestions.map { it.itemId })
+        assertEquals(110.0, plan.suggestions.single().amountEur, 0.001)
+        assertEquals(90.0, plan.uncoveredEur, 0.001)
+    }
+
 }

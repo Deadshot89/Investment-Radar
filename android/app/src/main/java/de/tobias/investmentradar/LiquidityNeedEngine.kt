@@ -86,7 +86,11 @@ object LiquidityNeedEngine {
         var remaining = saleNeed
 
         val suggestions = holdings
-            .filter { it.currentValueEur.isFinite() && it.currentValueEur > 0.01 }
+            .filter {
+                it.currentValueEur.isFinite() &&
+                    it.currentValueEur > 0.01 &&
+                    it.dataReliable
+            }
             .sortedWith(
                 compareByDescending<LiquidityHolding> { sellPriority(it) }
                     .thenBy { it.advisorScore ?: 101 }
@@ -143,8 +147,7 @@ object LiquidityNeedEngine {
             "AUFWÄRTS" in forecast || "UP" in forecast || "POSITIV" in forecast -> -35
             else -> 0
         }
-        val reliability = if (holding.dataReliable) 0 else -40
-        return action + score + trend + reliability
+        return action + score + trend
     }
 
     private fun reason(holding: LiquidityHolding): String {
@@ -153,7 +156,7 @@ object LiquidityNeedEngine {
             PortfolioAdvisorAction.REDUZIEREN -> "Advisor empfiehlt bereits Reduzierung"
             PortfolioAdvisorAction.HALTEN -> "Halteposition – erst nach schwächeren Positionen verkaufen"
             PortfolioAdvisorAction.NACHKAUFEN -> "Starke Position mit Nachkaufsignal – möglichst zuletzt verkaufen"
-            PortfolioAdvisorAction.KEINE_BELASTBARE_BEWERTUNG -> "Datenlage nicht belastbar – nur als Reserve verkaufen"
+            PortfolioAdvisorAction.KEINE_BELASTBARE_BEWERTUNG -> "Keine belastbare Bewertung – nicht automatisch verkaufen"
             PortfolioAdvisorAction.NEU_AUFNEHMEN,
             PortfolioAdvisorAction.NICHT_AUFNEHMEN,
             null -> "Keine belastbare Depot-Einordnung – nur verkaufen, wenn nötig"
