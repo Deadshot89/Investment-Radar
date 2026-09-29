@@ -32,7 +32,9 @@ data class LiquidityNeedPlan(
     val cashUsedEur: Double,
     val saleNeededEur: Double,
     val suggestions: List<LiquiditySaleSuggestion>,
-    val uncoveredEur: Double
+    val uncoveredEur: Double,
+    val portfolioValueEur: Double = 0.0,
+    val reliablePortfolioValueEur: Double = 0.0
 ) {
     val coveredEur: Double get() = (requestedEur - uncoveredEur).coerceAtLeast(0.0)
     val noSaleNeeded: Boolean get() = saleNeededEur <= 0.01
@@ -84,6 +86,14 @@ object LiquidityNeedEngine {
         val cashUsed = min(requested, cash)
         val saleNeed = (requested - cashUsed).coerceAtLeast(0.0)
         var remaining = saleNeed
+        // Keep portfolio value separate from recommendation reliability. A holding can
+        // have a valid market value even when its advisor data is not reliable enough
+        // to generate an automatic sale suggestion.
+        val valuedHoldings = holdings.filter {
+            it.currentValueEur.isFinite() && it.currentValueEur > 0.01
+        }
+        val portfolioValue = valuedHoldings.sumOf { it.currentValueEur }
+        val reliablePortfolioValue = valuedHoldings.filter { it.dataReliable }.sumOf { it.currentValueEur }
 
         val suggestions = holdings
             .filter {
@@ -125,7 +135,9 @@ object LiquidityNeedEngine {
             cashUsedEur = cashUsed,
             saleNeededEur = saleNeed,
             suggestions = suggestions,
-            uncoveredEur = remaining.coerceAtLeast(0.0)
+            uncoveredEur = remaining.coerceAtLeast(0.0),
+            portfolioValueEur = portfolioValue,
+            reliablePortfolioValueEur = reliablePortfolioValue
         )
     }
 
