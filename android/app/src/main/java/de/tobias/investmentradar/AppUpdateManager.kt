@@ -43,12 +43,15 @@ object AppUpdateManager {
             return@withContext UpdateCheckResult.Error("GitHub-Repository für Updates ist nicht konfiguriert.")
         }
 
-        val connection = (URL("https://api.github.com/repos/$repository/releases/latest").openConnection() as HttpURLConnection).apply {
+        val connection = (URL("https://api.github.com/repos/$repository/releases/latest?installed=${BuildConfig.VERSION_CODE}").openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
             connectTimeout = 10_000
             readTimeout = 10_000
             setRequestProperty("Accept", "application/vnd.github+json")
             setRequestProperty("User-Agent", "InvestmentRadar/${BuildConfig.VERSION_NAME}")
+            setRequestProperty("Cache-Control", "no-cache, no-store")
+            setRequestProperty("Pragma", "no-cache")
+            useCaches = false
         }
 
         try {
