@@ -6,6 +6,7 @@ concurrency:
 
 permissions:
   contents: write
+  actions: read
 
 on:
   workflow_dispatch:
@@ -242,6 +243,40 @@ jobs:
             exit 1
           fi
           echo "✅ Backend $EXPECTED_BACKEND_VERSION mit API-Schema $EXPECTED_API_SCHEMA, exakter Backend-Inhaltsrevision $EXPECTED_BACKEND_REVISION und echter Deploy-Identität live; Radar ${last_universe} Werte; Android-Publish freigegeben." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify companion release gates
+        if: success() && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=("Android Contract Tests" "Android Instrumented UI Tests")
+          for attempt in $(seq 1 90); do
+            payload=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$GITHUB_SHA&per_page=100")
+            all_ok=true
+            for gate in "${required[@]}"; do
+              status=$(jq -r --arg gate "$gate" '[.workflow_runs[] | select(.name == $gate)] | sort_by(.created_at) | last | (.status // "missing")' <<<"$payload")
+              conclusion=$(jq -r --arg gate "$gate" '[.workflow_runs[] | select(.name == $gate)] | sort_by(.created_at) | last | (.conclusion // "")' <<<"$payload")
+              echo "$gate: status=$status conclusion=${conclusion:-<offen>}"
+              if [ "$status" = "completed" ] && [ "$conclusion" != "success" ]; then
+                echo "❌ Release blockiert: $gate ist $conclusion." >> "$GITHUB_STEP_SUMMARY"
+                exit 1
+              fi
+              if [ "$status" != "completed" ]; then
+                all_ok=false
+              fi
+            done
+            if [ "$all_ok" = "true" ]; then
+              echo "✅ Contract- und UI-Gates für $GITHUB_SHA sind grün." >> "$GITHUB_STEP_SUMMARY"
+              break
+            fi
+            if [ "$attempt" -eq 90 ]; then
+              echo "❌ Release blockiert: Companion-Gates wurden nicht rechtzeitig grün." >> "$GITHUB_STEP_SUMMARY"
+              exit 1
+            fi
+            sleep 10
+          done
 
       - name: Publish APK for in-app updates
         if: success() && github.ref == 'refs/heads/main'
