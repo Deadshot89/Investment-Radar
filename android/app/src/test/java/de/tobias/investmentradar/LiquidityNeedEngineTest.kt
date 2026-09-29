@@ -131,4 +131,26 @@ class LiquidityNeedEngineTest {
         assertEquals(90.0, plan.uncoveredEur, 0.001)
     }
 
+    @Test
+    fun unreliableHoldingStillCountsTowardPortfolioValue() {
+        val unreliable = LiquidityHolding(
+            itemId = "META",
+            instrumentName = "Meta Platforms",
+            currentValueEur = 946.83,
+            shares = 1.436,
+            advisorAction = PortfolioAdvisorAction.KEINE_BELASTBARE_BEWERTUNG,
+            advisorScore = 72,
+            dataReliable = false,
+            forecastDirection = null,
+            profitLossPct = 20.5
+        )
+
+        val plan = LiquidityNeedEngine.plan(200.0, 18.43, listOf(unreliable))
+
+        assertEquals(946.83, plan.portfolioValueEur, 0.001)
+        assertEquals(0.0, plan.reliablePortfolioValueEur, 0.001)
+        assertTrue(plan.suggestions.isEmpty())
+        assertEquals(181.57, plan.uncoveredEur, 0.001)
+    }
+
 }
