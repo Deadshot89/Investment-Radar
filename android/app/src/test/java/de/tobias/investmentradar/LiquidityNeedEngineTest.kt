@@ -77,7 +77,7 @@ class LiquidityNeedEngineTest {
         assertEquals(150.0, plan.coveredEur, 0.001)
     }
     @Test
-    fun unreliableHoldingIsNeverSuggestedForAutomaticLiquiditySale() {
+    fun valuedHoldingStillProducesConcreteSaleSuggestionWhenAdvisorDataIsMissing() {
         val unreliableMeta = LiquidityHolding(
             itemId = "META",
             instrumentName = "Meta Platforms",
@@ -96,12 +96,14 @@ class LiquidityNeedEngineTest {
             holdings = listOf(unreliableMeta)
         )
 
-        assertTrue(plan.suggestions.isEmpty())
-        assertEquals(200.0, plan.uncoveredEur, 0.001)
+        assertEquals(listOf("META"), plan.suggestions.map { it.itemId })
+        assertEquals(200.0, plan.suggestions.single().amountEur, 0.001)
+        assertEquals(0.0, plan.uncoveredEur, 0.001)
+        assertTrue(plan.suggestions.single().reason.contains("vor Order prüfen"))
     }
 
     @Test
-    fun reliableSellCandidateIsPreferredWhileUnreliableLargeHoldingIsExcluded() {
+    fun reliableSellCandidateIsPreferredBeforeUnreliableLargeHolding() {
         val unreliableMeta = LiquidityHolding(
             itemId = "META",
             instrumentName = "Meta Platforms",
@@ -126,9 +128,10 @@ class LiquidityNeedEngineTest {
             holdings = listOf(unreliableMeta, reliableSell)
         )
 
-        assertEquals(listOf("SELL"), plan.suggestions.map { it.itemId })
-        assertEquals(110.0, plan.suggestions.single().amountEur, 0.001)
-        assertEquals(90.0, plan.uncoveredEur, 0.001)
+        assertEquals(listOf("SELL", "META"), plan.suggestions.map { it.itemId })
+        assertEquals(110.0, plan.suggestions[0].amountEur, 0.001)
+        assertEquals(90.0, plan.suggestions[1].amountEur, 0.001)
+        assertEquals(0.0, plan.uncoveredEur, 0.001)
     }
 
     @Test
@@ -149,8 +152,9 @@ class LiquidityNeedEngineTest {
 
         assertEquals(946.83, plan.portfolioValueEur, 0.001)
         assertEquals(0.0, plan.reliablePortfolioValueEur, 0.001)
-        assertTrue(plan.suggestions.isEmpty())
-        assertEquals(181.57, plan.uncoveredEur, 0.001)
+        assertEquals(1, plan.suggestions.size)
+        assertEquals(181.57, plan.suggestions.single().amountEur, 0.001)
+        assertEquals(0.0, plan.uncoveredEur, 0.001)
     }
 
 }
