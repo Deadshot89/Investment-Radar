@@ -18,6 +18,8 @@ grep -F 'if (isFixedIncome) "Anlagewert" else "Aktueller Wert"' "$DASHBOARD" >/d
 grep -F '"festzins" -> "Festzins"' "$STORE" >/dev/null
 grep -F 'if (custom.type.equals("Festzins", ignoreCase = true))' "$VM" >/dev/null
 grep -F 'dashboard.items.filterNot { it.id in fixedIncomeIds }' "$VM" >/dev/null
+grep -F 'fixedIncomePrincipalById[position.itemId] ?: position.activeCostBasis' "$VM" >/dev/null
+grep -F '"Auszahlung bei Fälligkeit"' "$DASHBOARD" >/dev/null
 grep -F 'fixedIncomePrincipal' "$ANALYSIS" >/dev/null
 grep -F 'if (!isFixedIncome)' "$DASHBOARD" >/dev/null
 
