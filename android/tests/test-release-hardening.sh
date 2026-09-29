@@ -39,5 +39,13 @@ grep -Fq 'BACKEND_REVISION="$(git rev-parse HEAD:backend)"' "$BACKEND_WF" || fai
 grep -Fq 'LAST_REVISION' "$BACKEND_WF" || fail 'Backend Deploy prüft die exakte live Backend-Inhaltsrevision nicht.'
 grep -Fq 'EXPECTED_BACKEND_REVISION="$(git rev-parse HEAD:backend)"' "$ANDROID_WF" || fail 'Android Release Gate ist nicht an die exakte Backend-Inhaltsrevision gebunden.'
 grep -Fq 'LAST_DEPLOY_ID' "$BACKEND_WF" || fail 'Backend Deploy prüft die exakte Deploy-ID nicht.'
+grep -Fq 'actions: read' "$ANDROID_WF" || fail 'Android Release Gate darf Companion-Workflowstatus nicht lesen.'
+grep -Fq 'Verify companion release gates' "$ANDROID_WF" || fail 'APK-Publish wartet nicht auf die übrigen Release-Gates.'
+grep -Fq 'Android Contract Tests' "$ANDROID_WF" || fail 'Contract-Gate ist nicht an den APK-Publish gekoppelt.'
+grep -Fq 'Android Instrumented UI Tests' "$ANDROID_WF" || fail 'UI-Gate ist nicht an den APK-Publish gekoppelt.'
+grep -Fq 'head_sha=$GITHUB_SHA' "$ANDROID_WF" || fail 'Companion-Gates werden nicht für exakt denselben Commit geprüft.'
+companion_line=$(grep -n 'Verify companion release gates' "$ANDROID_WF" | head -1 | cut -d: -f1)
+publish_line=$(grep -n 'Publish APK for in-app updates' "$ANDROID_WF" | head -1 | cut -d: -f1)
+[ -n "$companion_line" ] && [ -n "$publish_line" ] && [ "$companion_line" -lt "$publish_line" ] || fail 'Companion-Gates müssen vor dem APK-Publish laufen.'
 
-echo "PASS: Lifecycle-Refresh, sichtbare Stale-Daten-Warnung, versioniertes User-Backup und Deployment-Provenienz sind verdrahtet."
+echo "PASS: Lifecycle-Refresh, Backup, Deployment-Provenienz und gekoppelte Release-Gates sind verdrahtet."
