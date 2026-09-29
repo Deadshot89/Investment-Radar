@@ -2,7 +2,7 @@
 
 Investment Radar ist eine Android-App für die persönliche Beobachtung, Analyse und Verwaltung von Aktien und ETFs. Die App verbindet Live-Marktdaten mit einem regelbasierten Advisor, einem monatlichen Kaufbudget, Depot-/Watchlist-Funktionen und manueller Transaktionserfassung.
 
-**Aktueller Android-Stand:** 2.5.26 / versionCode 96  
+**Aktueller Android-Stand:** 2.5.27 / versionCode 97  
 **Backend:** 2.1.0  
 **API-Schema:** 2026-09-14.1
 
