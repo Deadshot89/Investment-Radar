@@ -95,13 +95,19 @@ object LiquidityNeedEngine {
         val portfolioValue = valuedHoldings.sumOf { it.currentValueEur }
         val reliablePortfolioValue = valuedHoldings.filter { it.dataReliable }.sumOf { it.currentValueEur }
 
-        val suggestions = holdings
-            .filter {
-                it.currentValueEur.isFinite() &&
-                    it.currentValueEur > 0.01 &&
-                    it.dataReliable
-            }
+        // Prefer fully reliable advisor data, but never make the liquidity feature
+        // unusable just because advisor enrichment is missing. A position with a
+        // real positive market value is still a concrete sell candidate; unreliable
+        // candidates are ranked after reliable ones and clearly labelled for review.
+        val suggestions = valuedHoldings
             .sortedWith(
+                compareByDescending<LiquidityHolding> { it.dataReliable }
+                    .thenByDescending { sellPriority(it) }
+                    .thenBy { it.advisorScore ?: 101 }
+                    .thenByDescending { it.currentValueEur }
+                    .thenBy { it.itemId }
+            )
+            .mapNotNull { holding ->
                 compareByDescending<LiquidityHolding> { sellPriority(it) }
                     .thenBy { it.advisorScore ?: 101 }
                     .thenByDescending { it.currentValueEur }
@@ -126,7 +132,7 @@ object LiquidityNeedEngine {
                     remainingValueEur = (holding.currentValueEur - amount).coerceAtLeast(0.0),
                     advisorAction = holding.advisorAction,
                     advisorScore = holding.advisorScore,
-                    reason = reason(holding)
+                    reason = if (holding.dataReliable) reason(holding) else "Verkaufskandidat auf Basis des aktuellen Depotwerts – Advisor-Daten fehlen, vor Order prüfen"
                 )
             }
 
