@@ -1966,11 +1966,24 @@ private fun MoneyManagementScreen(
                             }
                         }
                         if (plan.uncoveredEur > 0.01) {
+                            val totalLiquidity = plan.cashUsedEur + plan.portfolioValueEur
+                            val trulyInsufficient = totalLiquidity + 0.01 < plan.requestedEur
                             Text(
-                                "Noch nicht gedeckt: ${formatMoney(plan.uncoveredEur)}. Der aktuell bewertbare Depotwert reicht für den gewünschten Betrag nicht aus.",
-                                color = RadarRed,
+                                if (trulyInsufficient) {
+                                    "Noch nicht gedeckt: ${formatMoney(plan.uncoveredEur)}. Cash und vorhandener Depotwert reichen für den gewünschten Betrag nicht aus."
+                                } else {
+                                    "Noch nicht durch belastbare Verkaufsvorschläge gedeckt: ${formatMoney(plan.uncoveredEur)}. Es ist ausreichend Depotwert vorhanden, aber für diesen Anteil fehlen aktuell verlässliche Bewertungsdaten. Deshalb wird kein unsicherer Verkauf vorgeschlagen."
+                                },
+                                color = if (trulyInsufficient) RadarRed else RadarYellow,
                                 fontWeight = FontWeight.Bold
                             )
+                            if (!trulyInsufficient) {
+                                Text(
+                                    "Vorhandener Depotwert: ${formatMoney(plan.portfolioValueEur)} · davon belastbar für automatische Verkaufsvorschläge bewertet: ${formatMoney(plan.reliablePortfolioValueEur)}",
+                                    color = RadarMuted,
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
                         }
                     }
 
