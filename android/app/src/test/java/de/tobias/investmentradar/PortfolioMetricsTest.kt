@@ -54,6 +54,37 @@ class PortfolioMetricsTest {
     }
 
     @Test
+    fun fixedIncomeUsesPrincipalWithoutMarketPriceOrShares() {
+        val position = PortfolioPosition(itemId = "fixed")
+        val custom = CustomInvestment(
+            id = "fixed",
+            name = "Festzins Dez. 2026",
+            ticker = "FIXED2026",
+            isin = "",
+            type = "Festzins",
+            fixedPrincipalEur = 2_000.0,
+            fixedMaturityValueEur = 2_007.0,
+            maturityLabel = "Dez. 2026"
+        )
+
+        val result = PortfolioMetrics.calculate(
+            items = emptyList(),
+            positions = mapOf("fixed" to position),
+            customItems = listOf(custom)
+        )
+
+        assertTrue(result.currentValueComplete)
+        assertEquals(0, result.missingPriceCount)
+        assertEquals(1, result.heldPositionCount)
+        assertEquals(1, result.calculablePositionCount)
+        assertEquals(2_000.0, result.calculableCurrentValue, 0.001)
+        assertEquals(2_000.0, result.investedCostBasis, 0.001)
+        assertEquals(0.0, result.totalProfitLoss!!, 0.001)
+        assertEquals(0.0, result.totalProfitLossPct!!, 0.001)
+        assertEquals(100.0, result.positions.single().weightPct!!, 0.001)
+    }
+
+    @Test
     fun fullySoldPositionDoesNotRequireQuoteOrCountAsHeld() {
         val sold = PortfolioPosition(
             itemId = "sold",
