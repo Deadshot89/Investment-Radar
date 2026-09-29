@@ -1,7 +1,7 @@
 # Investment Radar Android App
 
-**Version:** 2.5.26  
-**versionCode:** 96
+**Version:** 2.5.27  
+**versionCode:** 97
 
 ## Technik
 
