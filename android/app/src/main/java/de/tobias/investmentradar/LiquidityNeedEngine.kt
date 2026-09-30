@@ -108,12 +108,6 @@ object LiquidityNeedEngine {
                     .thenBy { it.itemId }
             )
             .mapNotNull { holding ->
-                compareByDescending<LiquidityHolding> { sellPriority(it) }
-                    .thenBy { it.advisorScore ?: 101 }
-                    .thenByDescending { it.currentValueEur }
-                    .thenBy { it.itemId }
-            )
-            .mapNotNull { holding ->
                 if (remaining <= 0.01) return@mapNotNull null
                 val amount = min(remaining, holding.currentValueEur)
                 if (amount <= 0.01) return@mapNotNull null
