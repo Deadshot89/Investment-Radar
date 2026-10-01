@@ -140,16 +140,9 @@ fun PortfolioDashboard(
                 if (!costBasisComplete) {
                     Text("Für einzelne Depotwerte fehlen Einstandsdaten. Depotwert und Gewichtung bleiben korrekt; fehlende Performance wird nicht erfunden.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                if (!metrics.currentValueComplete) {
-                    Text(
-                        "${metrics.missingPriceCount} Position(en) ohne belastbaren aktuellen Wert: ${missingValueNames.joinToString()}. Der berechenbare Teil bleibt sichtbar; ein vollständiger Depotgesamtwert wird nicht behauptet.",
-                        color = MaterialTheme.colorScheme.error,
-                        fontWeight = FontWeight.Bold
-                    )
-                    missingValueNames.forEach { name ->
-                        Text("Prüfen: $name · Kurs oder Stückzahl fehlt", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                    }
-                }
+                // Fehlende Kurse werden direkt an der betroffenen Position angezeigt.
+                // Keine große technische Warnmeldung im Depot-Cockpit: insbesondere
+                // benutzerdefinierte Festzins-/iBond-Werte sollen die Übersicht nicht dominieren.
             }
         }
 
