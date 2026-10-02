@@ -143,8 +143,10 @@ object DepotActionCenterMapper {
         val plannedBuy = mapped
             .filter { it.type in setOf(ActionType.BUY_MORE, ActionType.OPEN_POSITION) && !it.buyBlocked }
             .sumOf { it.displayAmountEur ?: 0.0 }
+        // Data-quality reviews are informational checks, not urgent portfolio actions.
+        // Only concrete sell/reduce actions belong in the urgent counter.
         val urgent = mapped.count {
-            it.type in setOf(ActionType.SELL, ActionType.REDUCE, ActionType.REVIEW_SAVINGS_PLAN)
+            it.type in setOf(ActionType.SELL, ActionType.REDUCE)
         }
 
         return DepotActionCenterState(
