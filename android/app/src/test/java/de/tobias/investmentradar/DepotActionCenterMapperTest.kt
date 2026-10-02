@@ -174,6 +174,32 @@ class DepotActionCenterMapperTest {
     }
 
     @Test
+    fun dataQualitySavingsPlanReviewIsNotCountedAsUrgentAction() {
+        val plan = ActionPlan(
+            "plan",
+            "2026-10-02",
+            0.0,
+            0.0,
+            listOf(
+                action("samsung", ActionType.KEEP_SAVINGS_PLAN, 20.0),
+                action("meta", ActionType.KEEP_SAVINGS_PLAN, 20.0),
+                action("microsoft", ActionType.KEEP_SAVINGS_PLAN, 10.0)
+            )
+        )
+        val candidates = mapOf(
+            "samsung" to candidate("samsung", reliable = false, coverage = 20),
+            "meta" to candidate("meta", reliable = false, coverage = 20),
+            "microsoft" to candidate("microsoft", reliable = false, coverage = 20)
+        )
+
+        val state = DepotActionCenterMapper.build(plan, candidates, emptyMap(), emptyMap())
+
+        assertEquals(0, state.summary.urgentActions)
+        assertTrue(state.items.all { it.type == ActionType.REVIEW_SAVINGS_PLAN })
+        assertTrue(state.items.all { it.dataQualityLabel == "UNVOLLSTÄNDIG" })
+    }
+
+    @Test
     fun emptyPlanReturnsExplicitEmptyState() {
         val state = DepotActionCenterMapper.build(ActionPlan("", "", 0.0, 0.0, emptyList()), emptyMap(), emptyMap(), emptyMap())
 
