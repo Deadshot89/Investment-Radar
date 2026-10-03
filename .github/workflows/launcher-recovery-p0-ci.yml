@@ -44,6 +44,10 @@ jobs:
         working-directory: launcher-recovery-ci
         run: python3 tests/test_launcher_contract.py
 
+      - name: Run release signing contract test
+        working-directory: launcher-recovery-ci
+        run: python3 tests/test_release_signing_contract.py
+
       - name: Build debug APK
         working-directory: launcher-recovery-ci
         run: gradle --no-daemon --stacktrace :app:assembleDebug
