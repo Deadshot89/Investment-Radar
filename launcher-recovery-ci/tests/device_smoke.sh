@@ -7,7 +7,10 @@ PKG="de.tobias.launcher.recovery"
 COMPONENT="$PKG/.MainActivity"
 
 foreground() {
-  adb shell dumpsys activity activities     | tr -d '\r'     | grep -E 'mResumedActivity|topResumedActivity|ResumedActivity'     | head -20
+  adb shell dumpsys activity activities \
+    | tr -d '\r' \
+    | grep -E 'mResumedActivity|topResumedActivity|ResumedActivity' \
+    | head -20
 }
 
 dump_ui() {
@@ -44,10 +47,16 @@ adb install -r "$APK" | tee build/device/install.txt
 adb shell pm list packages | tr -d '\r' | grep -Fx "package:$PKG"
 
 adb shell cmd package set-home-activity --user 0 "$COMPONENT" | tee build/device/set-home.txt
-adb shell cmd package resolve-activity --brief --user 0   -a android.intent.action.MAIN   -c android.intent.category.HOME   | tr -d '\r' | tee build/device/home-resolved.txt
+adb shell cmd package resolve-activity --brief --user 0 \
+  -a android.intent.action.MAIN \
+  -c android.intent.category.HOME \
+  | tr -d '\r' | tee build/device/home-resolved.txt
 grep -q "$PKG" build/device/home-resolved.txt
 
-adb shell am start -W   -a android.intent.action.MAIN   -c android.intent.category.HOME   | tee build/device/home-start.txt
+adb shell am start -W \
+  -a android.intent.action.MAIN \
+  -c android.intent.category.HOME \
+  | tee build/device/home-start.txt || true
 sleep 2
 foreground | tee build/device/home-foreground.txt
 grep -q "$PKG" build/device/home-foreground.txt
@@ -69,6 +78,12 @@ adb shell input keyevent KEYCODE_HOME
 sleep 2
 foreground | tee build/device/home-after-app.txt
 grep -q "$PKG" build/device/home-after-app.txt
+dismiss_system_ui_anr
+dump_ui /sdcard/home-after-app-ui.xml build/device/home-after-app-ui.xml
+if grep -q 'resource-id="android:id/search_src_text"' build/device/home-after-app-ui.xml; then
+  echo "Drawer remained visible after returning HOME from a launched app" >&2
+  exit 21
+fi
 
 adb shell am force-stop "$PKG"
 sleep 1
@@ -92,7 +107,10 @@ test "$booted" = "1"
 adb shell input keyevent KEYCODE_HOME
 sleep 3
 dismiss_system_ui_anr
-adb shell cmd package resolve-activity --brief --user 0   -a android.intent.action.MAIN   -c android.intent.category.HOME   | tr -d '\r' | tee build/device/home-resolved-after-reboot.txt
+adb shell cmd package resolve-activity --brief --user 0 \
+  -a android.intent.action.MAIN \
+  -c android.intent.category.HOME \
+  | tr -d '\r' | tee build/device/home-resolved-after-reboot.txt
 grep -q "$PKG" build/device/home-resolved-after-reboot.txt
 foreground | tee build/device/home-after-reboot.txt
 grep -q "$PKG" build/device/home-after-reboot.txt
@@ -104,4 +122,15 @@ if grep -A20 -B5 'FATAL EXCEPTION' build/device/logcat.txt | grep -q "$PKG"; the
   exit 1
 fi
 
-printf '%s\n'   'PASS: APK install'   'PASS: default HOME resolution'   'PASS: HOME foreground'   'PASS: app drawer'   'PASS: launch Settings from drawer'   'PASS: return HOME'   'PASS: HOME after force-stop'   'PASS: default HOME persisted after reboot'   'PASS: HOME foreground after reboot'   'PASS: no launcher fatal exception in logcat'   | tee build/device/RESULT.txt
+printf '%s\n' \
+  'PASS: APK install' \
+  'PASS: default HOME resolution' \
+  'PASS: HOME foreground' \
+  'PASS: app drawer' \
+  'PASS: launch Settings from drawer' \
+  'PASS: return HOME closes transient drawer state' \
+  'PASS: HOME after force-stop' \
+  'PASS: default HOME persisted after reboot' \
+  'PASS: HOME foreground after reboot' \
+  'PASS: no launcher fatal exception in logcat' \
+  | tee build/device/RESULT.txt
