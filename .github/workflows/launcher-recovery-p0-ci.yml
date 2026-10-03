@@ -1,4 +1,4 @@
-name: Launcher Deepfix CI
+name: Launcher Deepfix CI API36
 
 on:
   push:
@@ -157,10 +157,10 @@ jobs:
           fi
           sha256sum "$APK" | tee build/apk-sha256.txt
 
-      - name: Run signed update and release launcher lifecycle tests
+      - name: Run signed update and release launcher lifecycle tests on API 36
         uses: ReactiveCircus/android-emulator-runner@v2
         with:
-          api-level: 29
+          api-level: 36
           arch: x86_64
           profile: pixel_2
           disable-animations: true
@@ -170,7 +170,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: launcher-deepfix-ci
+          name: launcher-deepfix-ci-api36
           path: |
             launcher-recovery-ci/app/build/outputs/apk/debug/app-debug.apk
             launcher-recovery-ci/app/build/outputs/apk/release/app-release.apk
