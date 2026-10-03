@@ -5,6 +5,39 @@ APK="${1:-app/build/outputs/apk/debug/app-debug.apk}"
 PKG="de.tobias.launcher.recovery"
 COMPONENT="$PKG/.MainActivity"
 
+resolve_home() {
+  adb shell cmd package resolve-activity --brief --user 0 \
+    -a android.intent.action.MAIN \
+    -c android.intent.category.HOME | tr -d '\r'
+}
+
+set_home_and_verify() {
+  local set_log="build/device/set-home.txt"
+  local resolved_log="build/device/home-resolved.txt"
+  : > "$set_log"
+  for attempt in 1 2 3 4 5; do
+    echo "attempt=$attempt package-set-home" >> "$set_log"
+    adb shell cmd package set-home-activity --user 0 "$COMPONENT" >> "$set_log" 2>&1 || true
+    resolve_home | tee "$resolved_log"
+    if grep -q "$PKG" "$resolved_log"; then
+      return 0
+    fi
+
+    echo "attempt=$attempt role-add-home" >> "$set_log"
+    adb shell cmd role add-role-holder --user 0 android.app.role.HOME "$PKG" >> "$set_log" 2>&1 || true
+    sleep 2
+    resolve_home | tee "$resolved_log"
+    if grep -q "$PKG" "$resolved_log"; then
+      return 0
+    fi
+    sleep 2
+  done
+  echo "ERROR: failed to assign and verify HOME role" >&2
+  cat "$set_log" >&2
+  cat "$resolved_log" >&2
+  return 1
+}
+
 foreground() {
   adb shell dumpsys activity activities | tr -d '\r' | grep -E 'mResumedActivity|topResumedActivity|ResumedActivity' | head -20
 }
@@ -36,9 +69,7 @@ dismiss_system_ui_anr() {
 
 adb install -r "$APK" | tee build/device/install.txt
 adb shell pm list packages | tr -d '\r' | grep -Fx "package:$PKG"
-adb shell cmd package set-home-activity --user 0 "$COMPONENT" | tee build/device/set-home.txt
-adb shell cmd package resolve-activity --brief --user 0 -a android.intent.action.MAIN -c android.intent.category.HOME | tr -d '\r' | tee build/device/home-resolved.txt
-grep -q "$PKG" build/device/home-resolved.txt
+set_home_and_verify
 adb shell am start -W -a android.intent.action.MAIN -c android.intent.category.HOME | tee build/device/home-start.txt || true
 sleep 2
 foreground | tee build/device/home-foreground.txt
