@@ -1,9 +1,9 @@
-name: Launcher Recovery Signer Pin CI
+name: Launcher Deepfix CI
 
 on:
   push:
     branches:
-      - launcher-recovery-signer-pin-ci
+      - launcher-deepfix-ci
     paths:
       - 'launcher-recovery-ci/**'
       - '.github/workflows/launcher-recovery-p0-ci.yml'
@@ -149,7 +149,7 @@ jobs:
           fi
           sha256sum "$APK" | tee build/apk-sha256.txt
 
-      - name: Run P0 signed upgrade and launcher lifecycle tests
+      - name: Run signed update and launcher lifecycle tests
         uses: ReactiveCircus/android-emulator-runner@v2
         with:
           api-level: 29
@@ -158,22 +158,14 @@ jobs:
           disable-animations: true
           script: cd launcher-recovery-ci && bash tests/device_upgrade_smoke.sh && bash tests/device_smoke.sh
 
-      - name: Upload verified APK and device evidence
+      - name: Upload build and device evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: launcher-recovery-signer-pin-ci
+          name: launcher-deepfix-ci
           path: |
             launcher-recovery-ci/app/build/outputs/apk/debug/app-debug.apk
             launcher-recovery-ci/app/build/outputs/apk/release/app-release.apk
-            launcher-recovery-ci/build/apksigner.txt
-            launcher-recovery-ci/build/manifest.xml
-            launcher-recovery-ci/build/apk-sha256.txt
-            launcher-recovery-ci/build/release-apksigner.txt
-            launcher-recovery-ci/build/release-apk-sha256.txt
-            launcher-recovery-ci/build/release-missing-signing.log
-            launcher-recovery-ci/build/upgrade/**
-            launcher-recovery-ci/build/device-upgrade/**
-            launcher-recovery-ci/build/device/**
+            launcher-recovery-ci/build/**
           if-no-files-found: warn
           retention-days: 7
