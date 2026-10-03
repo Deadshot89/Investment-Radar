@@ -29,3 +29,13 @@ assert 'pm list packages --show-versioncode --user 0 "$PKG"' in upgrade, \
 assert 'dumpsys package "$PKG"' not in upgrade, \
     'installed version verification must not depend on unstable dumpsys package text formatting'
 print('PASS: installed version check uses stable package-manager version listing')
+
+
+dump_ui_block = smoke.split('dump_ui() {', 1)[1].split('\n}', 1)[0]
+assert 'for attempt in 1 2 3 4 5; do' in dump_ui_block, \
+    'UIAutomator dump must retry transient null-root failures on slow emulators'
+assert 'adb shell rm -f "$remote"' in dump_ui_block, \
+    'UI dump retry must remove stale remote XML before each attempt'
+assert 'adb shell test -s "$remote"' in dump_ui_block, \
+    'UI dump retry must verify that a fresh XML file was actually produced'
+print('PASS: UIAutomator dumps retry transient null-root failures without reusing stale XML')
