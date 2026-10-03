@@ -30,6 +30,16 @@ assert 'dumpsys package "$PKG"' not in upgrade, \
     'installed version verification must not depend on unstable dumpsys package text formatting'
 print('PASS: installed version check uses stable package-manager version listing')
 
+assert 'install_with_retry()' in upgrade, \
+    'upgrade smoke must retry transient adb/package-manager install failures'
+assert 'for attempt in 1 2 3; do' in upgrade, \
+    'upgrade install retry must be bounded'
+assert 'adb install -r "$TARGET_APK"' in upgrade, \
+    'upgrade retry must preserve in-place install semantics'
+assert 'ERROR: failed to install release v2 after 3 attempts' in upgrade, \
+    'upgrade retry must fail closed after the retry budget is exhausted'
+print('PASS: release upgrade retries transient package-manager transport failures with a bounded fail-closed policy')
+
 
 dump_ui_block = smoke.split('dump_ui() {', 1)[1].split('\n}', 1)[0]
 assert 'for attempt in 1 2 3 4 5; do' in dump_ui_block, \
