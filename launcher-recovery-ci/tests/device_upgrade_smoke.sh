@@ -50,8 +50,6 @@ sleep 2
 foreground | tee build/device-upgrade/home-foreground-after-update.txt
 grep -q "$PKG" build/device-upgrade/home-foreground-after-update.txt
 
-adb uninstall "$PKG" | tee build/device-upgrade/uninstall-after-test.txt
-
 printf '%s\n' \
   'PASS: release v1 installed' \
   'PASS: HOME assigned before update' \
