@@ -1,9 +1,9 @@
-name: Launcher Recovery P0 CI
+name: Launcher Recovery Signer Pin CI
 
 on:
   push:
     branches:
-      - launcher-recovery-p0-ci
+      - launcher-recovery-signer-pin-ci
     paths:
       - 'launcher-recovery-ci/**'
       - '.github/workflows/launcher-recovery-p0-ci.yml'
@@ -48,6 +48,10 @@ jobs:
         working-directory: launcher-recovery-ci
         run: python3 tests/test_release_signing_contract.py
 
+      - name: Run signer fingerprint guard regression test
+        working-directory: launcher-recovery-ci
+        run: bash tests/test_signer_fingerprint_guard.sh
+
       - name: Verify release refuses missing signing inputs
         working-directory: launcher-recovery-ci
         shell: bash
@@ -61,7 +65,7 @@ jobs:
           test "$code" -ne 0
           grep -q 'Missing required release signing environment variables' build/release-missing-signing.log
 
-      - name: Build versioned release APKs with one ephemeral CI key
+      - name: Build versioned release APKs and verify pinned signer
         working-directory: launcher-recovery-ci
         shell: bash
         run: |
@@ -103,8 +107,23 @@ jobs:
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs build/upgrade/launcher-v1.apk | grep 'Signer #1 certificate SHA-256 digest:' | tee build/upgrade/signer-v1.txt
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs build/upgrade/launcher-v2.apk | grep 'Signer #1 certificate SHA-256 digest:' | tee build/upgrade/signer-v2.txt
           diff -u build/upgrade/signer-v1.txt build/upgrade/signer-v2.txt
+
+          EXPECTED_SIGNING_CERT_SHA256="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' build/upgrade/signer-v1.txt)"
+          export EXPECTED_SIGNING_CERT_SHA256
+          scripts/verify-release-signer.sh build/upgrade/launcher-v2.apk | tee build/upgrade/signer-pin-match.txt
+
+          set +e
+          EXPECTED_SIGNING_CERT_SHA256='FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF' \
+            scripts/verify-release-signer.sh build/upgrade/launcher-v2.apk \
+            > build/upgrade/signer-pin-mismatch.out \
+            2> build/upgrade/signer-pin-mismatch.err
+          mismatch_code=$?
+          set -e
+          test "$mismatch_code" -eq 9
+          grep -q 'Signing certificate SHA-256 mismatch' build/upgrade/signer-pin-mismatch.err
+
           cp build/upgrade/launcher-v2.apk app/build/outputs/apk/release/app-release.apk
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs app/build/outputs/apk/release/app-release.apk | tee build/release-apksigner.txt
+          scripts/verify-release-signer.sh app/build/outputs/apk/release/app-release.apk | tee build/release-apksigner.txt
           sha256sum app/build/outputs/apk/release/app-release.apk | tee build/release-apk-sha256.txt
 
       - name: Build debug APK
@@ -143,7 +162,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: launcher-recovery-p0-device-test
+          name: launcher-recovery-signer-pin-ci
           path: |
             launcher-recovery-ci/app/build/outputs/apk/debug/app-debug.apk
             launcher-recovery-ci/app/build/outputs/apk/release/app-release.apk
