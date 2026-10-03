@@ -110,11 +110,11 @@ jobs:
 
           EXPECTED_SIGNING_CERT_SHA256="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' build/upgrade/signer-v1.txt)"
           export EXPECTED_SIGNING_CERT_SHA256
-          scripts/verify-release-signer.sh build/upgrade/launcher-v2.apk | tee build/upgrade/signer-pin-match.txt
+          bash scripts/verify-release-signer.sh build/upgrade/launcher-v2.apk | tee build/upgrade/signer-pin-match.txt
 
           set +e
           EXPECTED_SIGNING_CERT_SHA256='FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF' \
-            scripts/verify-release-signer.sh build/upgrade/launcher-v2.apk \
+            bash scripts/verify-release-signer.sh build/upgrade/launcher-v2.apk \
             > build/upgrade/signer-pin-mismatch.out \
             2> build/upgrade/signer-pin-mismatch.err
           mismatch_code=$?
@@ -123,7 +123,7 @@ jobs:
           grep -q 'Signing certificate SHA-256 mismatch' build/upgrade/signer-pin-mismatch.err
 
           cp build/upgrade/launcher-v2.apk app/build/outputs/apk/release/app-release.apk
-          scripts/verify-release-signer.sh app/build/outputs/apk/release/app-release.apk | tee build/release-apksigner.txt
+          bash scripts/verify-release-signer.sh app/build/outputs/apk/release/app-release.apk | tee build/release-apksigner.txt
           sha256sum app/build/outputs/apk/release/app-release.apk | tee build/release-apk-sha256.txt
 
       - name: Build debug APK
