@@ -18,18 +18,18 @@ echo 'Signer #1 certificate SHA-256 digest: 00112233445566778899aabbccddeeff0011
 FAKEEOF
 chmod +x "$FAKE"
 
-EXPECTED_SIGNING_CERT_SHA256='00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF' APKSIGNER_BIN="$FAKE" "$ROOT/scripts/verify-release-signer.sh" "$APK" > "$TMP/match.txt"
+EXPECTED_SIGNING_CERT_SHA256='00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF' APKSIGNER_BIN="$FAKE" bash "$ROOT/scripts/verify-release-signer.sh" "$APK" > "$TMP/match.txt"
 grep -q 'PASS: Signing certificate SHA-256 matches pinned production fingerprint' "$TMP/match.txt"
 
 set +e
-EXPECTED_SIGNING_CERT_SHA256='FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF' APKSIGNER_BIN="$FAKE" "$ROOT/scripts/verify-release-signer.sh" "$APK" > "$TMP/mismatch.out" 2> "$TMP/mismatch.err"
+EXPECTED_SIGNING_CERT_SHA256='FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF' APKSIGNER_BIN="$FAKE" bash "$ROOT/scripts/verify-release-signer.sh" "$APK" > "$TMP/mismatch.out" 2> "$TMP/mismatch.err"
 code=$?
 set -e
 test "$code" -eq 9
 grep -q 'Signing certificate SHA-256 mismatch' "$TMP/mismatch.err"
 
 set +e
-EXPECTED_SIGNING_CERT_SHA256='not-a-sha256' APKSIGNER_BIN="$FAKE" "$ROOT/scripts/verify-release-signer.sh" "$APK" > "$TMP/malformed.out" 2> "$TMP/malformed.err"
+EXPECTED_SIGNING_CERT_SHA256='not-a-sha256' APKSIGNER_BIN="$FAKE" bash "$ROOT/scripts/verify-release-signer.sh" "$APK" > "$TMP/malformed.out" 2> "$TMP/malformed.err"
 code=$?
 set -e
 test "$code" -eq 7
