@@ -13,3 +13,9 @@ assert 'bash tests/device_smoke.sh build/upgrade/launcher-v2.apk' in ci, \
     'CI must run the full lifecycle against the signed release-v2 artifact'
 
 print('PASS: full launcher lifecycle is executed against the signed release upgrade target')
+
+for script_name in ('tests/device_smoke.sh', 'tests/device_upgrade_smoke.sh'):
+    script = (ROOT / script_name).read_text(encoding='utf-8')
+    assert 'set_home_and_verify()' in script, f'{script_name} must retry HOME assignment and verify the resolver'
+    assert 'cmd package resolve-activity' in script, f'{script_name} must verify the HOME resolver after assignment'
+print('PASS: device tests retry HOME assignment and verify resolver state')
