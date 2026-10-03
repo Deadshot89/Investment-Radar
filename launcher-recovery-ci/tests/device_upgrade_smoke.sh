@@ -55,6 +55,22 @@ foreground() {
     | head -20
 }
 
+install_with_retry() {
+  local log="build/device-upgrade/install-v2.txt"
+  : > "$log"
+  for attempt in 1 2 3; do
+    echo "attempt=$attempt adb-install-replace" | tee -a "$log"
+    if adb install -r "$TARGET_APK" 2>&1 | tee -a "$log"; then
+      return 0
+    fi
+    echo "Transient install failure; waiting for device/package manager before retry" | tee -a "$log"
+    adb wait-for-device
+    sleep 5
+  done
+  echo "ERROR: failed to install release v2 after 3 attempts" | tee -a "$log" >&2
+  return 1
+}
+
 test -s "$BASE_APK"
 test -s "$TARGET_APK"
 
@@ -64,7 +80,7 @@ assert_version_code 1 | tee build/device-upgrade/version-v1.txt
 
 set_home_and_verify
 
-adb install -r "$TARGET_APK" | tee build/device-upgrade/install-v2.txt
+install_with_retry
 assert_version_code 2 | tee build/device-upgrade/version-v2.txt
 
 adb shell cmd package resolve-activity --brief --user 0 \
@@ -80,6 +96,7 @@ adb shell am start -W \
 sleep 2
 foreground | tee build/device-upgrade/home-foreground-after-update.txt
 grep -q "$PKG" build/device-upgrade/home-foreground-after-update.txt
+
 
 printf '%s\n' \
   'PASS: release v1 installed' \
