@@ -44,7 +44,6 @@ public final class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-        reloadApps();
         setContentView(buildHome());
     }
 
@@ -71,7 +70,6 @@ public final class MainActivity extends Activity {
             drawerPanel.setVisibility(View.GONE);
             return;
         }
-        // A launcher must stay on HOME instead of finishing into an arbitrary prior task.
         Intent home = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME);
         home.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         startActivity(home);
@@ -146,6 +144,14 @@ public final class MainActivity extends Activity {
         drawerSearch = new SearchView(this);
         drawerSearch.setQueryHint("Apps suchen");
         drawerSearch.setIconifiedByDefault(false);
+        TextView searchText = drawerSearch.findViewById(android.R.id.search_src_text);
+        if (searchText != null) {
+            searchText.setTextColor(Color.WHITE);
+            searchText.setHintTextColor(Color.argb(190, 255, 255, 255));
+        }
+        int searchIconId = getResources().getIdentifier("search_mag_icon", "id", "android");
+        ImageView searchIcon = searchIconId == 0 ? null : drawerSearch.findViewById(searchIconId);
+        if (searchIcon != null) searchIcon.setColorFilter(Color.WHITE);
         drawerSearch.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
             public boolean onQueryTextSubmit(String query) { filterApps(query); return true; }
             public boolean onQueryTextChange(String newText) { filterApps(newText); return true; }
@@ -269,23 +275,50 @@ public final class MainActivity extends Activity {
         public int getCount() { return apps.size(); }
         public Object getItem(int p) { return apps.get(p); }
         public long getItemId(int p) { return p; }
+
         public View getView(int p, View convertView, ViewGroup parent) {
             AppEntry app = apps.get(p);
-            LinearLayout cell = new LinearLayout(context);
-            cell.setOrientation(LinearLayout.VERTICAL);
-            cell.setGravity(Gravity.CENTER);
-            cell.setPadding(4, 10, 4, 8);
-            ImageView icon = new ImageView(context);
-            icon.setImageDrawable(app.icon);
-            cell.addView(icon, new LinearLayout.LayoutParams(64,64));
-            TextView label = new TextView(context);
-            label.setText(app.label);
-            label.setTextColor(Color.WHITE);
-            label.setTextSize(12);
-            label.setGravity(Gravity.CENTER);
-            label.setMaxLines(2);
-            cell.addView(label, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-            return cell;
+            ViewHolder holder;
+            if (convertView == null) {
+                LinearLayout cell = new LinearLayout(context);
+                cell.setOrientation(LinearLayout.VERTICAL);
+                cell.setGravity(Gravity.CENTER);
+                cell.setPadding(dp(4), dp(10), dp(4), dp(8));
+
+                ImageView icon = new ImageView(context);
+                cell.addView(icon, new LinearLayout.LayoutParams(dp(48),dp(48)));
+
+                TextView label = new TextView(context);
+                label.setTextColor(Color.WHITE);
+                label.setTextSize(12);
+                label.setGravity(Gravity.CENTER);
+                label.setMaxLines(2);
+                cell.addView(label, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+                holder = new ViewHolder(icon, label);
+                convertView = cell;
+                convertView.setTag(holder);
+            } else {
+                holder = (ViewHolder) convertView.getTag();
+            }
+
+            holder.icon.setImageDrawable(app.icon);
+            holder.label.setText(app.label);
+            return convertView;
+        }
+
+        private int dp(int value) {
+            return Math.round(value * context.getResources().getDisplayMetrics().density);
+        }
+
+        static final class ViewHolder {
+            final ImageView icon;
+            final TextView label;
+
+            ViewHolder(ImageView icon, TextView label) {
+                this.icon = icon;
+                this.label = label;
+            }
         }
     }
 }
