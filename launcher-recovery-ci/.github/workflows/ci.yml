@@ -1,0 +1,74 @@
+name: Launcher CI
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Prepare Android SDK 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "platforms;android-36" "build-tools;35.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+      - name: Contract tests
+        run: |
+          python3 tests/test_launcher_contract.py
+          python3 tests/test_release_signing_contract.py
+          python3 tests/test_release_workflow_contract.py
+          bash tests/test_signer_fingerprint_guard.sh
+      - name: Release must reject missing signing inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          set +e
+          gradle --no-daemon :app:assembleRelease > build/release-missing-signing.log 2>&1
+          code=$?
+          set -e
+          test "$code" -ne 0
+          grep -q 'Missing required release signing environment variables' build/release-missing-signing.log
+      - name: Build versioned releases with one ephemeral CI key
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/upgrade
+          TEST_KEYSTORE="$RUNNER_TEMP/launcher-ci-test.jks"
+          keytool -genkeypair -noprompt -keystore "$TEST_KEYSTORE" -storepass launcher-ci-only -alias launcher-ci -keypass launcher-ci-only -dname 'CN=Launcher CI Test,O=CI,C=DE' -keyalg RSA -keysize 2048 -validity 2
+          export LAUNCHER_KEYSTORE_PATH="$TEST_KEYSTORE"
+          export LAUNCHER_KEYSTORE_PASSWORD='launcher-ci-only'
+          export LAUNCHER_KEY_ALIAS='launcher-ci'
+          export LAUNCHER_KEY_PASSWORD='launcher-ci-only'
+          gradle --no-daemon :app:assembleRelease -PAPP_VERSION_CODE=1 -PAPP_VERSION_NAME=0.1.0-upgrade-base
+          cp app/build/outputs/apk/release/app-release.apk build/upgrade/launcher-v1.apk
+          gradle --no-daemon --rerun-tasks :app:assembleRelease -PAPP_VERSION_CODE=2 -PAPP_VERSION_NAME=0.1.1-upgrade-target
+          cp app/build/outputs/apk/release/app-release.apk build/upgrade/launcher-v2.apk
+          test "$("$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer" manifest version-code build/upgrade/launcher-v1.apk | tr -d '\r')" = "1"
+          test "$("$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer" manifest version-code build/upgrade/launcher-v2.apk | tr -d '\r')" = "2"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs build/upgrade/launcher-v1.apk | grep 'Signer #1 certificate SHA-256 digest:' > build/upgrade/signer-v1.txt
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs build/upgrade/launcher-v2.apk | grep 'Signer #1 certificate SHA-256 digest:' > build/upgrade/signer-v2.txt
+          diff -u build/upgrade/signer-v1.txt build/upgrade/signer-v2.txt
+      - name: Debug build
+        run: gradle --no-daemon :app:assembleDebug
+      - name: Signed update and launcher lifecycle smoke test
+        uses: ReactiveCircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          script: bash tests/device_upgrade_smoke.sh && bash tests/device_smoke.sh build/upgrade/launcher-v2.apk
