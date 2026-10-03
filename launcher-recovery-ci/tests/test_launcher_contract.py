@@ -99,3 +99,7 @@ assert "convertView.getTag()" in adapter_recycle
 assert "holder.icon.setImageDrawable(app.icon);" in adapter_recycle
 assert "holder.label.setText(app.label);" in adapter_recycle
 print("PASS: app grid adapter recycles cell views and updates recycled content")
+
+assert 'getIdentifier("search_src_text", "id", "android")' in src
+assert 'android.R.id.search_src_text' not in src
+print("PASS: drawer search styling uses runtime-safe framework resource lookup")
