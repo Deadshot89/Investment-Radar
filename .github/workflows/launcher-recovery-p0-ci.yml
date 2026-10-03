@@ -48,6 +48,14 @@ jobs:
         working-directory: launcher-recovery-ci
         run: python3 tests/test_release_signing_contract.py
 
+      - name: Run release workflow integrity contract
+        working-directory: launcher-recovery-ci
+        run: python3 tests/test_release_workflow_contract.py
+
+      - name: Run signed release lifecycle contract
+        working-directory: launcher-recovery-ci
+        run: python3 tests/test_device_release_lifecycle_contract.py
+
       - name: Run signer fingerprint guard regression test
         working-directory: launcher-recovery-ci
         run: bash tests/test_signer_fingerprint_guard.sh
@@ -149,14 +157,14 @@ jobs:
           fi
           sha256sum "$APK" | tee build/apk-sha256.txt
 
-      - name: Run signed update and launcher lifecycle tests
+      - name: Run signed update and release launcher lifecycle tests
         uses: ReactiveCircus/android-emulator-runner@v2
         with:
           api-level: 29
           arch: x86_64
           profile: pixel_2
           disable-animations: true
-          script: cd launcher-recovery-ci && bash tests/device_upgrade_smoke.sh && bash tests/device_smoke.sh
+          script: cd launcher-recovery-ci && bash tests/device_upgrade_smoke.sh && bash tests/device_smoke.sh build/upgrade/launcher-v2.apk
 
       - name: Upload build and device evidence
         if: always()
