@@ -26,15 +26,16 @@ set_home_and_verify() {
   local resolved_log="build/device-upgrade/home-before-update.txt"
   : > "$set_log"
   for attempt in 1 2 3 4 5; do
-    echo "attempt=$attempt package-set-home" >> "$set_log"
-    adb shell cmd package set-home-activity --user 0 "$COMPONENT" >> "$set_log" 2>&1 || true
+    echo "attempt=$attempt role-add-home" >> "$set_log"
+    adb shell cmd role add-role-holder --user 0 android.app.role.HOME "$PKG" >> "$set_log" 2>&1 || true
+    sleep 2
     resolve_home | tee "$resolved_log"
     if grep -q "$PKG" "$resolved_log"; then
       return 0
     fi
 
-    echo "attempt=$attempt role-add-home" >> "$set_log"
-    adb shell cmd role add-role-holder --user 0 android.app.role.HOME "$PKG" >> "$set_log" 2>&1 || true
+    echo "attempt=$attempt package-set-home" >> "$set_log"
+    adb shell cmd package set-home-activity --user 0 "$COMPONENT" >> "$set_log" 2>&1 || true
     sleep 2
     resolve_home | tee "$resolved_log"
     if grep -q "$PKG" "$resolved_log"; then
@@ -96,7 +97,6 @@ adb shell am start -W \
 sleep 2
 foreground | tee build/device-upgrade/home-foreground-after-update.txt
 grep -q "$PKG" build/device-upgrade/home-foreground-after-update.txt
-
 
 printf '%s\n' \
   'PASS: release v1 installed' \
