@@ -68,7 +68,7 @@ tap_text() {
 dismiss_system_ui_anr() {
   for _ in 1 2 3; do
     dump_ui /sdcard/system-dialog.xml build/device/system-dialog.xml
-    if grep -q "System UI isn.t responding" build/device/system-dialog.xml; then
+    if grep -Eq 'text="(System UI|Process system) isn.t responding"' build/device/system-dialog.xml; then
       local coords
       coords="$(python3 tests/tap_text.py build/device/system-dialog.xml "Wait")"
       adb shell input tap $coords
