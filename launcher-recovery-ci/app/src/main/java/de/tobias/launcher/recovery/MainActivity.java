@@ -14,6 +14,7 @@ import android.provider.Settings;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.AdapterView;
 import android.widget.BaseAdapter;
 import android.widget.Button;
 import android.widget.GridView;
@@ -36,6 +37,7 @@ public final class MainActivity extends Activity {
     private final ArrayList<AppEntry> favoriteApps = new ArrayList<>();
     private GridView favoritesGrid;
     private GridView drawerGrid;
+    private SearchView drawerSearch;
     private View drawerPanel;
 
     @Override
@@ -55,11 +57,21 @@ public final class MainActivity extends Activity {
     }
 
     @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        if (Intent.ACTION_MAIN.equals(intent.getAction()) && intent.hasCategory(Intent.CATEGORY_HOME)) {
+            if (drawerPanel != null) drawerPanel.setVisibility(View.GONE);
+        }
+    }
+
+    @Override
     public void onBackPressed() {
         if (drawerPanel != null && drawerPanel.getVisibility() == View.VISIBLE) {
             drawerPanel.setVisibility(View.GONE);
             return;
         }
+        // A launcher must stay on HOME instead of finishing into an arbitrary prior task.
         Intent home = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME);
         home.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         startActivity(home);
@@ -83,7 +95,7 @@ public final class MainActivity extends Activity {
         TextClock date = new TextClock(this);
         date.setFormat12Hour("EEEE, d. MMMM");
         date.setFormat24Hour("EEEE, d. MMMM");
-        date.setTextColor(Color.argb(220, 255, 255, 255));
+        date.setTextColor(Color.argb(220,255,255,255));
         date.setTextSize(17);
         date.setGravity(Gravity.CENTER);
         root.addView(date, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(46)));
@@ -110,7 +122,7 @@ public final class MainActivity extends Activity {
         Button apps = button("Apps");
         apps.setOnClickListener(v -> showDrawer());
         LinearLayout.LayoutParams appsLp = new LinearLayout.LayoutParams(0, dp(54), 1f);
-        appsLp.setMargins(dp(10), 0, 0, 0);
+        appsLp.setMargins(dp(10),0,0,0);
         dock.addView(apps, appsLp);
         root.addView(dock, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(62)));
 
@@ -131,19 +143,19 @@ public final class MainActivity extends Activity {
 
         LinearLayout top = new LinearLayout(this);
         top.setGravity(Gravity.CENTER_VERTICAL);
-        SearchView search = new SearchView(this);
-        search.setQueryHint("Apps suchen");
-        search.setIconifiedByDefault(false);
-        search.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
+        drawerSearch = new SearchView(this);
+        drawerSearch.setQueryHint("Apps suchen");
+        drawerSearch.setIconifiedByDefault(false);
+        drawerSearch.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
             public boolean onQueryTextSubmit(String query) { filterApps(query); return true; }
             public boolean onQueryTextChange(String newText) { filterApps(newText); return true; }
         });
-        top.addView(search, new LinearLayout.LayoutParams(0, dp(58), 1f));
+        top.addView(drawerSearch, new LinearLayout.LayoutParams(0, dp(58), 1f));
         Button close = button("✕");
         close.setContentDescription("App-Übersicht schließen");
         close.setOnClickListener(v -> panel.setVisibility(View.GONE));
         LinearLayout.LayoutParams closeLp = new LinearLayout.LayoutParams(dp(58), dp(54));
-        closeLp.setMargins(dp(8), 0, 0, 0);
+        closeLp.setMargins(dp(8),0,0,0);
         top.addView(close, closeLp);
         panel.addView(top, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(64)));
 
@@ -158,6 +170,7 @@ public final class MainActivity extends Activity {
     }
 
     private void showDrawer() {
+        if (drawerSearch != null) drawerSearch.setQuery("", false);
         filterApps("");
         drawerPanel.setVisibility(View.VISIBLE);
     }
@@ -234,7 +247,7 @@ public final class MainActivity extends Activity {
         b.setTextSize(15);
         b.setAllCaps(false);
         b.setBackgroundColor(Color.argb(150, 30, 34, 44));
-        b.setPadding(dp(10), 0, dp(10), 0);
+        b.setPadding(dp(10),0,dp(10),0);
         return b;
     }
 
@@ -252,27 +265,19 @@ public final class MainActivity extends Activity {
     static final class AppAdapter extends BaseAdapter {
         private final Context context;
         private final List<AppEntry> apps;
-
-        AppAdapter(Context context, List<AppEntry> apps) {
-            this.context = context;
-            this.apps = apps;
-        }
-
+        AppAdapter(Context context, List<AppEntry> apps) { this.context = context; this.apps = apps; }
         public int getCount() { return apps.size(); }
         public Object getItem(int p) { return apps.get(p); }
         public long getItemId(int p) { return p; }
-
         public View getView(int p, View convertView, ViewGroup parent) {
             AppEntry app = apps.get(p);
             LinearLayout cell = new LinearLayout(context);
             cell.setOrientation(LinearLayout.VERTICAL);
             cell.setGravity(Gravity.CENTER);
             cell.setPadding(4, 10, 4, 8);
-
             ImageView icon = new ImageView(context);
             icon.setImageDrawable(app.icon);
-            cell.addView(icon, new LinearLayout.LayoutParams(64, 64));
-
+            cell.addView(icon, new LinearLayout.LayoutParams(64,64));
             TextView label = new TextView(context);
             label.setText(app.label);
             label.setTextColor(Color.WHITE);
