@@ -23,3 +23,9 @@ print('PASS: device tests retry HOME assignment and verify resolver state')
 assert 'grep -m1 "versionCode=$expected "' not in upgrade, \
     'version assertion must not short-circuit a pipe under pipefail and trigger SIGPIPE/141'
 print('PASS: version assertion consumes full dumpsys output without SIGPIPE under pipefail')
+
+assert 'pm list packages --show-versioncode --user 0 "$PKG"' in upgrade, \
+    'installed version verification must use package-manager version listing on modern Android'
+assert 'dumpsys package "$PKG"' not in upgrade, \
+    'installed version verification must not depend on unstable dumpsys package text formatting'
+print('PASS: installed version check uses stable package-manager version listing')
