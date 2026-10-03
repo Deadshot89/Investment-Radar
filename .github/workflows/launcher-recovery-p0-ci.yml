@@ -48,6 +48,45 @@ jobs:
         working-directory: launcher-recovery-ci
         run: python3 tests/test_release_signing_contract.py
 
+      - name: Verify release refuses missing signing inputs
+        working-directory: launcher-recovery-ci
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          set +e
+          gradle --no-daemon :app:assembleRelease > build/release-missing-signing.log 2>&1
+          code=$?
+          set -e
+          test "$code" -ne 0
+          grep -q 'Missing required release signing environment variables' build/release-missing-signing.log
+
+      - name: Build and verify release APK with ephemeral CI key
+        working-directory: launcher-recovery-ci
+        shell: bash
+        run: |
+          set -euo pipefail
+          TEST_KEYSTORE="$RUNNER_TEMP/launcher-ci-test.jks"
+          keytool -genkeypair -noprompt \
+            -keystore "$TEST_KEYSTORE" \
+            -storepass launcher-ci-only \
+            -alias launcher-ci \
+            -keypass launcher-ci-only \
+            -dname 'CN=Launcher CI Test,O=CI,C=DE' \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 2
+          export LAUNCHER_KEYSTORE_PATH="$TEST_KEYSTORE"
+          export LAUNCHER_KEYSTORE_PASSWORD='launcher-ci-only'
+          export LAUNCHER_KEY_ALIAS='launcher-ci'
+          export LAUNCHER_KEY_PASSWORD='launcher-ci-only'
+          gradle --no-daemon --stacktrace :app:assembleRelease
+          RELEASE_APK="app/build/outputs/apk/release/app-release.apk"
+          test -s "$RELEASE_APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$RELEASE_APK" | tee build/release-apksigner.txt
+          test "$("$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer" manifest debuggable "$RELEASE_APK" | tr -d '\r')" = "false"
+          sha256sum "$RELEASE_APK" | tee build/release-apk-sha256.txt
+
       - name: Build debug APK
         working-directory: launcher-recovery-ci
         run: gradle --no-daemon --stacktrace :app:assembleDebug
@@ -87,9 +126,13 @@ jobs:
           name: launcher-recovery-p0-device-test
           path: |
             launcher-recovery-ci/app/build/outputs/apk/debug/app-debug.apk
+            launcher-recovery-ci/app/build/outputs/apk/release/app-release.apk
             launcher-recovery-ci/build/apksigner.txt
             launcher-recovery-ci/build/manifest.xml
             launcher-recovery-ci/build/apk-sha256.txt
+            launcher-recovery-ci/build/release-apksigner.txt
+            launcher-recovery-ci/build/release-apk-sha256.txt
+            launcher-recovery-ci/build/release-missing-signing.log
             launcher-recovery-ci/build/device/**
           if-no-files-found: warn
           retention-days: 7
