@@ -144,7 +144,8 @@ public final class MainActivity extends Activity {
         drawerSearch = new SearchView(this);
         drawerSearch.setQueryHint("Apps suchen");
         drawerSearch.setIconifiedByDefault(false);
-        TextView searchText = drawerSearch.findViewById(android.R.id.search_src_text);
+        int searchTextId = getResources().getIdentifier("search_src_text", "id", "android");
+        TextView searchText = searchTextId == 0 ? null : drawerSearch.findViewById(searchTextId);
         if (searchText != null) {
             searchText.setTextColor(Color.WHITE);
             searchText.setHintTextColor(Color.argb(190, 255, 255, 255));
