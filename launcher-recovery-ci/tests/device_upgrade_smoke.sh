@@ -9,7 +9,10 @@ COMPONENT="$PKG/.MainActivity"
 
 assert_version_code() {
   local expected="$1"
-  adb shell dumpsys package "$PKG" | tr -d '\r' | grep "versionCode=$expected "
+  local package_line
+  package_line="$(adb shell pm list packages --show-versioncode --user 0 "$PKG" | tr -d '\r')"
+  printf '%s\n' "$package_line"
+  grep -Eq "^package:${PKG} versionCode:${expected}([[:space:]]|$)" <<< "$package_line"
 }
 
 resolve_home() {
