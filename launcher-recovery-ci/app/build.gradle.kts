@@ -2,6 +2,12 @@ plugins {
     id("com.android.application")
 }
 
+val appVersionCode = providers.gradleProperty("APP_VERSION_CODE")
+    .map(String::toInt)
+    .getOrElse(1)
+val appVersionName = providers.gradleProperty("APP_VERSION_NAME")
+    .getOrElse("0.1.0-recovery")
+
 val releaseSigningVariables = listOf(
     "LAUNCHER_KEYSTORE_PATH",
     "LAUNCHER_KEYSTORE_PASSWORD",
@@ -17,8 +23,8 @@ android {
         applicationId = "de.tobias.launcher.recovery"
         minSdk = 23
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0-recovery"
+        versionCode = appVersionCode
+        versionName = appVersionName
     }
 
     signingConfigs {
