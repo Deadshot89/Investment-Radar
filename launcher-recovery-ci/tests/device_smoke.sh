@@ -42,9 +42,21 @@ foreground() {
   adb shell dumpsys activity activities | tr -d '\r' | grep -E 'mResumedActivity|topResumedActivity|ResumedActivity' | head -20
 }
 dump_ui() {
-  local remote="$1" local_file="$2"
-  adb shell uiautomator dump "$remote" >/dev/null
-  adb pull "$remote" "$local_file" >/dev/null
+  local remote="$1" local_file="$2" attempt
+  for attempt in 1 2 3 4 5; do
+    rm -f "$local_file"
+    adb shell rm -f "$remote" >/dev/null 2>&1 || true
+    if adb shell uiautomator dump "$remote" >/dev/null 2>&1 \
+      && adb shell test -s "$remote" >/dev/null 2>&1 \
+      && adb pull "$remote" "$local_file" >/dev/null 2>&1 \
+      && [ -s "$local_file" ]; then
+      return 0
+    fi
+    sleep 2
+  done
+  echo "ERROR: UIAutomator did not produce $remote after 5 attempts" >&2
+  adb shell uiautomator dump "$remote" || true
+  return 1
 }
 tap_text() {
   local wanted="$1" coords
