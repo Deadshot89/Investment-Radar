@@ -49,3 +49,9 @@ assert 'adb shell rm -f "$remote"' in dump_ui_block, \
 assert 'adb shell test -s "$remote"' in dump_ui_block, \
     'UI dump retry must verify that a fresh XML file was actually produced'
 print('PASS: UIAutomator dumps retry transient null-root failures without reusing stale XML')
+
+assert 'System UI|Process system' in smoke, \
+    'device smoke must recognize both legacy System UI and API 36 process-system ANR titles'
+assert 'text="(System UI|Process system) isn.t responding"' in smoke, \
+    'system ANR dismissal must be narrowly scoped to known Android system dialog titles'
+print('PASS: device smoke recognizes API 36 process-system ANR dialogs without broadening to app ANRs')
