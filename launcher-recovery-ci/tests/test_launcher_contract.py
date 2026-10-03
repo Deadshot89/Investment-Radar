@@ -9,7 +9,6 @@ main = ROOT / "app/src/main/java/de/tobias/launcher/recovery/MainActivity.java"
 ns = {"a": "http://schemas.android.com/apk/res/android"}
 root = ET.parse(manifest).getroot()
 
-# Privacy/security regression: the launcher must not request broad package visibility.
 permission_names = {
     x.attrib["{http://schemas.android.com/apk/res/android}name"]
     for x in root.findall("uses-permission")
@@ -51,12 +50,9 @@ for required in [
 
 print("PASS: least-privilege package visibility, HOME contract, default-role flow, wallpaper visibility, app discovery, app launch, home+drawer UI")
 
-# Regression: favorites must own their storage, not keep a live ArrayList.subList view.
 assert "private final ArrayList<AppEntry> favoriteApps = new ArrayList<>();" in src
 assert "favoriteApps.addAll(allApps.subList(" in src
 assert "favoriteApps = allApps.subList(" not in src
-
-# Regression: favorites must be refreshed after reloadApps(), not kept as a one-time local snapshot.
 assert "private final ArrayList<AppEntry> favoriteApps" in src
 assert "private GridView favoritesGrid" in src
 assert "private void refreshFavorites()" in src
@@ -66,7 +62,6 @@ assert "launch(favoriteApps.get(position))" in src
 assert "List<AppEntry> top =" not in src
 print("PASS: favorites refresh is bound to app reload and click handling uses refreshed entries")
 
-# Regression: bringing the singleTask launcher HOME must dismiss transient drawer state.
 assert "protected void onNewIntent(Intent intent)" in src
 on_new_intent = src.split("protected void onNewIntent(Intent intent)", 1)[1].split("}", 1)[0]
 assert "Intent.ACTION_MAIN" in on_new_intent
@@ -74,9 +69,33 @@ assert "Intent.CATEGORY_HOME" in on_new_intent
 assert "drawerPanel.setVisibility(View.GONE);" in on_new_intent
 print("PASS: HOME re-entry dismisses transient drawer state")
 
-# Regression: reopening the drawer resets both visible query text and filtered data.
 assert "private SearchView drawerSearch;" in src
 show_drawer = src.split("private void showDrawer()", 1)[1].split("}", 1)[0]
 assert 'drawerSearch.setQuery("", false);' in show_drawer
 assert 'filterApps("");' in show_drawer
 print("PASS: reopening the drawer resets search query and results together")
+
+assert 'searchText.setTextColor(Color.WHITE);' in src
+assert 'searchText.setHintTextColor(' in src
+assert 'searchIcon.setColorFilter(Color.WHITE);' in src
+print("PASS: dark drawer search affordance has explicit high-contrast foreground colors")
+
+adapter = src.split("static final class AppAdapter", 1)[1]
+assert 'cell.setPadding(dp(4), dp(10), dp(4), dp(8));' in adapter
+assert 'new LinearLayout.LayoutParams(dp(48),dp(48))' in adapter
+assert 'private int dp(int value)' in adapter
+print("PASS: app drawer icons and padding use density-independent dimensions")
+
+on_create = src.split("protected void onCreate(Bundle savedInstanceState)", 1)[1].split("}", 1)[0]
+on_resume_perf = src.split("protected void onResume()", 1)[1].split("}", 1)[0]
+assert "reloadApps();" not in on_create
+assert "reloadApps();" in on_resume_perf
+print("PASS: initial launcher lifecycle performs a single app catalog reload")
+
+adapter_recycle = src.split("static final class AppAdapter", 1)[1]
+assert "if (convertView == null)" in adapter_recycle
+assert "convertView.setTag(holder);" in adapter_recycle
+assert "convertView.getTag()" in adapter_recycle
+assert "holder.icon.setImageDrawable(app.icon);" in adapter_recycle
+assert "holder.label.setText(app.label);" in adapter_recycle
+print("PASS: app grid adapter recycles cell views and updates recycled content")
