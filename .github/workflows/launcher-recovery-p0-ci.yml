@@ -14,7 +14,7 @@ permissions:
 jobs:
   build-launcher:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
     steps:
       - name: Checkout isolated branch
         uses: actions/checkout@v5
@@ -61,11 +61,12 @@ jobs:
           test "$code" -ne 0
           grep -q 'Missing required release signing environment variables' build/release-missing-signing.log
 
-      - name: Build and verify release APK with ephemeral CI key
+      - name: Build versioned release APKs with one ephemeral CI key
         working-directory: launcher-recovery-ci
         shell: bash
         run: |
           set -euo pipefail
+          mkdir -p build/upgrade
           TEST_KEYSTORE="$RUNNER_TEMP/launcher-ci-test.jks"
           keytool -genkeypair -noprompt \
             -keystore "$TEST_KEYSTORE" \
@@ -80,12 +81,31 @@ jobs:
           export LAUNCHER_KEYSTORE_PASSWORD='launcher-ci-only'
           export LAUNCHER_KEY_ALIAS='launcher-ci'
           export LAUNCHER_KEY_PASSWORD='launcher-ci-only'
-          gradle --no-daemon --stacktrace :app:assembleRelease
-          RELEASE_APK="app/build/outputs/apk/release/app-release.apk"
-          test -s "$RELEASE_APK"
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$RELEASE_APK" | tee build/release-apksigner.txt
-          test "$("$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer" manifest debuggable "$RELEASE_APK" | tr -d '\r')" = "false"
-          sha256sum "$RELEASE_APK" | tee build/release-apk-sha256.txt
+
+          gradle --no-daemon --stacktrace :app:assembleRelease \
+            -PAPP_VERSION_CODE=1 \
+            -PAPP_VERSION_NAME=0.1.0-upgrade-base
+          cp app/build/outputs/apk/release/app-release.apk build/upgrade/launcher-v1.apk
+
+          gradle --no-daemon --rerun-tasks --stacktrace :app:assembleRelease \
+            -PAPP_VERSION_CODE=2 \
+            -PAPP_VERSION_NAME=0.1.1-upgrade-target
+          cp app/build/outputs/apk/release/app-release.apk build/upgrade/launcher-v2.apk
+
+          for apk in build/upgrade/launcher-v1.apk build/upgrade/launcher-v2.apk; do
+            test -s "$apk"
+            "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$apk"
+            test "$("$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer" manifest debuggable "$apk" | tr -d '\r')" = "false"
+          done
+
+          test "$("$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer" manifest version-code build/upgrade/launcher-v1.apk | tr -d '\r')" = "1"
+          test "$("$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer" manifest version-code build/upgrade/launcher-v2.apk | tr -d '\r')" = "2"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs build/upgrade/launcher-v1.apk | grep 'Signer #1 certificate SHA-256 digest:' | tee build/upgrade/signer-v1.txt
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs build/upgrade/launcher-v2.apk | grep 'Signer #1 certificate SHA-256 digest:' | tee build/upgrade/signer-v2.txt
+          diff -u build/upgrade/signer-v1.txt build/upgrade/signer-v2.txt
+          cp build/upgrade/launcher-v2.apk app/build/outputs/apk/release/app-release.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs app/build/outputs/apk/release/app-release.apk | tee build/release-apksigner.txt
+          sha256sum app/build/outputs/apk/release/app-release.apk | tee build/release-apk-sha256.txt
 
       - name: Build debug APK
         working-directory: launcher-recovery-ci
@@ -110,14 +130,14 @@ jobs:
           fi
           sha256sum "$APK" | tee build/apk-sha256.txt
 
-      - name: Run P0 launcher device smoke test
+      - name: Run P0 signed upgrade and launcher lifecycle tests
         uses: ReactiveCircus/android-emulator-runner@v2
         with:
           api-level: 29
           arch: x86_64
           profile: pixel_2
           disable-animations: true
-          script: cd launcher-recovery-ci && bash tests/device_smoke.sh
+          script: cd launcher-recovery-ci && bash tests/device_upgrade_smoke.sh && bash tests/device_smoke.sh
 
       - name: Upload verified APK and device evidence
         if: always()
@@ -133,6 +153,8 @@ jobs:
             launcher-recovery-ci/build/release-apksigner.txt
             launcher-recovery-ci/build/release-apk-sha256.txt
             launcher-recovery-ci/build/release-missing-signing.log
+            launcher-recovery-ci/build/upgrade/**
+            launcher-recovery-ci/build/device-upgrade/**
             launcher-recovery-ci/build/device/**
           if-no-files-found: warn
           retention-days: 7
