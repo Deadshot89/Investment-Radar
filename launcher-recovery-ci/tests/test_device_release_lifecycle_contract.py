@@ -19,3 +19,7 @@ for script_name in ('tests/device_smoke.sh', 'tests/device_upgrade_smoke.sh'):
     assert 'set_home_and_verify()' in script, f'{script_name} must retry HOME assignment and verify the resolver'
     assert 'cmd package resolve-activity' in script, f'{script_name} must verify the HOME resolver after assignment'
 print('PASS: device tests retry HOME assignment and verify resolver state')
+
+assert 'grep -m1 "versionCode=$expected "' not in upgrade, \
+    'version assertion must not short-circuit a pipe under pipefail and trigger SIGPIPE/141'
+print('PASS: version assertion consumes full dumpsys output without SIGPIPE under pipefail')
