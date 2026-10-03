@@ -1,0 +1,89 @@
+name: Signed Launcher Release
+on:
+  workflow_dispatch:
+    inputs:
+      version_code:
+        description: Android versionCode (must increase for updates)
+        required: true
+        type: string
+      version_name:
+        description: Human-readable versionName
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Prepare Android SDK 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;35.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+      - name: Require canonical main branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "ERROR: Production releases may only be signed from refs/heads/main (got $GITHUB_REF)." >&2
+            exit 10
+          fi
+      - name: Run pre-sign release contract tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tests/test_launcher_contract.py
+          python3 tests/test_release_signing_contract.py
+          python3 tests/test_release_workflow_contract.py
+          bash tests/test_signer_fingerprint_guard.sh
+      - name: Restore production signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.LAUNCHER_KEYSTORE_BASE64 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$KEYSTORE_B64"
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/launcher-release.jks"
+          test -s "$RUNNER_TEMP/launcher-release.jks"
+          echo "LAUNCHER_KEYSTORE_PATH=$RUNNER_TEMP/launcher-release.jks" >> "$GITHUB_ENV"
+      - name: Build signed release
+        env:
+          LAUNCHER_KEYSTORE_PASSWORD: ${{ secrets.LAUNCHER_KEYSTORE_PASSWORD }}
+          LAUNCHER_KEY_ALIAS: ${{ secrets.LAUNCHER_KEY_ALIAS }}
+          LAUNCHER_KEY_PASSWORD: ${{ secrets.LAUNCHER_KEY_PASSWORD }}
+        run: |
+          gradle --no-daemon --stacktrace :app:assembleRelease \
+            -PAPP_VERSION_CODE="${{ inputs.version_code }}" \
+            -PAPP_VERSION_NAME="${{ inputs.version_name }}"
+      - name: Verify release
+        env:
+          EXPECTED_SIGNING_CERT_SHA256: ${{ secrets.LAUNCHER_SIGNING_CERT_SHA256 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK='app/build/outputs/apk/release/app-release.apk'
+          test -s "$APK"
+          bash scripts/verify-release-signer.sh "$APK" | tee release-signature.txt
+          test "$("$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer" manifest debuggable "$APK" | tr -d '\r')" = 'false'
+          test "$("$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer" manifest version-code "$APK" | tr -d '\r')" = "${{ inputs.version_code }}"
+          sha256sum "$APK" | tee release-sha256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: t-launcher-signed-release
+          path: |
+            app/build/outputs/apk/release/app-release.apk
+            release-signature.txt
+            release-sha256.txt
+          if-no-files-found: error
