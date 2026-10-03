@@ -14,11 +14,15 @@ required = [
     'LAUNCHER_KEY_PASSWORD',
     'verifyReleaseSigningInputs',
     'preReleaseBuild',
+    'APP_VERSION_CODE',
+    'APP_VERSION_NAME',
+    'providers.gradleProperty("APP_VERSION_CODE")',
+    'providers.gradleProperty("APP_VERSION_NAME")',
 ]
 for token in required:
-    assert token in build, f"missing release signing contract: {token}"
+    assert token in build, f"missing release signing/update contract: {token}"
 
 assert 'debug.keystore' not in build
 assert 'androiddebugkey' not in build
 
-print('PASS: release build requires explicit stable signing inputs and is non-debuggable')
+print('PASS: release build requires explicit stable signing inputs, is non-debuggable, and supports controlled version overrides')
