@@ -4,6 +4,7 @@ ROOT = Path(__file__).resolve().parents[1]
 ci = (ROOT / '.github/workflows/ci.yml').read_text(encoding='utf-8')
 smoke = (ROOT / 'tests/device_smoke.sh').read_text(encoding='utf-8')
 upgrade = (ROOT / 'tests/device_upgrade_smoke.sh').read_text(encoding='utf-8')
+deepfix_ci = (ROOT.parent / '.github/workflows/launcher-recovery-p0-ci.yml').read_text(encoding='utf-8')
 
 assert 'APK="${1:-app/build/outputs/apk/debug/app-debug.apk}"' in smoke, \
     'device smoke must accept an explicit APK so release artifacts can run the full lifecycle'
@@ -58,3 +59,17 @@ assert 'System UI|Process system' in smoke, \
 assert 'text="(System UI|Process system) isn.t responding"' in smoke, \
     'system ANR dismissal must be narrowly scoped to known Android system dialog titles'
 print('PASS: device smoke recognizes API 36 process-system ANR dialogs without broadening to app ANRs')
+
+kvm_step = 'Enable KVM for API 36 emulator'
+emulator_step = 'ReactiveCircus/android-emulator-runner@v2'
+assert kvm_step in deepfix_ci, \
+    'API 36 workflow must explicitly enable KVM before launching x86_64 emulator'
+assert 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' in deepfix_ci, \
+    'API 36 workflow must install the recommended KVM udev permission rule'
+assert 'sudo udevadm control --reload-rules' in deepfix_ci
+assert 'sudo udevadm trigger --name-match=kvm' in deepfix_ci
+assert 'test -r /dev/kvm' in deepfix_ci and 'test -w /dev/kvm' in deepfix_ci, \
+    'API 36 workflow must fail fast if KVM is still unusable'
+assert deepfix_ci.index(kvm_step) < deepfix_ci.index(emulator_step), \
+    'KVM must be enabled before android-emulator-runner executes'
+print('PASS: API 36 workflow enables and verifies KVM before emulator startup')
