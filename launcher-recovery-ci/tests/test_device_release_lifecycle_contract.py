@@ -70,6 +70,13 @@ assert 'T Launcher Recovery keeps stopping' not in smoke, \
     'device smoke must never whitelist the launcher crash dialog'
 print('PASS: device smoke narrowly dismisses the observed Bluetooth system crash without hiding launcher crashes')
 
+fault_block = smoke.split('dismiss_known_system_faults() {', 1)[1].split('\n}', 1)[0]
+assert 'ERROR: known Android system fault dialog remained visible after retry budget' in fault_block, \
+    'system-fault handler must fail closed instead of continuing behind a still-visible blocking dialog'
+assert 'return 1' in fault_block, \
+    'system-fault handler must return failure when a known blocking dialog survives the retry budget'
+print('PASS: blocking Android system fault dialogs fail closed after the retry budget')
+
 assert 'runs-on: macos-15-intel' in deepfix_ci, \
     'API 36 lifecycle must use the standard Intel macOS runner with native Hypervisor.Framework acceleration'
 assert 'Enable KVM for API 36 emulator' not in deepfix_ci, \
