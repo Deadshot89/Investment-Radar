@@ -60,6 +60,16 @@ assert 'text="(System UI|Process system) isn.t responding"' in smoke, \
     'system ANR dismissal must be narrowly scoped to known Android system dialog titles'
 print('PASS: device smoke recognizes API 36 process-system ANR dialogs without broadening to app ANRs')
 
+assert 'text="Bluetooth keeps stopping"' in smoke, \
+    'device smoke must recognize the observed API 36 emulator Bluetooth crash dialog'
+assert 'android:id/aerr_close' in smoke and '"Close app"' in smoke, \
+    'known Bluetooth crash handling must close the crashing system component instead of navigating to app info'
+assert '.*keeps stopping' not in smoke and '.+keeps stopping' not in smoke, \
+    'system crash handling must not match arbitrary app crash dialogs'
+assert 'T Launcher Recovery keeps stopping' not in smoke, \
+    'device smoke must never whitelist the launcher crash dialog'
+print('PASS: device smoke narrowly dismisses the observed Bluetooth system crash without hiding launcher crashes')
+
 assert 'runs-on: macos-15-intel' in deepfix_ci, \
     'API 36 lifecycle must use the standard Intel macOS runner with native Hypervisor.Framework acceleration'
 assert 'Enable KVM for API 36 emulator' not in deepfix_ci, \
