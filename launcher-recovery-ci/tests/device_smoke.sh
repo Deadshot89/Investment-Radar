@@ -100,6 +100,14 @@ dismiss_known_system_faults() {
   return 0
 }
 
+# API 36 emulator system services can ANR independently of the launcher and block
+# the accessibility/UIAutomator tree. Suppress emulator-owned error dialogs for
+# this smoke test, but keep launcher ANRs fail-closed through the logcat gate below.
+adb shell settings put global hide_error_dialogs 1
+test "$(adb shell settings get global hide_error_dialogs | tr -d '\r')" = "1"
+adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS >/dev/null 2>&1 || true
+adb logcat -c
+
 adb install -r "$APK" | tee build/device/install.txt
 adb shell pm list packages | tr -d '\r' | grep -Fx "package:$PKG"
 set_home_and_verify
@@ -166,6 +174,7 @@ for _ in $(seq 1 90); do
   sleep 2
 done
 test "$booted" = "1"
+adb shell settings put global hide_error_dialogs 1
 adb shell input keyevent KEYCODE_HOME
 sleep 3
 dismiss_known_system_faults
@@ -178,6 +187,9 @@ adb logcat -d -v brief > build/device/logcat.txt
 if grep -A20 -B5 'FATAL EXCEPTION' build/device/logcat.txt | grep -q "$PKG"; then
   echo "Launcher crash found in logcat" >&2; exit 1
 fi
+if grep -Fq "ANR in $PKG" build/device/logcat.txt; then
+  echo "Launcher ANR found in logcat" >&2; exit 24
+fi
 printf '%s\n' \
   'PASS: APK install' \
   'PASS: default HOME resolution' \
@@ -188,4 +200,4 @@ printf '%s\n' \
   'PASS: HOME after force-stop' \
   'PASS: default HOME persisted after reboot' \
   'PASS: HOME foreground after reboot' \
-  'PASS: no launcher fatal exception in logcat' | tee build/device/RESULT.txt
+  'PASS: no launcher fatal exception or ANR in logcat' | tee build/device/RESULT.txt
