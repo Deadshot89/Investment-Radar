@@ -13,6 +13,7 @@ object SavingsPlanStore {
     private const val SEEDED_KEY = "trade_republic_savings_plans_2026_09_05_v1"
     private const val CONFIRMED_DATES_KEY = "trade_republic_savings_plan_dates_2026_09_05_v2"
     private const val PRIVATE_EQUITY_NAMES_KEY = "trade_republic_private_equity_names_2026_09_05_v3"
+    private const val META_AMOUNT_2026_10_01_KEY = "trade_republic_meta_amount_2026_10_01_v1"
     private val CONFIRMED_DEFAULT_PLAN_IDS = setOf(
         "tr-meta-twice-monthly",
         "tr-samsung-gdr-twice-monthly",
@@ -26,7 +27,7 @@ object SavingsPlanStore {
             id = "tr-meta-twice-monthly",
             name = "Meta Platforms (A)",
             itemId = "meta",
-            amountEur = 10.0,
+            amountEur = 25.0,
             frequency = SavingsPlanFrequency.TWICE_MONTHLY,
             dayOfMonth1 = 1,
             dayOfMonth2 = 15,
@@ -107,6 +108,10 @@ object SavingsPlanStore {
             withConfirmedDays.copy(nextDueDate = SavingsPlanSchedule.nextDueDate(withConfirmedDays, today))
         }
 
+    fun applyMetaAmountFrom20261001(plans: List<SavingsPlan>): List<SavingsPlan> = plans.map { plan ->
+        if (plan.id == "tr-meta-twice-monthly" && plan.amountEur == 10.0) plan.copy(amountEur = 25.0) else plan
+    }
+
     fun ensureSeeded(context: Context) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         if (!prefs.getBoolean(SEEDED_KEY, false)) {
@@ -123,6 +128,11 @@ object SavingsPlanStore {
         if (!prefs.getBoolean(PRIVATE_EQUITY_NAMES_KEY, false)) {
             savePlans(context, applyPrivateEquityDisplayNames(readPlans(context)))
             prefs.edit().putBoolean(PRIVATE_EQUITY_NAMES_KEY, true).apply()
+        }
+
+        if (!prefs.getBoolean(META_AMOUNT_2026_10_01_KEY, false)) {
+            savePlans(context, applyMetaAmountFrom20261001(readPlans(context)))
+            prefs.edit().putBoolean(META_AMOUNT_2026_10_01_KEY, true).apply()
         }
     }
 

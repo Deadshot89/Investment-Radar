@@ -11,7 +11,7 @@ class SavingsPlanStoreTest {
         val plans = SavingsPlanStore.initialPlans()
 
         assertEquals(5, plans.size)
-        assertEquals(1, plans.count { it.itemId == "meta" && it.amountEur == 10.0 && it.frequency == SavingsPlanFrequency.TWICE_MONTHLY })
+        assertEquals(1, plans.count { it.itemId == "meta" && it.amountEur == 25.0 && it.frequency == SavingsPlanFrequency.TWICE_MONTHLY })
         assertEquals(1, plans.count { it.itemId == "custom-samsung-gdr" && it.amountEur == 10.0 && it.frequency == SavingsPlanFrequency.TWICE_MONTHLY })
         assertEquals(1, plans.count { it.itemId == "msft" && it.amountEur == 10.0 && it.frequency == SavingsPlanFrequency.MONTHLY })
 
@@ -21,6 +21,20 @@ class SavingsPlanStoreTest {
         assertEquals(2, privateEquity.map { it.id }.distinct().size)
         assertTrue(privateEquity.all { it.amountEur == 5.0 && it.frequency == SavingsPlanFrequency.TWICE_MONTHLY })
         assertTrue(privateEquity.all { it.itemId == null })
+    }
+
+    @Test
+    fun metaOctoberMigrationUpdatesOnlyLegacyTenEuroAmount() {
+        val legacyMeta = SavingsPlanStore.initialPlans().first { it.itemId == "meta" }.copy(amountEur = 10.0)
+        val migrated = SavingsPlanStore.applyMetaAmountFrom20261001(listOf(legacyMeta))
+        assertEquals(25.0, migrated.single().amountEur, 0.0)
+    }
+
+    @Test
+    fun metaOctoberMigrationPreservesUserEditedAmount() {
+        val editedMeta = SavingsPlanStore.initialPlans().first { it.itemId == "meta" }.copy(amountEur = 30.0)
+        val migrated = SavingsPlanStore.applyMetaAmountFrom20261001(listOf(editedMeta))
+        assertEquals(30.0, migrated.single().amountEur, 0.0)
     }
 
     @Test
