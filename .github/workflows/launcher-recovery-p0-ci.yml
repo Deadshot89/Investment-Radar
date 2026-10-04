@@ -157,6 +157,17 @@ jobs:
           fi
           sha256sum "$APK" | tee build/apk-sha256.txt
 
+      - name: Enable KVM for API 36 emulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          test -r /dev/kvm
+          test -w /dev/kvm
+          ls -l /dev/kvm
+
       - name: Run signed update and release launcher lifecycle tests on API 36
         uses: ReactiveCircus/android-emulator-runner@v2
         with:
