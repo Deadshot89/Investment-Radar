@@ -60,16 +60,12 @@ assert 'text="(System UI|Process system) isn.t responding"' in smoke, \
     'system ANR dismissal must be narrowly scoped to known Android system dialog titles'
 print('PASS: device smoke recognizes API 36 process-system ANR dialogs without broadening to app ANRs')
 
-kvm_step = 'Enable KVM for API 36 emulator'
-emulator_step = 'ReactiveCircus/android-emulator-runner@v2'
-assert kvm_step in deepfix_ci, \
-    'API 36 workflow must explicitly enable KVM before launching x86_64 emulator'
-assert 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' in deepfix_ci, \
-    'API 36 workflow must install the recommended KVM udev permission rule'
-assert 'sudo udevadm control --reload-rules' in deepfix_ci
-assert 'sudo udevadm trigger --name-match=kvm' in deepfix_ci
-assert 'test -r /dev/kvm' in deepfix_ci and 'test -w /dev/kvm' in deepfix_ci, \
-    'API 36 workflow must fail fast if KVM is still unusable'
-assert deepfix_ci.index(kvm_step) < deepfix_ci.index(emulator_step), \
-    'KVM must be enabled before android-emulator-runner executes'
-print('PASS: API 36 workflow enables and verifies KVM before emulator startup')
+assert 'runs-on: macos-15-intel' in deepfix_ci, \
+    'API 36 lifecycle must use the standard Intel macOS runner with native Hypervisor.Framework acceleration'
+assert 'Enable KVM for API 36 emulator' not in deepfix_ci, \
+    'macOS API 36 lifecycle must not execute Linux-only KVM setup'
+assert 'udevadm' not in deepfix_ci and '/dev/kvm' not in deepfix_ci, \
+    'macOS API 36 workflow must not retain Linux KVM commands'
+assert 'ReactiveCircus/android-emulator-runner@v2' in deepfix_ci, \
+    'API 36 workflow must still run the real Android emulator lifecycle'
+print('PASS: API 36 workflow uses hardware-accelerated Intel macOS instead of unaccelerated Linux emulation')
