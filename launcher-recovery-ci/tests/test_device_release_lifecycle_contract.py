@@ -75,7 +75,11 @@ assert 'ERROR: known Android system fault dialog remained visible after retry bu
     'system-fault handler must fail closed instead of continuing behind a still-visible blocking dialog'
 assert 'return 1' in fault_block, \
     'system-fault handler must return failure when a known blocking dialog survives the retry budget'
-print('PASS: blocking Android system fault dialogs fail closed after the retry budget')
+assert 'if ! dump_ui /sdcard/system-dialog.xml build/device/system-dialog.xml; then' in fault_block, \
+    'optional system-fault probing must guard transient UIAutomator null-root failures under set -e'
+assert 'if ! dump_ui /sdcard/system-dialog-final.xml build/device/system-dialog-final.xml; then' in fault_block, \
+    'final optional system-fault probe must not abort the lifecycle solely because UIAutomator has no root'
+print('PASS: system-fault probing tolerates transient UIAutomator null-root failures but known dialogs still fail closed')
 
 assert 'runs-on: macos-15-intel' in deepfix_ci, \
     'API 36 lifecycle must use the standard Intel macOS runner with native Hypervisor.Framework acceleration'
