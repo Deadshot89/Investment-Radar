@@ -115,8 +115,7 @@ adb exec-out screencap -p > build/device/home.png
 tap_text "Apps"
 adb exec-out screencap -p > build/device/drawer.png
 dump_ui /sdcard/drawer.xml build/device/drawer.xml
-grep -q 'text="Settings"' build/device/drawer.xml
-grep -q 'text="Calendar"' build/device/drawer.xml
+python3 tests/assert_drawer_grid.py build/device/drawer.xml --present Settings --present Calendar
 
 # Search diagnostics: capture the exact focus/activity state around text entry so
 # a launcher state transition can be distinguished from a UIAutomator artifact.
@@ -136,14 +135,12 @@ adb logcat -d -v brief > build/device/logcat-after-search-text.txt
 
 dump_ui /sdcard/drawer-filtered.xml build/device/drawer-filtered.xml
 grep -q 'text="Set"' build/device/drawer-filtered.xml
-grep -q 'text="Settings"' build/device/drawer-filtered.xml
-if grep -q 'text="Calendar"' build/device/drawer-filtered.xml; then echo "Search filter did not narrow drawer results" >&2; exit 22; fi
+python3 tests/assert_drawer_grid.py build/device/drawer-filtered.xml --present Settings --absent Calendar
 tap_text "✕"
 tap_text "Apps"
 dump_ui /sdcard/drawer-reopened.xml build/device/drawer-reopened.xml
 if grep -q 'text="Set"' build/device/drawer-reopened.xml; then echo "Drawer search query remained visible after close/reopen" >&2; exit 23; fi
-grep -q 'text="Calendar"' build/device/drawer-reopened.xml
-grep -q 'text="Settings"' build/device/drawer-reopened.xml
+python3 tests/assert_drawer_grid.py build/device/drawer-reopened.xml --present Calendar --present Settings
 
 coords="$(python3 tests/tap_text.py build/device/drawer-reopened.xml "Settings")"
 adb shell input tap $coords
