@@ -65,6 +65,16 @@ assert 'Search filter did not narrow drawer results' not in smoke, \
     'legacy global Calendar grep must be removed because underlying translucent homescreen content remains in UIAutomator tree'
 print('PASS: drawer filtering assertions ignore underlying homescreen favorites and validate only drawer grid contents')
 
+assert 'drawer-after-back.xml' in smoke, \
+    'device smoke must capture drawer state after returning from a launched app with Android Back'
+assert 'adb shell input keyevent KEYCODE_BACK' in smoke, \
+    'device smoke must exercise app-to-launcher Back navigation instead of only HOME navigation'
+assert 'python3 tests/assert_drawer_grid.py build/device/drawer-after-back.xml --present Settings --absent Calendar' in smoke, \
+    'drawer filter must remain applied after returning with Back'
+assert 'PASS: filtered drawer survives app Back navigation' in smoke, \
+    'device smoke result must record the Back-navigation drawer regression gate'
+print('PASS: filtered drawer query and results are verified after app Back navigation')
+
 assert 'adb shell settings put global hide_error_dialogs 1' in smoke, \
     'device smoke must suppress emulator-owned crash/ANR dialogs before UIAutomator interaction'
 assert "ANR in $PKG" in smoke or "ANR in ${PKG}" in smoke, \
