@@ -85,6 +85,14 @@ dismiss_known_system_faults() {
     fi
     return 0
   done
+
+  dump_ui /sdcard/system-dialog-final.xml build/device/system-dialog-final.xml
+  if grep -Eq 'text="(System UI|Process system) isn.t responding"|text="Bluetooth keeps stopping"' build/device/system-dialog-final.xml; then
+    echo "ERROR: known Android system fault dialog remained visible after retry budget" >&2
+    cat build/device/system-dialog-final.xml >&2
+    return 1
+  fi
+  return 0
 }
 
 adb install -r "$APK" | tee build/device/install.txt
