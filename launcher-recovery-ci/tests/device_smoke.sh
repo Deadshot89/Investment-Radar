@@ -69,7 +69,10 @@ tap_text() {
 dismiss_known_system_faults() {
   local coords
   for _ in 1 2 3; do
-    dump_ui /sdcard/system-dialog.xml build/device/system-dialog.xml
+    if ! dump_ui /sdcard/system-dialog.xml build/device/system-dialog.xml; then
+      sleep 2
+      continue
+    fi
     if grep -Eq 'text="(System UI|Process system) isn.t responding"' build/device/system-dialog.xml; then
       coords="$(python3 tests/tap_text.py build/device/system-dialog.xml "Wait")"
       adb shell input tap $coords
@@ -86,7 +89,9 @@ dismiss_known_system_faults() {
     return 0
   done
 
-  dump_ui /sdcard/system-dialog-final.xml build/device/system-dialog-final.xml
+  if ! dump_ui /sdcard/system-dialog-final.xml build/device/system-dialog-final.xml; then
+    return 0
+  fi
   if grep -Eq 'text="(System UI|Process system) isn.t responding"|text="Bluetooth keeps stopping"' build/device/system-dialog-final.xml; then
     echo "ERROR: known Android system fault dialog remained visible after retry budget" >&2
     cat build/device/system-dialog-final.xml >&2
