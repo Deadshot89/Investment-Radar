@@ -66,17 +66,24 @@ tap_text() {
   adb shell input tap $coords
   sleep 2
 }
-dismiss_system_ui_anr() {
+dismiss_known_system_faults() {
+  local coords
   for _ in 1 2 3; do
     dump_ui /sdcard/system-dialog.xml build/device/system-dialog.xml
     if grep -Eq 'text="(System UI|Process system) isn.t responding"' build/device/system-dialog.xml; then
-      local coords
       coords="$(python3 tests/tap_text.py build/device/system-dialog.xml "Wait")"
       adb shell input tap $coords
       sleep 3
-    else
-      return 0
+      continue
     fi
+    if grep -q 'text="Bluetooth keeps stopping"' build/device/system-dialog.xml \
+      && grep -q 'resource-id="android:id/aerr_close"' build/device/system-dialog.xml; then
+      coords="$(python3 tests/tap_text.py build/device/system-dialog.xml "Close app")"
+      adb shell input tap $coords
+      sleep 3
+      continue
+    fi
+    return 0
   done
 }
 
@@ -87,7 +94,7 @@ adb shell am start -W -a android.intent.action.MAIN -c android.intent.category.H
 sleep 2
 foreground | tee build/device/home-foreground.txt
 grep -q "$PKG" build/device/home-foreground.txt
-dismiss_system_ui_anr
+dismiss_known_system_faults
 adb exec-out screencap -p > build/device/home.png
 
 tap_text "Apps"
@@ -126,7 +133,7 @@ adb shell input keyevent KEYCODE_HOME
 sleep 2
 foreground | tee build/device/home-after-app.txt
 grep -q "$PKG" build/device/home-after-app.txt
-dismiss_system_ui_anr
+dismiss_known_system_faults
 dump_ui /sdcard/home-after-app-ui.xml build/device/home-after-app-ui.xml
 if grep -q 'resource-id="android:id/search_src_text"' build/device/home-after-app-ui.xml; then
   echo "Drawer remained visible after returning HOME from a launched app" >&2
@@ -148,7 +155,7 @@ done
 test "$booted" = "1"
 adb shell input keyevent KEYCODE_HOME
 sleep 3
-dismiss_system_ui_anr
+dismiss_known_system_faults
 adb shell cmd package resolve-activity --brief --user 0 -a android.intent.action.MAIN -c android.intent.category.HOME | tr -d '\r' | tee build/device/home-resolved-after-reboot.txt
 grep -q "$PKG" build/device/home-resolved-after-reboot.txt
 foreground | tee build/device/home-after-reboot.txt
