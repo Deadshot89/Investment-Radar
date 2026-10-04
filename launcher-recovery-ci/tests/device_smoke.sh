@@ -20,17 +20,13 @@ set_home_and_verify() {
     adb shell cmd role add-role-holder --user 0 android.app.role.HOME "$PKG" >> "$set_log" 2>&1 || true
     sleep 2
     resolve_home | tee "$resolved_log"
-    if grep -q "$PKG" "$resolved_log"; then
-      return 0
-    fi
+    if grep -q "$PKG" "$resolved_log"; then return 0; fi
 
     echo "attempt=$attempt package-set-home" >> "$set_log"
     adb shell cmd package set-home-activity --user 0 "$COMPONENT" >> "$set_log" 2>&1 || true
     sleep 2
     resolve_home | tee "$resolved_log"
-    if grep -q "$PKG" "$resolved_log"; then
-      return 0
-    fi
+    if grep -q "$PKG" "$resolved_log"; then return 0; fi
     sleep 2
   done
   echo "ERROR: failed to assign and verify HOME role" >&2
@@ -41,6 +37,9 @@ set_home_and_verify() {
 
 foreground() {
   adb shell dumpsys activity activities | tr -d '\r' | grep -E 'mResumedActivity|topResumedActivity|ResumedActivity' | head -20
+}
+window_focus() {
+  adb shell dumpsys window windows | tr -d '\r' | grep -E 'mCurrentFocus|mFocusedApp' | head -20 || true
 }
 dump_ui() {
   local remote="$1" local_file="$2" attempt
@@ -89,9 +88,7 @@ dismiss_known_system_faults() {
     return 0
   done
 
-  if ! dump_ui /sdcard/system-dialog-final.xml build/device/system-dialog-final.xml; then
-    return 0
-  fi
+  if ! dump_ui /sdcard/system-dialog-final.xml build/device/system-dialog-final.xml; then return 0; fi
   if grep -Eq 'text="(System UI|Process system) isn.t responding"|text="Bluetooth keeps stopping"' build/device/system-dialog-final.xml; then
     echo "ERROR: known Android system fault dialog remained visible after retry budget" >&2
     cat build/device/system-dialog-final.xml >&2
@@ -100,9 +97,6 @@ dismiss_known_system_faults() {
   return 0
 }
 
-# API 36 emulator system services can ANR independently of the launcher and block
-# the accessibility/UIAutomator tree. Suppress emulator-owned error dialogs for
-# this smoke test, but keep launcher ANRs fail-closed through the logcat gate below.
 adb shell settings put global hide_error_dialogs 1
 test "$(adb shell settings get global hide_error_dialogs | tr -d '\r')" = "1"
 adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS >/dev/null 2>&1 || true
@@ -124,24 +118,30 @@ dump_ui /sdcard/drawer.xml build/device/drawer.xml
 grep -q 'text="Settings"' build/device/drawer.xml
 grep -q 'text="Calendar"' build/device/drawer.xml
 
-# Regression: closing and reopening the drawer must clear stale search state.
+# Search diagnostics: capture the exact focus/activity state around text entry so
+# a launcher state transition can be distinguished from a UIAutomator artifact.
 tap_text "Apps suchen"
+adb exec-out screencap -p > build/device/search-focused.png
+foreground | tee build/device/search-focused-foreground.txt
+window_focus | tee build/device/search-focused-window.txt
+dump_ui /sdcard/search-focused.xml build/device/search-focused.xml || true
+adb logcat -d -v brief > build/device/logcat-before-search-text.txt
+
 adb shell input text Set
 sleep 2
+adb exec-out screencap -p > build/device/search-after-text.png
+foreground | tee build/device/search-after-text-foreground.txt
+window_focus | tee build/device/search-after-text-window.txt
+adb logcat -d -v brief > build/device/logcat-after-search-text.txt
+
 dump_ui /sdcard/drawer-filtered.xml build/device/drawer-filtered.xml
 grep -q 'text="Set"' build/device/drawer-filtered.xml
 grep -q 'text="Settings"' build/device/drawer-filtered.xml
-if grep -q 'text="Calendar"' build/device/drawer-filtered.xml; then
-  echo "Search filter did not narrow drawer results" >&2
-  exit 22
-fi
+if grep -q 'text="Calendar"' build/device/drawer-filtered.xml; then echo "Search filter did not narrow drawer results" >&2; exit 22; fi
 tap_text "✕"
 tap_text "Apps"
 dump_ui /sdcard/drawer-reopened.xml build/device/drawer-reopened.xml
-if grep -q 'text="Set"' build/device/drawer-reopened.xml; then
-  echo "Drawer search query remained visible after close/reopen" >&2
-  exit 23
-fi
+if grep -q 'text="Set"' build/device/drawer-reopened.xml; then echo "Drawer search query remained visible after close/reopen" >&2; exit 23; fi
 grep -q 'text="Calendar"' build/device/drawer-reopened.xml
 grep -q 'text="Settings"' build/device/drawer-reopened.xml
 
@@ -156,10 +156,7 @@ foreground | tee build/device/home-after-app.txt
 grep -q "$PKG" build/device/home-after-app.txt
 dismiss_known_system_faults
 dump_ui /sdcard/home-after-app-ui.xml build/device/home-after-app-ui.xml
-if grep -q 'resource-id="android:id/search_src_text"' build/device/home-after-app-ui.xml; then
-  echo "Drawer remained visible after returning HOME from a launched app" >&2
-  exit 21
-fi
+if grep -q 'resource-id="android:id/search_src_text"' build/device/home-after-app-ui.xml; then echo "Drawer remained visible after returning HOME from a launched app" >&2; exit 21; fi
 adb shell am force-stop "$PKG"
 sleep 1
 adb shell input keyevent KEYCODE_HOME
@@ -184,12 +181,8 @@ foreground | tee build/device/home-after-reboot.txt
 grep -q "$PKG" build/device/home-after-reboot.txt
 adb exec-out screencap -p > build/device/home-after-reboot.png
 adb logcat -d -v brief > build/device/logcat.txt
-if grep -A20 -B5 'FATAL EXCEPTION' build/device/logcat.txt | grep -q "$PKG"; then
-  echo "Launcher crash found in logcat" >&2; exit 1
-fi
-if grep -Fq "ANR in $PKG" build/device/logcat.txt; then
-  echo "Launcher ANR found in logcat" >&2; exit 24
-fi
+if grep -A20 -B5 'FATAL EXCEPTION' build/device/logcat.txt | grep -q "$PKG"; then echo "Launcher crash found in logcat" >&2; exit 1; fi
+if grep -Fq "ANR in $PKG" build/device/logcat.txt; then echo "Launcher ANR found in logcat" >&2; exit 24; fi
 printf '%s\n' \
   'PASS: APK install' \
   'PASS: default HOME resolution' \
