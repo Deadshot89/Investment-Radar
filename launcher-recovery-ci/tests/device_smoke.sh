@@ -142,11 +142,28 @@ dump_ui /sdcard/drawer-reopened.xml build/device/drawer-reopened.xml
 if grep -q 'text="Set"' build/device/drawer-reopened.xml; then echo "Drawer search query remained visible after close/reopen" >&2; exit 23; fi
 python3 tests/assert_drawer_grid.py build/device/drawer-reopened.xml --present Calendar --present Settings
 
-coords="$(python3 tests/tap_text.py build/device/drawer-reopened.xml "Settings")"
+# Regression: leaving a filtered drawer through an app and returning with Android
+# Back must preserve both the visible query and the matching filtered result set.
+tap_text "Apps suchen"
+adb shell input text Set
+sleep 2
+dump_ui /sdcard/drawer-before-back-launch.xml build/device/drawer-before-back-launch.xml
+grep -q 'text="Set"' build/device/drawer-before-back-launch.xml
+python3 tests/assert_drawer_grid.py build/device/drawer-before-back-launch.xml --present Settings --absent Calendar
+coords="$(python3 tests/tap_text.py build/device/drawer-before-back-launch.xml "Settings")"
 adb shell input tap $coords
 sleep 2
 foreground | tee build/device/app-launch-foreground.txt
 grep -q 'com.android.settings' build/device/app-launch-foreground.txt
+adb shell input keyevent KEYCODE_BACK
+sleep 2
+foreground | tee build/device/launcher-after-back.txt
+grep -q "$PKG" build/device/launcher-after-back.txt
+dismiss_known_system_faults
+dump_ui /sdcard/drawer-after-back.xml build/device/drawer-after-back.xml
+grep -q 'text="Set"' build/device/drawer-after-back.xml
+python3 tests/assert_drawer_grid.py build/device/drawer-after-back.xml --present Settings --absent Calendar
+
 adb shell input keyevent KEYCODE_HOME
 sleep 2
 foreground | tee build/device/home-after-app.txt
@@ -185,6 +202,7 @@ printf '%s\n' \
   'PASS: default HOME resolution' \
   'PASS: HOME foreground' \
   'PASS: app drawer and search reset' \
+  'PASS: filtered drawer survives app Back navigation' \
   'PASS: launch Settings from drawer' \
   'PASS: return HOME closes transient drawer state' \
   'PASS: HOME after force-stop' \
