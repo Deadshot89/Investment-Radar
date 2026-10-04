@@ -103,3 +103,12 @@ print("PASS: app grid adapter recycles cell views and updates recycled content")
 assert 'getIdentifier("search_src_text", "id", "android")' in src
 assert 'android.R.id.search_src_text' not in src
 print("PASS: drawer search styling uses runtime-safe framework resource lookup")
+
+on_resume_filter = src.split("protected void onResume()", 1)[1].split("}", 1)[0]
+assert "refreshDrawerFilter();" in on_resume_filter, \
+    "onResume must reapply the visible drawer query after reloading installed apps"
+assert "private void refreshDrawerFilter()" in src
+refresh_filter = src.split("private void refreshDrawerFilter()", 1)[1].split("}", 1)[0]
+assert "drawerSearch.getQuery()" in refresh_filter
+assert "filterApps(" in refresh_filter
+print("PASS: returning from a launched app preserves drawer query and filtered results")
