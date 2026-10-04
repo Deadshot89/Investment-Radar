@@ -5,7 +5,6 @@ ci = (ROOT / '.github/workflows/ci.yml').read_text(encoding='utf-8')
 smoke = (ROOT / 'tests/device_smoke.sh').read_text(encoding='utf-8')
 upgrade = (ROOT / 'tests/device_upgrade_smoke.sh').read_text(encoding='utf-8')
 drawer_assert = (ROOT / 'tests/assert_drawer_grid.py').read_text(encoding='utf-8')
-deepfix_ci = (ROOT.parent / '.github/workflows/launcher-recovery-p0-ci.yml').read_text(encoding='utf-8')
 
 assert 'APK="${1:-app/build/outputs/apk/debug/app-debug.apk}"' in smoke, \
     'device smoke must accept an explicit APK so release artifacts can run the full lifecycle'
@@ -108,12 +107,18 @@ assert 'if ! dump_ui /sdcard/system-dialog-final.xml build/device/system-dialog-
     'final optional system-fault probe must not abort the lifecycle solely because UIAutomator has no root'
 print('PASS: system-fault probing tolerates transient UIAutomator null-root failures but known dialogs still fail closed')
 
-assert 'runs-on: macos-15-intel' in deepfix_ci, \
-    'API 36 lifecycle must use the standard Intel macOS runner with native Hypervisor.Framework acceleration'
-assert 'Enable KVM for API 36 emulator' not in deepfix_ci, \
-    'macOS API 36 lifecycle must not execute Linux-only KVM setup'
-assert 'udevadm' not in deepfix_ci and '/dev/kvm' not in deepfix_ci, \
-    'macOS API 36 workflow must not retain Linux KVM commands'
-assert 'ReactiveCircus/android-emulator-runner@v2' in deepfix_ci, \
-    'API 36 workflow must still run the real Android emulator lifecycle'
-print('PASS: API 36 workflow uses hardware-accelerated Intel macOS instead of unaccelerated Linux emulation')
+assert 'runs-on: macos-15-intel' in ci, \
+    'standalone CI must use hardware-accelerated Intel macOS for API 36 lifecycle'
+assert 'api-level: 36' in ci, \
+    'standalone CI must exercise API 36 because targetSdk is 36'
+assert 'api-level: 29' not in ci, \
+    'standalone CI must not regress lifecycle coverage to API 29'
+assert 'python3 tests/test_device_release_lifecycle_contract.py' in ci, \
+    'standalone CI must execute the lifecycle contract that protects its device-test guarantees'
+assert 'Enable KVM for API 36 emulator' not in ci, \
+    'macOS standalone CI must not execute Linux-only KVM setup'
+assert 'udevadm' not in ci and '/dev/kvm' not in ci, \
+    'macOS standalone CI must not retain Linux KVM commands'
+assert 'ReactiveCircus/android-emulator-runner@v2' in ci, \
+    'standalone CI must run the real Android emulator lifecycle'
+print('PASS: standalone CI is self-contained and exercises the hardware-accelerated target API 36 lifecycle')
