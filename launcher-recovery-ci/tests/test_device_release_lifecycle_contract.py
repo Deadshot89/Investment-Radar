@@ -54,6 +54,12 @@ assert 'adb shell test -s "$remote"' in dump_ui_block, \
     'UI dump retry must verify that a fresh XML file was actually produced'
 print('PASS: UIAutomator dumps retry transient null-root failures without reusing stale XML')
 
+assert 'adb shell settings put global hide_error_dialogs 1' in smoke, \
+    'device smoke must suppress emulator-owned crash/ANR dialogs before UIAutomator interaction'
+assert "ANR in $PKG" in smoke or "ANR in ${PKG}" in smoke, \
+    'dialog suppression must be paired with a hard launcher-ANR logcat gate'
+print('PASS: emulator-owned error dialogs are suppressed without masking launcher ANRs')
+
 assert 'System UI|Process system' in smoke, \
     'device smoke must recognize both legacy System UI and API 36 process-system ANR titles'
 assert 'text="(System UI|Process system) isn.t responding"' in smoke, \
