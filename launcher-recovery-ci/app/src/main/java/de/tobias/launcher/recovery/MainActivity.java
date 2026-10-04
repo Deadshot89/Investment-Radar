@@ -52,7 +52,7 @@ public final class MainActivity extends Activity {
         super.onResume();
         reloadApps();
         refreshFavorites();
-        if (drawerGrid != null) drawerGrid.setAdapter(new AppAdapter(this, shownApps));
+        refreshDrawerFilter();
     }
 
     @Override
@@ -205,6 +205,11 @@ public final class MainActivity extends Activity {
         favoriteApps.clear();
         favoriteApps.addAll(allApps.subList(0, Math.min(8, allApps.size())));
         if (favoritesGrid != null) favoritesGrid.setAdapter(new AppAdapter(this, favoriteApps));
+    }
+
+    private void refreshDrawerFilter() {
+        CharSequence query = drawerSearch == null ? "" : drawerSearch.getQuery();
+        filterApps(query == null ? "" : query.toString());
     }
 
     private void filterApps(String q) {
