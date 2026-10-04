@@ -4,6 +4,7 @@ ROOT = Path(__file__).resolve().parents[1]
 ci = (ROOT / '.github/workflows/ci.yml').read_text(encoding='utf-8')
 smoke = (ROOT / 'tests/device_smoke.sh').read_text(encoding='utf-8')
 upgrade = (ROOT / 'tests/device_upgrade_smoke.sh').read_text(encoding='utf-8')
+drawer_assert = (ROOT / 'tests/assert_drawer_grid.py').read_text(encoding='utf-8')
 deepfix_ci = (ROOT.parent / '.github/workflows/launcher-recovery-p0-ci.yml').read_text(encoding='utf-8')
 
 assert 'APK="${1:-app/build/outputs/apk/debug/app-debug.apk}"' in smoke, \
@@ -53,6 +54,16 @@ assert 'adb shell rm -f "$remote"' in dump_ui_block, \
 assert 'adb shell test -s "$remote"' in dump_ui_block, \
     'UI dump retry must verify that a fresh XML file was actually produced'
 print('PASS: UIAutomator dumps retry transient null-root failures without reusing stale XML')
+
+assert 'android.widget.GridView' in drawer_assert, \
+    'drawer assertion helper must scope checks to GridView content'
+assert 'max(grids, key=lambda node: area(' in drawer_assert, \
+    'drawer assertion helper must select the main drawer grid rather than smaller homescreen favorites'
+assert 'python3 tests/assert_drawer_grid.py build/device/drawer-filtered.xml --present Settings --absent Calendar' in smoke, \
+    'filtered drawer verification must inspect the actual drawer grid instead of globally grepping the UI tree'
+assert 'Search filter did not narrow drawer results' not in smoke, \
+    'legacy global Calendar grep must be removed because underlying translucent homescreen content remains in UIAutomator tree'
+print('PASS: drawer filtering assertions ignore underlying homescreen favorites and validate only drawer grid contents')
 
 assert 'adb shell settings put global hide_error_dialogs 1' in smoke, \
     'device smoke must suppress emulator-owned crash/ANR dialogs before UIAutomator interaction'
