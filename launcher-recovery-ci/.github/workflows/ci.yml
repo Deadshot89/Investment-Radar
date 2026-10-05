@@ -73,4 +73,4 @@ jobs:
           profile: pixel_2
           emulator-boot-timeout: 900
           disable-animations: true
-          script: bash tests/device_upgrade_smoke.sh && bash tests/device_smoke.sh build/upgrade/launcher-v2.apk
+          script: bash tests/device_upgrade_smoke.sh && LAUNCHER_ALREADY_INSTALLED=1 bash tests/device_smoke.sh build/upgrade/launcher-v2.apk
