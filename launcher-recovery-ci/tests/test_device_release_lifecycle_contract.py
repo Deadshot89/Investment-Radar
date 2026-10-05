@@ -113,6 +113,8 @@ assert 'api-level: 36' in ci, \
     'standalone CI must exercise API 36 because targetSdk is 36'
 assert 'api-level: 29' not in ci, \
     'standalone CI must not regress lifecycle coverage to API 29'
+assert 'emulator-boot-timeout: 900' in ci, \
+    'standalone CI must allow bounded headroom for observed slow API 36 emulator boots'
 assert 'python3 tests/test_device_release_lifecycle_contract.py' in ci, \
     'standalone CI must execute the lifecycle contract that protects its device-test guarantees'
 assert 'Enable KVM for API 36 emulator' not in ci, \
@@ -121,4 +123,4 @@ assert 'udevadm' not in ci and '/dev/kvm' not in ci, \
     'macOS standalone CI must not retain Linux KVM commands'
 assert 'ReactiveCircus/android-emulator-runner@v2' in ci, \
     'standalone CI must run the real Android emulator lifecycle'
-print('PASS: standalone CI is self-contained and exercises the hardware-accelerated target API 36 lifecycle')
+print('PASS: standalone CI is self-contained and exercises the resilient target API 36 lifecycle')
