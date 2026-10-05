@@ -6,7 +6,7 @@ permissions:
   contents: read
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: macos-15-intel
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v5
@@ -30,6 +30,7 @@ jobs:
           python3 tests/test_launcher_contract.py
           python3 tests/test_release_signing_contract.py
           python3 tests/test_release_workflow_contract.py
+          python3 tests/test_device_release_lifecycle_contract.py
           bash tests/test_signer_fingerprint_guard.sh
       - name: Release must reject missing signing inputs
         shell: bash
@@ -67,7 +68,7 @@ jobs:
       - name: Signed update and launcher lifecycle smoke test
         uses: ReactiveCircus/android-emulator-runner@v2
         with:
-          api-level: 29
+          api-level: 36
           arch: x86_64
           profile: pixel_2
           disable-animations: true
