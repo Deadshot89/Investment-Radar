@@ -14,7 +14,7 @@ permissions:
 jobs:
   build-launcher:
     runs-on: macos-15-intel
-    timeout-minutes: 35
+    timeout-minutes: 45
     steps:
       - name: Checkout isolated branch
         uses: actions/checkout@v5
@@ -163,6 +163,7 @@ jobs:
           api-level: 36
           arch: x86_64
           profile: pixel_2
+          emulator-boot-timeout: 900
           disable-animations: true
           script: cd launcher-recovery-ci && bash tests/device_upgrade_smoke.sh && bash tests/device_smoke.sh build/upgrade/launcher-v2.apk
 
