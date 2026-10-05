@@ -4,6 +4,12 @@ mkdir -p build/device
 APK="${1:-app/build/outputs/apk/debug/app-debug.apk}"
 PKG="de.tobias.launcher.recovery"
 COMPONENT="$PKG/.MainActivity"
+LAUNCHER_ALREADY_INSTALLED="${LAUNCHER_ALREADY_INSTALLED:-0}"
+
+if [[ "$LAUNCHER_ALREADY_INSTALLED" != "0" && "$LAUNCHER_ALREADY_INSTALLED" != "1" ]]; then
+  echo "ERROR: LAUNCHER_ALREADY_INSTALLED must be 0 or 1." >&2
+  exit 25
+fi
 
 resolve_home() {
   adb shell cmd package resolve-activity --brief --user 0 \
@@ -97,12 +103,45 @@ dismiss_known_system_faults() {
   return 0
 }
 
+verify_already_installed_release() {
+  local expected listing attempt
+  if [[ ! -f "$APK" ]]; then
+    echo "ERROR: APK file is required to verify the already-installed release: $APK" >&2
+    return 1
+  fi
+  if [[ -z "${ANDROID_HOME:-}" ]]; then
+    echo "ERROR: ANDROID_HOME is required to verify the installed release version." >&2
+    return 1
+  fi
+  expected="$("$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer" manifest version-code "$APK" | tr -d '\r')"
+  if [[ ! "$expected" =~ ^[0-9]+$ ]]; then
+    echo "ERROR: could not determine expected APK versionCode: $expected" >&2
+    return 1
+  fi
+  for attempt in 1 2 3 4 5; do
+    if listing="$(adb shell pm list packages --show-versioncode --user 0 "$PKG" 2>/dev/null | tr -d '\r')" \
+      && printf '%s\n' "$listing" | grep -Fq "package:$PKG versionCode:$expected"; then
+      printf '%s\n' "$listing" | tee build/device/install.txt
+      echo "PASS: already-installed launcher matches APK versionCode $expected" | tee -a build/device/install.txt
+      return 0
+    fi
+    sleep 2
+  done
+  echo "ERROR: already-installed launcher does not match APK versionCode $expected" >&2
+  printf '%s\n' "${listing:-}" >&2
+  return 1
+}
+
 adb shell settings put global hide_error_dialogs 1
 test "$(adb shell settings get global hide_error_dialogs | tr -d '\r')" = "1"
 adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS >/dev/null 2>&1 || true
 adb logcat -c
 
-adb install -r "$APK" | tee build/device/install.txt
+if [[ "$LAUNCHER_ALREADY_INSTALLED" == "1" ]]; then
+  verify_already_installed_release
+else
+  adb install -r "$APK" | tee build/device/install.txt
+fi
 adb shell pm list packages | tr -d '\r' | grep -Fx "package:$PKG"
 set_home_and_verify
 adb shell am start -W -a android.intent.action.MAIN -c android.intent.category.HOME | tee build/device/home-start.txt || true
@@ -198,7 +237,7 @@ adb logcat -d -v brief > build/device/logcat.txt
 if grep -A20 -B5 'FATAL EXCEPTION' build/device/logcat.txt | grep -q "$PKG"; then echo "Launcher crash found in logcat" >&2; exit 1; fi
 if grep -Fq "ANR in $PKG" build/device/logcat.txt; then echo "Launcher ANR found in logcat" >&2; exit 24; fi
 printf '%s\n' \
-  'PASS: APK install' \
+  'PASS: APK install/state verification' \
   'PASS: default HOME resolution' \
   'PASS: HOME foreground' \
   'PASS: app drawer and search reset' \
