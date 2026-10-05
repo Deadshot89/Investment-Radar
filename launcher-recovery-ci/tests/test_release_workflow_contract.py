@@ -24,6 +24,7 @@ workflow_required = [
     "test_signer_fingerprint_guard.sh",
     "runs-on: macos-15-intel",
     "api-level: 36",
+    "emulator-boot-timeout: 900",
     "bash tests/device_smoke.sh app/build/outputs/apk/release/app-release.apk",
 ]
 for token in workflow_required:
@@ -51,4 +52,4 @@ assert contract_gate < key_restore, "release contract tests must pass before res
 assert verify_gate < device_gate, "signed APK must be verified before device lifecycle testing"
 assert device_gate < upload_gate, "production APK must pass API 36 lifecycle before release artifact upload"
 
-print("PASS: release workflow requires explicit versions, production signing secrets, pinned signer fingerprint, and API 36 device lifecycle before artifact upload")
+print("PASS: release workflow requires explicit versions, production signing secrets, pinned signer fingerprint, bounded API 36 boot resilience, and device lifecycle before artifact upload")
