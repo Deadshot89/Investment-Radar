@@ -15,6 +15,16 @@ assert 'bash tests/device_smoke.sh build/upgrade/launcher-v2.apk' in ci, \
 
 print('PASS: full launcher lifecycle is executed against the signed release upgrade target')
 
+assert 'LAUNCHER_ALREADY_INSTALLED="${LAUNCHER_ALREADY_INSTALLED:-0}"' in smoke, \
+    'device smoke must expose an explicit mode for a release already installed by the upgrade test'
+assert 'if [[ "$LAUNCHER_ALREADY_INSTALLED" == "1" ]]' in smoke, \
+    'already-installed mode must be opt-in and must not weaken normal install-from-scratch smoke tests'
+assert 'pm list packages --show-versioncode --user 0 "$PKG"' in smoke, \
+    'already-installed mode must verify the package/version instead of trusting prior test state'
+assert 'LAUNCHER_ALREADY_INSTALLED=1 bash tests/device_smoke.sh build/upgrade/launcher-v2.apk' in ci, \
+    'chained upgrade lifecycle must not redundantly reinstall the already verified v2 package'
+print('PASS: chained upgrade lifecycle reuses the verified installed v2 without redundant package replacement')
+
 for script_name in ('tests/device_smoke.sh', 'tests/device_upgrade_smoke.sh'):
     script = (ROOT / script_name).read_text(encoding='utf-8')
     assert 'set_home_and_verify()' in script, f'{script_name} must retry HOME assignment and verify the resolver'
