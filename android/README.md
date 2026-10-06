@@ -1,7 +1,9 @@
 # Investment Radar Android App
 
-**Version:** 2.5.27  
-**versionCode:** 97
+**Version:** 2.5.28  
+**versionCode:** 98
+
+Die verbindlichen Android-Versionsmetadaten werden in `android/app/build.gradle.kts` gepflegt.
 
 ## Technik
 
