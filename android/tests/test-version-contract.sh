@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Final Integration Contract für Investment Radar 2.5.27 / Android 2.5.27.
-# Combined main budget debit + monthly purchase-cap release candidate.
+# Final Integration Contract for the current Android release candidate.
+# Gradle is the source of truth for Android version metadata.
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 GRADLE_FILE="$ROOT/android/app/build.gradle.kts"
 WORKFLOW_FILE="$ROOT/.github/workflows/android-build.yml"
@@ -21,9 +21,16 @@ fail() {
   exit 1
 }
 
-grep -Fq 'versionCode = 97' "$GRADLE_FILE" || fail 'Android versionCode muss 96 sein.'
-grep -Fq 'versionName = "2.5.27"' "$GRADLE_FILE" || fail 'Android versionName muss 2.5.27 sein.'
-grep -Fq 'Release candidate: Investment Radar 2.5.27' "$GRADLE_FILE" || fail 'Release-Kandidat muss 2.5.27 benennen.'
+VERSION_NAME=$(sed -n 's/.*versionName = "\([^"]*\)".*/\1/p' "$GRADLE_FILE" | head -1)
+VERSION_CODE=$(sed -n 's/.*versionCode = \([0-9][0-9]*\).*/\1/p' "$GRADLE_FILE" | head -1)
+[ -n "$VERSION_NAME" ] || fail 'Android versionName konnte nicht aus build.gradle.kts gelesen werden.'
+[ -n "$VERSION_CODE" ] || fail 'Android versionCode konnte nicht aus build.gradle.kts gelesen werden.'
+
+if [ "$VERSION_CODE" -lt 98 ]; then
+  fail "Android versionCode darf nicht unter den freigegebenen Stand 98 zurückfallen (gefunden: $VERSION_CODE)."
+fi
+
+grep -Fq "Release candidate: Investment Radar $VERSION_NAME" "$GRADLE_FILE" || fail "Release-Kandidat muss die aktuelle Android-Version $VERSION_NAME benennen."
 grep -Fq 'EXPECTED_BACKEND_VERSION: "2.1.0"' "$WORKFLOW_FILE" || fail 'Backend-Vertrag muss bei 2.1.0 bleiben.'
 
 if grep -Fq 'versionCode = 80' "$GRADLE_FILE"; then
@@ -38,4 +45,4 @@ for temp_artifact in "$TEMP_NAV_WORKFLOW" "$TEMP_DETAIL_WORKFLOW" "$TEMP_TASK10_
   fi
 done
 
-echo 'PASS: Android 2.5.27/code97 mit Backend-Vertrag 2.1.0 und bereinigtem Release-Branch.'
+echo "PASS: Android $VERSION_NAME/code$VERSION_CODE mit Backend-Vertrag 2.1.0 und bereinigtem Release-Branch."
