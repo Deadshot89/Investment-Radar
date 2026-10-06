@@ -34,6 +34,7 @@ class InvestmentBudgetMigrationTest {
         assertTrue(InvestmentBudgetMigration.seedIfEmpty(emptyList(), 0, "2026-09-11").isEmpty())
         assertTrue(InvestmentBudgetMigration.seedIfEmpty(emptyList(), -5, "2026-09-11").isEmpty())
     }
+
     @Test
     fun `known wrong 500 current monthly budget is repaired to 100`() {
         val existing = listOf(
@@ -56,6 +57,30 @@ class InvestmentBudgetMigrationTest {
         assertEquals(100, repair.configuredMonthlyBudgetEur)
         assertEquals(100.0, repair.entries.single().amountEur, 0.0001)
         assertTrue(repair.entries.single().note.contains("500 € war kein Kaufbudget"))
+    }
+
+    @Test
+    fun `manual 500 euro current monthly budget is preserved`() {
+        val existing = listOf(
+            BudgetJournalEntry(
+                id = "monthly-budget-2026-10",
+                type = BudgetJournalType.MONTHLY_DEPOSIT,
+                amountEur = 500.0,
+                date = "2026-10-01",
+                source = BudgetJournalSource.MANUAL,
+                note = "Monatsbudget Oktober 2026"
+            )
+        )
+
+        val repair = InvestmentBudgetMigration.repairKnownIncorrectFiveHundredBudget(
+            existing = existing,
+            configuredMonthlyBudgetEur = 500,
+            date = "2026-10-06"
+        )
+
+        assertTrue(!repair.repaired)
+        assertEquals(500, repair.configuredMonthlyBudgetEur)
+        assertEquals(existing, repair.entries)
     }
 
     @Test
@@ -85,5 +110,4 @@ class InvestmentBudgetMigrationTest {
         assertEquals(existing, repair.entries)
         assertEquals(100, repair.configuredMonthlyBudgetEur)
     }
-
 }
