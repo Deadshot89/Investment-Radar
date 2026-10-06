@@ -40,11 +40,24 @@ object InvestmentBudgetCommands {
             source = BudgetJournalSource.MANUAL,
             note = "Monatsbudget ${InvestmentBudgetDate.monthLabel(monthKey)}"
         )
-        return if (existing != null) {
-            entries.map { if (it.id == existing.id) normalized else it }
-        } else {
-            InvestmentBudgetJournalEngine.upsert(entries, normalized)
+
+        var monthlyBudgetWritten = false
+        val cleaned = buildList {
+            entries.forEach { entry ->
+                val sameMonthBudget =
+                    entry.type == BudgetJournalType.MONTHLY_DEPOSIT &&
+                        InvestmentBudgetDate.monthKey(entry.date) == monthKey
+                if (sameMonthBudget) {
+                    if (!monthlyBudgetWritten) {
+                        add(normalized)
+                        monthlyBudgetWritten = true
+                    }
+                } else {
+                    add(entry)
+                }
+            }
         }
+        return if (monthlyBudgetWritten) cleaned else cleaned + normalized
     }
 
     fun addExtraFunding(
