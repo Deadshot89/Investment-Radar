@@ -17,15 +17,14 @@ object InvestmentBudgetMigration {
     ): MonthlyBudgetRepair {
         val monthKey = InvestmentBudgetDate.monthKey(date)
             ?: return MonthlyBudgetRepair(existing, configuredMonthlyBudgetEur, false)
-        val currentMonthlyBudget = existing
-            .filter {
-                it.type == BudgetJournalType.MONTHLY_DEPOSIT &&
-                    InvestmentBudgetDate.monthKey(it.date) == monthKey
-            }
-            .sumOf { it.amountEur }
-        val wrongConfiguredValue = configuredMonthlyBudgetEur == 500
-        val wrongCurrentMonthValue = kotlin.math.abs(currentMonthlyBudget - 500.0) < 0.001
-        if (!wrongConfiguredValue && !wrongCurrentMonthValue) {
+        val knownWrongCurrentMonthValue = existing.any {
+            it.type == BudgetJournalType.MONTHLY_DEPOSIT &&
+                InvestmentBudgetDate.monthKey(it.date) == monthKey &&
+                it.source == BudgetJournalSource.SYSTEM &&
+                kotlin.math.abs(it.amountEur - 500.0) < 0.001
+        }
+        val knownWrongState = configuredMonthlyBudgetEur == 500 && knownWrongCurrentMonthValue
+        if (!knownWrongState) {
             return MonthlyBudgetRepair(existing, configuredMonthlyBudgetEur, false)
         }
 
