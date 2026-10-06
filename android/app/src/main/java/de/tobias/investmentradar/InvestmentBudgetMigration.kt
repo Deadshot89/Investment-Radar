@@ -56,12 +56,18 @@ object InvestmentBudgetMigration {
         existing: List<BudgetJournalEntry>,
         legacyMonthlyBudgetEur: Int,
         date: String
+    ): List<BudgetJournalEntry> = seedIfEmpty(existing, legacyMonthlyBudgetEur.toDouble(), date)
+
+    fun seedIfEmpty(
+        existing: List<BudgetJournalEntry>,
+        legacyMonthlyBudgetEur: Double,
+        date: String
     ): List<BudgetJournalEntry> {
         if (existing.isNotEmpty()) return existing
-        if (legacyMonthlyBudgetEur <= 0 || date.isBlank()) return existing
+        if (!legacyMonthlyBudgetEur.isFinite() || legacyMonthlyBudgetEur <= 0.0 || date.isBlank()) return existing
         return InvestmentBudgetCommands.setMonthlyBudget(
             entries = emptyList(),
-            amountEur = legacyMonthlyBudgetEur.toDouble(),
+            amountEur = legacyMonthlyBudgetEur,
             date = date
         ).map { it.copy(source = BudgetJournalSource.SYSTEM, note = "Übernommenes Monatsbudget") }
     }
@@ -70,8 +76,14 @@ object InvestmentBudgetMigration {
         existing: List<BudgetJournalEntry>,
         configuredMonthlyBudgetEur: Int,
         date: String
+    ): List<BudgetJournalEntry> = ensureCurrentMonth(existing, configuredMonthlyBudgetEur.toDouble(), date)
+
+    fun ensureCurrentMonth(
+        existing: List<BudgetJournalEntry>,
+        configuredMonthlyBudgetEur: Double,
+        date: String
     ): List<BudgetJournalEntry> {
-        if (configuredMonthlyBudgetEur < 0 || date.isBlank()) return existing
+        if (!configuredMonthlyBudgetEur.isFinite() || configuredMonthlyBudgetEur < 0.0 || date.isBlank()) return existing
         val monthKey = InvestmentBudgetDate.monthKey(date) ?: return existing
         val alreadyPresent = existing.any {
             it.type == BudgetJournalType.MONTHLY_DEPOSIT &&
@@ -80,7 +92,7 @@ object InvestmentBudgetMigration {
         if (alreadyPresent) return existing
         return InvestmentBudgetCommands.setMonthlyBudget(
             entries = existing,
-            amountEur = configuredMonthlyBudgetEur.toDouble(),
+            amountEur = configuredMonthlyBudgetEur,
             date = date
         ).map { entry ->
             if (entry.id == "monthly-budget-$monthKey") {
