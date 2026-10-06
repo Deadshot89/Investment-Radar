@@ -2134,18 +2134,42 @@ private fun MoneyManagementScreen(
                     ActionType.HOLD_CASH -> RadarMuted
                 }
                 NeonPanel(accent = accent) {
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(action.instrumentName, fontWeight = FontWeight.Black)
-                            if (action.reason.isNotBlank()) {
-                                Text(action.reason, color = RadarMuted, style = MaterialTheme.typography.bodySmall)
+                    BoxWithConstraints(Modifier.fillMaxWidth()) {
+                        if (maxWidth < 420.dp) {
+                            Column(Modifier.fillMaxWidth()) {
+                                Text(action.instrumentName, fontWeight = FontWeight.Black)
+                                if (action.reason.isNotBlank()) {
+                                    Text(action.reason, color = RadarMuted, style = MaterialTheme.typography.bodySmall)
+                                }
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    action.cashImpactText,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    color = accent,
+                                    fontWeight = FontWeight.Black
+                                )
+                            }
+                        } else {
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(action.instrumentName, fontWeight = FontWeight.Black)
+                                    if (action.reason.isNotBlank()) {
+                                        Text(action.reason, color = RadarMuted, style = MaterialTheme.typography.bodySmall)
+                                    }
+                                }
+                                Spacer(Modifier.width(16.dp))
+                                Text(
+                                    action.cashImpactText,
+                                    modifier = Modifier.widthIn(max = 180.dp),
+                                    color = accent,
+                                    fontWeight = FontWeight.Black
+                                )
                             }
                         }
-                        Text(action.cashImpactText, color = accent, fontWeight = FontWeight.Black)
                     }
                     if (action.actionText.isNotBlank() && action.actionText != action.cashImpactText) {
                         Text(action.actionText, color = RadarText, style = MaterialTheme.typography.bodySmall)
