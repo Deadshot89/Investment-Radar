@@ -61,6 +61,7 @@ class InvestmentBudgetMigrationTest {
 
     @Test
     fun `manual 500 euro current monthly budget is preserved`() {
+        // Regression: the one-time repair must never overwrite a deliberate user-entered budget.
         val existing = listOf(
             BudgetJournalEntry(
                 id = "monthly-budget-2026-10",
