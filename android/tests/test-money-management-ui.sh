@@ -12,6 +12,9 @@ grep -Fq 'title = { Text("Geldverwaltung") }' "$SRC" || fail 'Budget-Dialog muss
 grep -Fq 'Text("Was soll ich mit meinem Geld tun?"' "$SRC" || fail 'Konkrete Geldaktions-Sektion fehlt.'
 grep -Fq 'actionCenter: DepotActionCenterState' "$SRC" || fail 'Budget-Dialog muss den Depot-Aktionsplan erhalten.'
 grep -Fq 'Text(action.cashImpactText' "$SRC" || fail 'Budgetwirkung der Aktion muss sichtbar sein.'
+grep -Fq 'BoxWithConstraints(Modifier.fillMaxWidth())' "$SRC" || fail 'Geldaktions-Karten müssen ihre verfügbare Breite responsiv auswerten.'
+grep -Fq 'if (maxWidth < 420.dp)' "$SRC" || fail 'Geldaktions-Karten brauchen einen kompakten Layout-Pfad unter 420dp.'
+grep -Fq 'modifier = Modifier.widthIn(max = 180.dp)' "$SRC" || fail 'Cash-Wirkung muss im breiten Layout begrenzt werden und darf den Instrumentnamen nicht zusammendrücken.'
 grep -Fq 'Text("Geldverlauf"' "$SRC" || fail 'Budgethistorie muss als Geldverlauf benannt sein.'
 grep -Fq 'Text("+ 5 €")' "$SRC" || fail '5-Euro-Schnellbuchung für Wechselgeld fehlt.'
 grep -Fq 'Text("+ 10 €")' "$SRC" || fail '10-Euro-Schnellbuchung für Wechselgeld fehlt.'
@@ -25,4 +28,4 @@ grep -Fq 'visibleBudgetHistoryNote' "$SRC" || fail 'Interne Geldbedarf-Kennung d
 grep -Fq 'ihre Erlöse werden privat verwendet und erhöhen dein App-Cash nicht' "$SRC" || fail 'Verkaufserlöse dürfen nicht als App-Cash dargestellt werden.'
 grep -Fq 'tab = 4' "$SRC" || fail 'Geldverwaltungs-Reiter ist nicht in der Root-Navigation verdrahtet.'
 
-echo 'PASS: Geldverwaltung zeigt Kontostand, konkrete Aktionen, Schnellbuchungen und Geldverlauf.'
+echo 'PASS: Geldverwaltung zeigt Kontostand, responsive Aktionskarten, konkrete Aktionen, Schnellbuchungen und Geldverlauf.'
