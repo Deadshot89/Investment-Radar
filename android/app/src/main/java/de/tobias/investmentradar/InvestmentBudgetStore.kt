@@ -97,6 +97,7 @@ object InvestmentBudgetStore {
     private const val RESERVATIONS_KEY = "reservations_v1"
     private const val SETTINGS_PREFS = "investment_radar_settings"
     private const val LEGACY_BUDGET_KEY = "monthly_budget"
+    private const val EXACT_BUDGET_KEY = "monthly_budget_exact_v1"
     private const val WRONG_500_BUDGET_REPAIR_KEY = "wrong_500_budget_repair_v1"
 
     fun readEntries(context: Context): List<BudgetJournalEntry> {
@@ -150,12 +151,30 @@ object InvestmentBudgetStore {
             .getInt(LEGACY_BUDGET_KEY, 100)
             .coerceAtLeast(0)
 
+    private fun configuredMonthlyBudgetExact(context: Context): Double {
+        val settings = context.getSharedPreferences(SETTINGS_PREFS, Context.MODE_PRIVATE)
+        val exact = settings.getString(EXACT_BUDGET_KEY, null)
+            ?.toDoubleOrNull()
+            ?.takeIf { it.isFinite() && it >= 0.0 }
+        if (exact != null) return exact
+
+        val latestManualBudget = readEntries(context)
+            .asSequence()
+            .filter { it.type == BudgetJournalType.MONTHLY_DEPOSIT && it.source == BudgetJournalSource.MANUAL }
+            .mapNotNull { entry -> InvestmentBudgetDate.parse(entry.date)?.let { date -> date to entry.amountEur } }
+            .filter { (_, amount) -> amount.isFinite() && amount >= 0.0 }
+            .maxByOrNull { (date, _) -> date }
+            ?.second
+        return latestManualBudget ?: configuredMonthlyBudget(context).toDouble()
+    }
+
     fun setMonthlyBudget(context: Context, amountEur: Double, date: String = LocalDate.now().toString()) {
         val next = InvestmentBudgetCommands.setMonthlyBudget(readEntries(context), amountEur, date)
         saveEntries(context, next)
         context.getSharedPreferences(SETTINGS_PREFS, Context.MODE_PRIVATE)
             .edit()
             .putInt(LEGACY_BUDGET_KEY, amountEur.toInt())
+            .putString(EXACT_BUDGET_KEY, amountEur.toString())
             .apply()
     }
 
@@ -191,6 +210,7 @@ object InvestmentBudgetStore {
 
         var existing = storedEntries
         var configuredBudget = configuredMonthlyBudget(context)
+        var configuredBudgetExact = configuredMonthlyBudgetExact(context)
         if (!settings.getBoolean(WRONG_500_BUDGET_REPAIR_KEY, false)) {
             val repair = InvestmentBudgetMigration.repairKnownIncorrectFiveHundredBudget(
                 existing = existing,
@@ -203,20 +223,22 @@ object InvestmentBudgetStore {
                 .putBoolean(WRONG_500_BUDGET_REPAIR_KEY, true)
                 .apply()
             if (repair.repaired) {
+                configuredBudgetExact = configuredBudget.toDouble()
                 settings.edit()
                     .putInt(LEGACY_BUDGET_KEY, configuredBudget)
+                    .putString(EXACT_BUDGET_KEY, configuredBudgetExact.toString())
                     .apply()
             }
         }
 
         val seeded = InvestmentBudgetMigration.seedIfEmpty(
             existing = existing,
-            legacyMonthlyBudgetEur = configuredBudget,
+            legacyMonthlyBudgetEur = configuredBudgetExact,
             date = date
         )
         val current = InvestmentBudgetMigration.ensureCurrentMonth(
             existing = seeded,
-            configuredMonthlyBudgetEur = configuredBudget,
+            configuredMonthlyBudgetEur = configuredBudgetExact,
             date = date
         )
         if (current != storedEntries) {
@@ -232,7 +254,7 @@ object InvestmentBudgetStore {
         val existing = readEntries(context)
         val next = InvestmentBudgetMigration.ensureCurrentMonth(
             existing = existing,
-            configuredMonthlyBudgetEur = configuredMonthlyBudget(context),
+            configuredMonthlyBudgetEur = configuredMonthlyBudgetExact(context),
             date = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
         )
         if (next != existing) saveEntries(context, next) else refreshRuntime(context)
