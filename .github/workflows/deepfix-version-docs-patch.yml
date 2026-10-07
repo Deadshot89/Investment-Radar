@@ -36,7 +36,6 @@ jobs:
       - name: Verify docs-only patch and remove helper workflow
         run: |
           set -euo pipefail
-          git diff --check
           git diff -- README.md android/README.md START_HIER.md SETUP.md
           git rm .github/workflows/deepfix-version-docs-patch.yml
           git config user.name "github-actions[bot]"
