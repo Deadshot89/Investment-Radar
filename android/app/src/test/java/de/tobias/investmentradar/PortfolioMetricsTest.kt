@@ -85,6 +85,26 @@ class PortfolioMetricsTest {
     }
 
     @Test
+    fun partialSaleUsesTotalPurchaseBasisForAggregatePerformancePercent() {
+        val item = portfolioItem("a", 10.0)
+        val position = PortfolioPosition(
+            itemId = "a",
+            purchases = listOf(PortfolioPurchase("buy", "01.01.2026", 100.0, 10.0)),
+            sales = listOf(PortfolioSale("sell", "02.01.2026", 60.0, 5.0))
+        )
+
+        val result = PortfolioMetrics.calculate(
+            items = listOf(item),
+            positions = mapOf("a" to position),
+            customItems = emptyList()
+        )
+
+        assertEquals(10.0, result.totalProfitLoss!!, 0.001)
+        assertEquals(10.0, result.positions.single().totalProfitLossPct!!, 0.001)
+        assertEquals(10.0, result.totalProfitLossPct!!, 0.001)
+    }
+
+    @Test
     fun fullySoldPositionDoesNotRequireQuoteOrCountAsHeld() {
         val sold = PortfolioPosition(
             itemId = "sold",
