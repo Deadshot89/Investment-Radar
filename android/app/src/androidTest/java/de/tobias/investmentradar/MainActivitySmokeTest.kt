@@ -48,8 +48,8 @@ class MainActivitySmokeTest {
         }
         composeRule.onNodeWithTag("moneyManagementList").performScrollToIndex(2)
 
-        composeRule.onNodeWithText("Benötigter Betrag in €")
-            .performTextInput("1.000,50")
-            .assertTextContains("1000,50")
+        val amountField = composeRule.onNodeWithText("Benötigter Betrag in €")
+        amountField.performTextInput("1.000,50")
+        amountField.assertTextContains("1000,50")
     }
 }
