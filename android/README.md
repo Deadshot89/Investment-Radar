@@ -1,7 +1,7 @@
 # Investment Radar Android App
 
-**Version:** 2.5.31  
-**versionCode:** 101
+**Version:** 2.5.32  
+**versionCode:** 102
 
 Die verbindlichen Android-Versionsmetadaten werden in `android/app/build.gradle.kts` gepflegt.
 
@@ -33,6 +33,7 @@ Die verbindlichen Android-Versionsmetadaten werden in `android/app/build.gradle.
 - Monatsbudget und Gesamt-Cash sind getrennte Größen.
 - Kaufempfehlungen dürfen nur das noch freie Monatsbudget verwenden.
 - Bestätigte Käufe reduzieren das Monatsbudget.
+- Manuell gesetzte Monatsbudgets werden centgenau gespeichert und in Folgemonate übernommen.
 - Verkaufserlöse werden erfasst, aber privat verwendet und erhöhen App-Cash sowie Kaufbudget nicht.
 - Der Geldbedarf-Flow kann vorhandenes App-Cash und private Verkaufserlöse getrennt auf einen Bedarf anrechnen.
 - Geldaktions-Karten stapeln auf kompakten Displays Instrument/Begründung und Cash-Wirkung, damit lange Werte die Inhalte nicht zusammendrücken.
