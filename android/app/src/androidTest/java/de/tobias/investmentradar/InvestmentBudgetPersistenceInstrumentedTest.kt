@@ -27,6 +27,7 @@ class InvestmentBudgetPersistenceInstrumentedTest {
         context.getSharedPreferences("investment_radar_settings", Context.MODE_PRIVATE).edit().clear().commit()
     }
 
+    // Release regression: decimal monthly budgets must remain cent-accurate across month rollover.
     @Test
     fun decimalMonthlyBudgetIsPreservedForNextMonth() {
         InvestmentBudgetStore.setMonthlyBudget(
