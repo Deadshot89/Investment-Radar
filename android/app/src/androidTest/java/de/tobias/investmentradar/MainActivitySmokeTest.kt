@@ -40,6 +40,7 @@ class MainActivitySmokeTest {
 
     @Test
     fun germanThousandsSeparatorKeepsMonetaryValue() {
+        // Regression: a German thousands separator must never turn 1.000,50 EUR into ~1 EUR.
         composeRule.onNodeWithText("Geld").assertIsDisplayed().performClick()
         composeRule.waitUntil(timeoutMillis = 45_000) {
             composeRule.onAllNodesWithText("GELDVERWALTUNG", substring = true)
