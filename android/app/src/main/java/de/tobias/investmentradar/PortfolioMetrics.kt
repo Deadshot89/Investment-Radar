@@ -77,6 +77,16 @@ object PortfolioMetrics {
         val calculableCurrentValue = activeDrafts.sumOf { it.currentValue ?: 0.0 }
         val calculablePositionCount = activeDrafts.count { it.currentValue != null }
         val weightDenominator = calculableCurrentValue.takeIf { it > 0.0 }
+        val performanceCostBasisById = drafts.associate { draft ->
+            val position = draft.position
+            val basis = when {
+                draft.fixedIncomePrincipal != null -> draft.fixedIncomePrincipal
+                position.totalPurchasedAmount > 0.0 -> position.totalPurchasedAmount
+                position.performanceCostBasisKnown -> position.activeCostBasis
+                else -> 0.0
+            }
+            draft.itemId to basis
+        }
 
         val metrics = drafts.map { draft ->
             val position = draft.position
@@ -131,10 +141,12 @@ object PortfolioMetrics {
 
         val activeMetrics = metrics.filter { it.active }
         val investedCostBasis = activeMetrics.filter { it.costBasisKnown }.sumOf { it.investedCostBasis }
-        val performanceDenominator = activeMetrics.filter { it.costBasisKnown }.sumOf { it.investedCostBasis }
+        val performanceDenominator = metrics
+            .filter { it.costBasisKnown && it.totalProfitLoss != null }
+            .sumOf { performanceCostBasisById[it.itemId] ?: 0.0 }
         val performanceMetrics = activeMetrics.filter { it.currentValue != null && it.totalProfitLoss != null && it.costBasisKnown }
         val partialProfitLoss = performanceMetrics.takeIf { it.isNotEmpty() }?.sumOf { it.totalProfitLoss ?: 0.0 }
-        val partialPerformanceCostBasis = performanceMetrics.sumOf { it.investedCostBasis }
+        val partialPerformanceCostBasis = performanceMetrics.sumOf { performanceCostBasisById[it.itemId] ?: 0.0 }
         val partialProfitLossPct = if (partialProfitLoss != null && partialPerformanceCostBasis > 0.0) partialProfitLoss / partialPerformanceCostBasis * 100.0 else null
         val completeTotalProfitLoss = if (currentValueComplete && activeMetrics.all { it.totalProfitLoss != null }) metrics.sumOf { it.totalProfitLoss ?: 0.0 } else null
         val completeTotalProfitLossPct = if (completeTotalProfitLoss != null && performanceDenominator > 0.0) completeTotalProfitLoss / performanceDenominator * 100.0 else null
