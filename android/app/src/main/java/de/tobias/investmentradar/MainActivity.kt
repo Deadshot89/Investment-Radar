@@ -2521,11 +2521,20 @@ private fun isValidPurchaseDate(value: String): Boolean {
 private fun parseDecimal(value: String): Double? = value.trim().replace(',', '.').toDoubleOrNull()
 
 private fun sanitizeDecimalInput(value: String): String {
-    val normalized = value.filter { it.isDigit() || it == ',' || it == '.' }.replace('.', ',')
-    val firstComma = normalized.indexOf(',')
-    return if (firstComma < 0) normalized.take(12) else {
-        normalized.substring(0, firstComma + 1) + normalized.substring(firstComma + 1).replace(",", "").take(6)
-    }.take(16)
+    val raw = value.filter { it.isDigit() || it == ',' || it == '.' }
+    val lastComma = raw.lastIndexOf(',')
+    val lastDot = raw.lastIndexOf('.')
+    val decimalIndex = when {
+        lastComma >= 0 && lastDot >= 0 -> maxOf(lastComma, lastDot)
+        lastComma >= 0 -> raw.indexOf(',')
+        lastDot >= 0 -> raw.indexOf('.')
+        else -> -1
+    }
+    if (decimalIndex < 0) return raw.take(12)
+
+    val integerPart = raw.substring(0, decimalIndex).filter(Char::isDigit)
+    val fractionalPart = raw.substring(decimalIndex + 1).filter(Char::isDigit).take(6)
+    return "$integerPart,$fractionalPart".take(16)
 }
 
 private fun formatEditableNumber(value: Double): String =
