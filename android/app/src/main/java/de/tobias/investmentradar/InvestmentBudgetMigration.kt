@@ -85,11 +85,49 @@ object InvestmentBudgetMigration {
     ): List<BudgetJournalEntry> {
         if (!configuredMonthlyBudgetEur.isFinite() || configuredMonthlyBudgetEur < 0.0 || date.isBlank()) return existing
         val monthKey = InvestmentBudgetDate.monthKey(date) ?: return existing
-        val alreadyPresent = existing.any {
+        val currentMonthBudgets = existing.filter {
             it.type == BudgetJournalType.MONTHLY_DEPOSIT &&
                 InvestmentBudgetDate.monthKey(it.date) == monthKey
         }
-        if (alreadyPresent) return existing
+
+        if (currentMonthBudgets.size == 1) return existing
+
+        if (currentMonthBudgets.size > 1) {
+            val manualBudget = currentMonthBudgets.lastOrNull {
+                it.source == BudgetJournalSource.MANUAL &&
+                    it.amountEur.isFinite() &&
+                    it.amountEur >= 0.0
+            }
+            val authoritativeAmount = manualBudget?.amountEur ?: configuredMonthlyBudgetEur
+            val authoritativeDate = manualBudget?.date ?: date
+            val authoritativeSource = manualBudget?.source ?: BudgetJournalSource.SYSTEM
+            val authoritativeNote = manualBudget?.note
+                ?.takeIf { it.isNotBlank() }
+                ?: if (authoritativeSource == BudgetJournalSource.SYSTEM) {
+                    "Monatsbudget automatisch übernommen"
+                } else {
+                    "Monatsbudget ${InvestmentBudgetDate.monthLabel(monthKey)}"
+                }
+
+            return InvestmentBudgetCommands.setMonthlyBudget(
+                entries = existing,
+                amountEur = authoritativeAmount,
+                date = authoritativeDate
+            ).map { entry ->
+                if (
+                    entry.type == BudgetJournalType.MONTHLY_DEPOSIT &&
+                    InvestmentBudgetDate.monthKey(entry.date) == monthKey
+                ) {
+                    entry.copy(
+                        source = authoritativeSource,
+                        note = authoritativeNote
+                    )
+                } else {
+                    entry
+                }
+            }
+        }
+
         return InvestmentBudgetCommands.setMonthlyBudget(
             entries = existing,
             amountEur = configuredMonthlyBudgetEur,
