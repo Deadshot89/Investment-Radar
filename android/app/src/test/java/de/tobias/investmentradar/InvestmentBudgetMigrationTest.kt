@@ -36,6 +36,50 @@ class InvestmentBudgetMigrationTest {
     }
 
     @Test
+    fun `current month initialization removes duplicate legacy budget deposits`() {
+        val existing = listOf(
+            BudgetJournalEntry(
+                id = "monthly-budget-2026-10",
+                type = BudgetJournalType.MONTHLY_DEPOSIT,
+                amountEur = 100.0,
+                date = "2026-10-01",
+                source = BudgetJournalSource.SYSTEM
+            ),
+            BudgetJournalEntry(
+                id = "legacy-duplicate-budget",
+                type = BudgetJournalType.MONTHLY_DEPOSIT,
+                amountEur = 100.0,
+                date = "01.10.2026",
+                source = BudgetJournalSource.SYSTEM
+            ),
+            BudgetJournalEntry(
+                id = "buy-meta",
+                type = BudgetJournalType.BUY_DEBIT,
+                amountEur = 25.0,
+                date = "2026-10-02",
+                itemId = "meta"
+            )
+        )
+
+        val migrated = InvestmentBudgetMigration.ensureCurrentMonth(
+            existing = existing,
+            configuredMonthlyBudgetEur = 100.0,
+            date = "2026-10-08"
+        )
+
+        val currentMonthBudgets = migrated.filter {
+            it.type == BudgetJournalType.MONTHLY_DEPOSIT &&
+                InvestmentBudgetDate.monthKey(it.date) == "2026-10"
+        }
+        assertEquals(1, currentMonthBudgets.size)
+        assertEquals(100.0, currentMonthBudgets.single().amountEur, 0.0001)
+        assertEquals(1, migrated.count { it.id == "buy-meta" })
+
+        val summary = InvestmentBudgetJournalEngine.summarize(migrated, emptyList())
+        assertEquals(75.0, summary.availableEur, 0.0001)
+    }
+
+    @Test
     fun `known wrong 500 current monthly budget is repaired to 100`() {
         val existing = listOf(
             BudgetJournalEntry(
