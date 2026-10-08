@@ -80,6 +80,42 @@ class InvestmentBudgetMigrationTest {
     }
 
     @Test
+    fun `current month duplicate cleanup preserves explicit manual budget`() {
+        val existing = listOf(
+            BudgetJournalEntry(
+                id = "legacy-system-budget",
+                type = BudgetJournalType.MONTHLY_DEPOSIT,
+                amountEur = 100.0,
+                date = "2026-10-01",
+                source = BudgetJournalSource.SYSTEM
+            ),
+            BudgetJournalEntry(
+                id = "manual-budget",
+                type = BudgetJournalType.MONTHLY_DEPOSIT,
+                amountEur = 125.50,
+                date = "2026-10-03",
+                source = BudgetJournalSource.MANUAL,
+                note = "Bewusst angepasst"
+            )
+        )
+
+        val migrated = InvestmentBudgetMigration.ensureCurrentMonth(
+            existing = existing,
+            configuredMonthlyBudgetEur = 100.0,
+            date = "2026-10-08"
+        )
+
+        val currentMonthBudgets = migrated.filter {
+            it.type == BudgetJournalType.MONTHLY_DEPOSIT &&
+                InvestmentBudgetDate.monthKey(it.date) == "2026-10"
+        }
+        assertEquals(1, currentMonthBudgets.size)
+        assertEquals(125.50, currentMonthBudgets.single().amountEur, 0.0001)
+        assertEquals(BudgetJournalSource.MANUAL, currentMonthBudgets.single().source)
+        assertEquals("Bewusst angepasst", currentMonthBudgets.single().note)
+    }
+
+    @Test
     fun `known wrong 500 current monthly budget is repaired to 100`() {
         val existing = listOf(
             BudgetJournalEntry(
