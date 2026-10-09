@@ -1,8 +1,10 @@
 package de.tobias.investmentradar
 
+import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PortfolioAnalysisTest {
@@ -69,5 +71,17 @@ class PortfolioAnalysisTest {
         )
 
         assertNull(warning)
+    }
+
+    @Test
+    fun liveDashboardUsesCalculatedConcentrationInsteadOfDisabledPlaceholder() {
+        val mainActivity = listOf(
+            File(System.getProperty("user.dir"), "src/main/java/de/tobias/investmentradar/MainActivity.kt"),
+            File(System.getProperty("user.dir"), "app/src/main/java/de/tobias/investmentradar/MainActivity.kt")
+        ).firstOrNull { it.exists() } ?: error("MainActivity.kt not found")
+        val source = mainActivity.readText()
+
+        assertTrue(source.contains("PortfolioAnalysis.leadingConcentration(portfolioValues)"))
+        assertFalse(source.contains("val concentrationWarning: Pair<InvestmentItem, Double>? = null"))
     }
 }
