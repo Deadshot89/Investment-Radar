@@ -11,7 +11,8 @@ class RecommendationEngineTest {
             mapOf("a" to 600.0, "b" to 400.0)
         )
         assertEquals(0, result.items.first { it.itemId == "a" }.allocationEur)
-        assertEquals(100, result.items.first { it.itemId == "b" }.allocationEur)
+        assertEquals(0, result.items.first { it.itemId == "b" }.allocationEur)
+        assertEquals(100, result.cashAmount)
     }
 
     @Test fun eligibleAllocationsSumExactlyToBudget() {
@@ -29,5 +30,25 @@ class RecommendationEngineTest {
     @Test fun noEligibleBuyKeepsCash() {
         val result = RecommendationEngine.plan(listOf(testInvestmentItem("a", recommendation = "WATCH")), 100, emptyMap())
         assertEquals(100, result.cashAmount)
+    }
+
+    @Test fun concentratedOnlyBuyNeverForcesBudgetAllocation() {
+        val result = RecommendationEngine.plan(
+            listOf(testInvestmentItem("meta", recommendation = "BUY", scoreTotal = 95)),
+            100,
+            mapOf("meta" to 760.58)
+        )
+        assertEquals(0, result.items.single().allocationEur)
+        assertEquals(100, result.cashAmount)
+    }
+
+    @Test fun zeroBudgetNeverAllocates() {
+        val result = RecommendationEngine.plan(
+            listOf(testInvestmentItem("a", recommendation = "BUY", scoreTotal = 95)),
+            0,
+            emptyMap()
+        )
+        assertEquals(0, result.items.single().allocationEur)
+        assertEquals(0, result.cashAmount)
     }
 }
