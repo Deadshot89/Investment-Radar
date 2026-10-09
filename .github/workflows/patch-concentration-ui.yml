@@ -17,18 +17,18 @@ jobs:
       - uses: actions/checkout@v5
         with:
           ref: fix/concentration-budget-fallback-20261009
-      - name: Wire live concentration warning
+      - name: Fix live concentration warning scope
         shell: bash
         run: |
           python - <<'PY'
           from pathlib import Path
           path = Path('android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt')
           text = path.read_text()
-          old = '    val concentrationWarning: Pair<InvestmentItem, Double>? = null\n'
-          new = '''    val concentrationWarning: Pair<InvestmentItem, Double>? = PortfolioAnalysis.leadingConcentration(portfolioValues)\n        ?.let { (itemId, sharePct) ->\n            data.items.firstOrNull { it.id == itemId }?.let { item -> item to sharePct }\n        }\n'''
+          old = '    val concentrationWarning: Pair<InvestmentItem, Double>? = PortfolioAnalysis.leadingConcentration(portfolioValues)\n'
+          new = '    val portfolioValues = PortfolioAnalysis.values(data.items, positions, customItems)\n' + old
           count = text.count(old)
           if count != 1:
-              raise SystemExit(f'Expected exactly one disabled concentration warning, found {count}')
+              raise SystemExit(f'Expected exactly one concentration warning, found {count}')
           path.write_text(text.replace(old, new, 1))
           PY
           git diff --check
@@ -39,5 +39,5 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt
-          git commit -m 'fix: show dominant portfolio concentration on live dashboard'
+          git commit -m 'fix: compute portfolio values for live concentration warning'
           git push origin HEAD:fix/concentration-budget-fallback-20261009
