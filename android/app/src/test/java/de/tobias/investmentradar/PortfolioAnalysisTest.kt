@@ -81,6 +81,7 @@ class PortfolioAnalysisTest {
         ).firstOrNull { it.exists() } ?: error("MainActivity.kt not found")
         val source = mainActivity.readText()
 
+        assertTrue(source.contains("PortfolioAnalysis.values(data.items, positions, customItems)"))
         assertTrue(source.contains("PortfolioAnalysis.leadingConcentration(portfolioValues)"))
         assertFalse(source.contains("val concentrationWarning: Pair<InvestmentItem, Double>? = null"))
     }
