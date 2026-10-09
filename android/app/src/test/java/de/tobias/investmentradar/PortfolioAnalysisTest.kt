@@ -2,6 +2,7 @@ package de.tobias.investmentradar
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class PortfolioAnalysisTest {
@@ -42,5 +43,31 @@ class PortfolioAnalysisTest {
 
         assertEquals(200.0, values.getValue("a"), 0.001)
         assertFalse(values.containsKey("b"))
+    }
+
+    @Test
+    fun leadingConcentrationFlagsDominantPositionAndIgnoresInvalidValues() {
+        val warning = PortfolioAnalysis.leadingConcentration(
+            mapOf(
+                "meta" to 760.58,
+                "world" to 132.26,
+                "nel" to 107.16,
+                "invalid" to Double.NaN,
+                "negative" to -10.0,
+                "rest" to 212.93
+            )
+        )
+
+        assertEquals("meta", warning?.first)
+        assertEquals(62.7, warning?.second ?: 0.0, 0.1)
+    }
+
+    @Test
+    fun leadingConcentrationReturnsNullBelowWarningThreshold() {
+        val warning = PortfolioAnalysis.leadingConcentration(
+            mapOf("a" to 35.0, "b" to 34.0, "c" to 31.0)
+        )
+
+        assertNull(warning)
     }
 }
