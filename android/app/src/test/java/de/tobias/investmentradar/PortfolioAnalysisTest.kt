@@ -1,7 +1,10 @@
 package de.tobias.investmentradar
 
+import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PortfolioAnalysisTest {
@@ -42,5 +45,44 @@ class PortfolioAnalysisTest {
 
         assertEquals(200.0, values.getValue("a"), 0.001)
         assertFalse(values.containsKey("b"))
+    }
+
+    @Test
+    fun leadingConcentrationFlagsDominantPositionAndIgnoresInvalidValues() {
+        val warning = PortfolioAnalysis.leadingConcentration(
+            mapOf(
+                "meta" to 760.58,
+                "world" to 132.26,
+                "nel" to 107.16,
+                "invalid" to Double.NaN,
+                "negative" to -10.0,
+                "rest" to 212.93
+            )
+        )
+
+        assertEquals("meta", warning?.first)
+        assertEquals(62.7, warning?.second ?: 0.0, 0.1)
+    }
+
+    @Test
+    fun leadingConcentrationReturnsNullBelowWarningThreshold() {
+        val warning = PortfolioAnalysis.leadingConcentration(
+            mapOf("a" to 35.0, "b" to 34.0, "c" to 31.0)
+        )
+
+        assertNull(warning)
+    }
+
+    @Test
+    fun liveDashboardUsesCalculatedConcentrationInsteadOfDisabledPlaceholder() {
+        val mainActivity = listOf(
+            File(System.getProperty("user.dir"), "src/main/java/de/tobias/investmentradar/MainActivity.kt"),
+            File(System.getProperty("user.dir"), "app/src/main/java/de/tobias/investmentradar/MainActivity.kt")
+        ).firstOrNull { it.exists() } ?: error("MainActivity.kt not found")
+        val source = mainActivity.readText()
+
+        assertTrue(source.contains("PortfolioAnalysis.values(data.items, positions, customItems)"))
+        assertTrue(source.contains("PortfolioAnalysis.leadingConcentration(portfolioValues)"))
+        assertFalse(source.contains("val concentrationWarning: Pair<InvestmentItem, Double>? = null"))
     }
 }

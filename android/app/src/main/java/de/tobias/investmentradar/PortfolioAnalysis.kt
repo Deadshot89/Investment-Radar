@@ -1,6 +1,8 @@
 package de.tobias.investmentradar
 
 object PortfolioAnalysis {
+    const val CONCENTRATION_WARNING_PCT = 40.0
+
     fun values(
         items: List<InvestmentItem>,
         positions: Map<String, PortfolioPosition>,
@@ -22,5 +24,18 @@ object PortfolioAnalysis {
                 ?: return@mapNotNull null
             itemId to value
         }.toMap()
+    }
+
+    fun leadingConcentration(
+        values: Map<String, Double>,
+        thresholdPct: Double = CONCENTRATION_WARNING_PCT
+    ): Pair<String, Double>? {
+        if (!thresholdPct.isFinite() || thresholdPct < 0.0) return null
+        val cleanValues = values.filterValues { it.isFinite() && it >= 0.0 }
+        val total = cleanValues.values.sum()
+        if (!total.isFinite() || total <= 0.0) return null
+        val leading = cleanValues.maxByOrNull { it.value } ?: return null
+        val sharePct = leading.value / total * 100.0
+        return if (sharePct >= thresholdPct) leading.key to sharePct else null
     }
 }

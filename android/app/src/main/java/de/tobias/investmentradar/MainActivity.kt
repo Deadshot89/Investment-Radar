@@ -880,7 +880,11 @@ private fun DashboardScreen(
         item.id in holdingIds && RecommendationPresentation.effectiveRecommendation(item) == "REVIEW"
     }
     val missingQuoteItems = data.items.filter { it.status.equals("EIGEN", true) && it.price == null }
-    val concentrationWarning: Pair<InvestmentItem, Double>? = null
+    val portfolioValues = PortfolioAnalysis.values(data.items, positions, customItems)
+    val concentrationWarning: Pair<InvestmentItem, Double>? = PortfolioAnalysis.leadingConcentration(portfolioValues)
+        ?.let { (itemId, sharePct) ->
+            data.items.firstOrNull { it.id == itemId }?.let { item -> item to sharePct }
+        }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
