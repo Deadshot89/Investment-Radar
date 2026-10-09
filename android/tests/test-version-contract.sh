@@ -26,8 +26,11 @@ VERSION_CODE=$(sed -n 's/.*versionCode = \([0-9][0-9]*\).*/\1/p' "$GRADLE_FILE" 
 [ -n "$VERSION_NAME" ] || fail 'Android versionName konnte nicht aus build.gradle.kts gelesen werden.'
 [ -n "$VERSION_CODE" ] || fail 'Android versionCode konnte nicht aus build.gradle.kts gelesen werden.'
 
-if [ "$VERSION_CODE" -lt 98 ]; then
-  fail "Android versionCode darf nicht unter den freigegebenen Stand 98 zurückfallen (gefunden: $VERSION_CODE)."
+if [ "$VERSION_CODE" -lt 105 ]; then
+  fail "Android versionCode muss für das Update nach 2.5.34/code104 mindestens 105 sein (gefunden: $VERSION_CODE)."
+fi
+if [ "$VERSION_NAME" = "2.5.34" ]; then
+  fail 'Android versionName muss für die Auslieferung der neuen Fehlerkorrekturen höher als 2.5.34 sein.'
 fi
 
 grep -Fq "Release candidate: Investment Radar $VERSION_NAME" "$GRADLE_FILE" || fail "Release-Kandidat muss die aktuelle Android-Version $VERSION_NAME benennen."
