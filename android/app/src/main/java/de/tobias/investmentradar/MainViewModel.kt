@@ -584,6 +584,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 fixedIncomePrincipalById[position.itemId] ?: position.activeCostBasis
             }
         )
+        (_state.value as? UiState.Ready)?.data?.let { dashboard ->
+            persistAdvisorPlan(app, dashboard)
+        }
     }
 
     private fun reloadPortfolio(app: Application) {
