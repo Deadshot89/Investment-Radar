@@ -1,9 +1,9 @@
 # Investment Radar Android App
 
-**Version:** 2.5.34  
-**versionCode:** 104
+**Version:** 2.5.35  
+**versionCode:** 105
 
-Die verbindlichen Android-Versionsmetadaten werden in `android/app/build.gradle.kts` gepflegt.
+Die verbindlichen Android-Versionsmetadaten werden in `android/app/build.gradle.kts` gepflegt. Für jede produktiv auszuliefernde App-Änderung müssen `versionName` und `versionCode` erhöht werden, damit bestehende Installationen das In-App-Update eindeutig als neuer erkennen.
 
 ## Technik
 
