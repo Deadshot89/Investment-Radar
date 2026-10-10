@@ -13,6 +13,7 @@ on:
   push:
     paths:
       - 'android/**'
+      - 'scripts/assert-android-app-production-unchanged.sh'
       - '.github/workflows/android-build.yml'
 
 jobs:
@@ -294,13 +295,11 @@ jobs:
           cp "$APK" "$RELEASE_APK"
           if gh release view "$TAG" >/dev/null 2>&1; then
             git fetch --no-tags origin "refs/tags/$TAG:refs/tags/$TAG"
-            CURRENT_APP_TREE=$(git rev-parse "HEAD:android/app")
-            RELEASE_APP_TREE=$(git rev-parse "$TAG:android/app")
-            if [ "$CURRENT_APP_TREE" != "$RELEASE_APP_TREE" ]; then
+            if ! bash scripts/assert-android-app-production-unchanged.sh "$TAG" HEAD; then
               echo "❌ Release $TAG existiert bereits mit anderem App-Code. Version erhöhen, statt dieselbe Version zu überschreiben." >> "$GITHUB_STEP_SUMMARY"
               exit 4
             fi
-            echo "✅ Release $TAG existiert bereits; App-Code ist identisch und bleibt unverändert veröffentlicht." >> "$GITHUB_STEP_SUMMARY"
+            echo "✅ Release $TAG existiert bereits; Produktiver App-Code ist identisch und bleibt unverändert veröffentlicht." >> "$GITHUB_STEP_SUMMARY"
           else
             gh release create "$TAG" "$RELEASE_APK#investment-radar.apk" \
               --title "Investment Radar $VERSION_NAME" \
