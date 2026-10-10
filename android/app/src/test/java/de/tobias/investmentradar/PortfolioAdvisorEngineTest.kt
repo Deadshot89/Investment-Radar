@@ -67,7 +67,7 @@ class PortfolioAdvisorEngineTest {
     }
 
     @Test
-    fun plannedSavingsReduceExtraPurchaseAndLeaveTheDifferenceAsCash() {
+    fun plannedSavingsReduceExtraPurchaseAndAreNotReportedAsFreeCash() {
         val withoutSavings = PortfolioAdvisorEngine.allocate(
             listOf(candidate("meta", PortfolioAdvisorAction.NACHKAUFEN, score = 85, savings = 0)),
             100
@@ -79,11 +79,11 @@ class PortfolioAdvisorEngineTest {
 
         assertEquals(100, withoutSavings.allocations.single().amountEur)
         assertEquals(80, withSavings.allocations.single().amountEur)
-        assertEquals(20, withSavings.cashEur)
+        assertEquals(0, withSavings.cashEur)
     }
 
     @Test
-    fun savingsPlanOnDifferentAssetStillReducesTotalExtraBuyBudget() {
+    fun savingsPlanOnDifferentAssetStillReducesTotalExtraBuyBudgetWithoutBecomingCash() {
         val plan = PortfolioAdvisorEngine.allocate(
             listOf(
                 candidate("strong", PortfolioAdvisorAction.NEU_AUFNEHMEN, score = 85, holding = false),
@@ -93,11 +93,11 @@ class PortfolioAdvisorEngineTest {
         )
 
         assertEquals(80, plan.allocations.sumOf { it.amountEur })
-        assertEquals(20, plan.cashEur)
+        assertEquals(0, plan.cashEur)
     }
 
     @Test
-    fun plannedSavingsCanConsumeWholeMonthlyBudgetWithoutExtraBuy() {
+    fun plannedSavingsCanConsumeWholeMonthlyBudgetWithoutCreatingFakeCash() {
         val plan = PortfolioAdvisorEngine.allocate(
             listOf(
                 candidate("strong", PortfolioAdvisorAction.NEU_AUFNEHMEN, score = 85, holding = false),
@@ -107,7 +107,18 @@ class PortfolioAdvisorEngineTest {
         )
 
         assertTrue(plan.allocations.isEmpty())
-        assertEquals(100, plan.cashEur)
+        assertEquals(0, plan.cashEur)
+    }
+
+    @Test
+    fun partialDeploymentLeavesOnlyTrulyUnallocatedPurchaseBudgetAsCash() {
+        val plan = PortfolioAdvisorEngine.allocate(
+            listOf(candidate("good", PortfolioAdvisorAction.NEU_AUFNEHMEN, score = 78, savings = 20, holding = false)),
+            100
+        )
+
+        assertEquals(64, plan.allocations.single().amountEur)
+        assertEquals(16, plan.cashEur)
     }
 
     @Test
