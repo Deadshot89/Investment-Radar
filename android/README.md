@@ -49,6 +49,10 @@ Empfehlungszeilen zeigen Instrument, Signal und Betrag getrennt. Über **Bearbei
 - gruppierte Dezimaleingaben wie `1.000,50` und `1,000.50` werden ohne Größenordnungsfehler normalisiert
 - manuell ergänzte Depot-Stückzahlen verwenden dieselbe locale-sichere Dezimallogik
 
+### Änderung in 2.5.37
+
+Der Stückzahl-Dialog im Depot verwendet jetzt ebenfalls den zentralen Dezimalparser. Gruppierte deutsche und internationale Eingaben werden damit konsistent zu den Geldfeldern verarbeitet.
+
 ## Push
 
 Firebase Push wird über das Backend ausgelöst. Ohne vollständige Firebase-Konfiguration kann die App starten, Push ist dann jedoch nicht produktiv verfügbar.
