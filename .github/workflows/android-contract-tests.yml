@@ -9,6 +9,8 @@ on:
   push:
     paths:
       - 'android/**'
+      - 'scripts/assert-android-app-production-unchanged.sh'
+      - '.github/workflows/android-build.yml'
       - '.github/workflows/android-contract-tests.yml'
 
 jobs:
