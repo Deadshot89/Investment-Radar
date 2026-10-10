@@ -170,6 +170,37 @@ class PortfolioAdvisorEngineTest {
     }
 
     @Test
+    fun holdingAtOrAboveConcentrationWarningGetsNoAdditionalAllocation() {
+        val plan = PortfolioAdvisorEngine.allocate(
+            listOf(
+                candidate(
+                    "concentrated",
+                    PortfolioAdvisorAction.NACHKAUFEN,
+                    score = 90,
+                    currentValueEur = 600.0
+                ),
+                candidate(
+                    "other-holding",
+                    PortfolioAdvisorAction.HALTEN,
+                    score = 65,
+                    currentValueEur = 400.0
+                ),
+                candidate(
+                    "new",
+                    PortfolioAdvisorAction.NEU_AUFNEHMEN,
+                    score = 85,
+                    holding = false
+                )
+            ),
+            100
+        )
+
+        assertFalse(plan.allocations.any { it.itemId == "concentrated" })
+        assertEquals(100, plan.allocations.single { it.itemId == "new" }.amountEur)
+        assertEquals(0, plan.cashEur)
+    }
+
+    @Test
     fun candidateModelHasNoPortfolioWeightInputThatCanChangeStrategicEligibility() {
         val fields = PortfolioAdvisorCandidate::class.java.declaredFields.map { it.name.lowercase() }
         assertFalse(fields.any { it.contains("weight") || it.contains("concentration") })
@@ -182,7 +213,8 @@ class PortfolioAdvisorEngineTest {
         timing: Double = 1.0,
         holding: Boolean = true,
         savings: Int = 0,
-        reliable: Boolean = true
+        reliable: Boolean = true,
+        currentValueEur: Double? = if (holding) 500.0 else null
     ) = PortfolioAdvisorCandidate(
         itemId = id,
         isHolding = holding,
@@ -203,7 +235,7 @@ class PortfolioAdvisorEngineTest {
             confidencePct = if (reliable) 80 else 0,
             timingFactor = timing
         ),
-        currentValueEur = if (holding) 500.0 else null,
+        currentValueEur = currentValueEur,
         monthlySavingsEur = savings
     )
 }
