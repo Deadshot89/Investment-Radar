@@ -51,6 +51,8 @@ object PortfolioAdvisorEngine {
                     action = it.action
                 )
             }
+        // Only savings plans that the action plan would actually keep reserve monthly budget.
+        // Conflicted plans stay visible for review but must not silently consume buy capacity.
         val committedSavingsEur = candidates
             .filter {
                 it.monthlySavingsEur > 0 &&
