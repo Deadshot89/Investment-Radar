@@ -38,11 +38,6 @@ object PortfolioAdvisorEngine {
         budgetEur: Int
     ): PortfolioAdvisorPlan {
         val budget = budgetEur.coerceAtLeast(0)
-        val plannedSavingsEur = candidates
-            .sumOf { it.monthlySavingsEur.coerceAtLeast(0) }
-            .coerceAtMost(budget)
-        val purchaseBudget = (budget - plannedSavingsEur).coerceAtLeast(0)
-        val reallocations = ReallocationPolicy.suggest(candidates)
         val conflicts = candidates
             .filter {
                 it.monthlySavingsEur > 0 &&
@@ -56,12 +51,22 @@ object PortfolioAdvisorEngine {
                     action = it.action
                 )
             }
+        val committedSavingsEur = candidates
+            .filter {
+                it.monthlySavingsEur > 0 &&
+                    it.action != PortfolioAdvisorAction.REDUZIEREN &&
+                    it.action != PortfolioAdvisorAction.VERKAUFEN
+            }
+            .sumOf { it.monthlySavingsEur.coerceAtLeast(0) }
+            .coerceAtMost(budget)
+        val purchaseBudget = (budget - committedSavingsEur).coerceAtLeast(0)
+        val reallocations = ReallocationPolicy.suggest(candidates)
 
         if (budget == 0 || purchaseBudget == 0) {
             return PortfolioAdvisorPlan(
                 budgetEur = budget,
                 allocations = emptyList(),
-                cashEur = budget,
+                cashEur = purchaseBudget,
                 reallocations = reallocations,
                 savingsPlanConflicts = conflicts,
                 candidates = candidates
@@ -89,7 +94,7 @@ object PortfolioAdvisorEngine {
             return PortfolioAdvisorPlan(
                 budgetEur = budget,
                 allocations = emptyList(),
-                cashEur = budget,
+                cashEur = purchaseBudget,
                 reallocations = reallocations,
                 savingsPlanConflicts = conflicts,
                 candidates = candidates
@@ -110,7 +115,7 @@ object PortfolioAdvisorEngine {
             return PortfolioAdvisorPlan(
                 budgetEur = budget,
                 allocations = emptyList(),
-                cashEur = budget,
+                cashEur = purchaseBudget,
                 reallocations = reallocations,
                 savingsPlanConflicts = conflicts,
                 candidates = candidates
@@ -144,11 +149,11 @@ object PortfolioAdvisorEngine {
             }
         }
 
-        val invested = allocations.sumOf { it.amountEur }.coerceAtMost(budget)
+        val invested = allocations.sumOf { it.amountEur }.coerceAtMost(purchaseBudget)
         return PortfolioAdvisorPlan(
             budgetEur = budget,
             allocations = allocations,
-            cashEur = budget - invested,
+            cashEur = purchaseBudget - invested,
             reallocations = reallocations,
             savingsPlanConflicts = conflicts,
             candidates = candidates
