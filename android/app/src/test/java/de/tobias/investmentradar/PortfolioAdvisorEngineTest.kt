@@ -214,7 +214,7 @@ class PortfolioAdvisorEngineTest {
         holding: Boolean = true,
         savings: Int = 0,
         reliable: Boolean = true,
-        currentValueEur: Double? = if (holding) 500.0 else null
+        currentValueEur: Double? = null
     ) = PortfolioAdvisorCandidate(
         itemId = id,
         isHolding = holding,
