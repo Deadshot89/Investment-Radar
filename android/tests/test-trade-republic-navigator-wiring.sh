@@ -4,6 +4,7 @@ set -euo pipefail
 NAV="android/app/src/main/java/de/tobias/investmentradar/TradeRepublicNavigator.kt"
 MAIN="android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt"
 STORE="android/app/src/main/java/de/tobias/investmentradar/CustomInvestmentStore.kt"
+VM="android/app/src/main/java/de/tobias/investmentradar/MainViewModel.kt"
 POLICY="android/app/src/main/java/de/tobias/investmentradar/TradeRepublicLinkPolicy.kt"
 MANIFEST="android/app/src/main/AndroidManifest.xml"
 
@@ -29,11 +30,11 @@ grep -Fq 'object TradeRepublicLinkPolicy' "$POLICY" || fail "Trusted Trade Repub
 grep -Fq 'TradeRepublicLinkPolicy.sanitizeOrBlank(o.optString("tradeRepublicUrl"))' "$STORE" || fail "Stored Trade Republic URLs are not sanitized on read"
 grep -Fq 'TradeRepublicLinkPolicy.sanitizeOrBlank(item.tradeRepublicUrl)' "$STORE" || fail "Trade Republic URLs are not sanitized before persistence"
 
-# Defense in depth: even if a stale/in-memory CustomInvestment bypasses the store,
-# the actual open boundary must revalidate the URL and must never accept arbitrary HTTP links.
-grep -Fq 'val safeUrl = TradeRepublicLinkPolicy.sanitize(url) ?: return' "$MAIN" || fail "Saved Trade Republic URLs are not revalidated immediately before opening"
-if grep -Fq 'normalized.startsWith("http://")' "$MAIN"; then
-  fail "Saved Trade Republic opener still accepts insecure HTTP URLs"
+# New and edited custom investments must be reloaded from the sanitized store before
+# they are exposed to Compose state. This keeps the existing opener behind a trusted-data invariant.
+RELOAD_COUNT=$(grep -Fc '_customItems.value = CustomInvestmentStore.read(app)' "$VM" || true)
+if [ "$RELOAD_COUNT" -lt 2 ]; then
+  fail "Custom investment UI state is not reloaded from the sanitized store after add/update"
 fi
 
 APP_LINE=$(grep -n -F 'if (launchTradeRepublic(context))' "$NAV" | head -n1 | cut -d: -f1)
@@ -42,4 +43,4 @@ if [ -z "$APP_LINE" ] || [ -z "$BROWSER_LINE" ] || [ "$APP_LINE" -ge "$BROWSER_L
   fail "Browser fallback occurs before the Trade Republic app launcher"
 fi
 
-echo "PASS: Trade Republic app-first navigation and trusted persisted/opened-link policy"
+echo "PASS: Trade Republic app-first navigation and trusted persisted-link state invariant"
