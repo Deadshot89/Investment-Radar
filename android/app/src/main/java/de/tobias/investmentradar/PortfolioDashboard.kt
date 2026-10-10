@@ -287,7 +287,7 @@ fun PortfolioDashboard(
         var input by remember(itemId, position?.trackedShares) {
             mutableStateOf(position?.trackedShares?.let(::portfolioShares).orEmpty())
         }
-        val parsed = input.trim().replace(',', '.').toDoubleOrNull()?.takeIf { it.isFinite() && it > 0.0 }
+        val parsed = GermanDecimalInput.parse(input)?.takeIf { it.isFinite() && it > 0.0 }
         AlertDialog(
             onDismissRequest = { trackedSharesDialogItemId = null },
             title = { Text("Stückzahl ergänzen") },
@@ -297,7 +297,7 @@ fun PortfolioDashboard(
                     Text("Trage die aktuelle Stückzahl aus deinem Depot ein. Damit wird der Depotwert künftig aus Stückzahl × aktuellem Kurs berechnet. Ein importierter Einstand bleibt für die Performanceberechnung erhalten.")
                     OutlinedTextField(
                         value = input,
-                        onValueChange = { input = it },
+                        onValueChange = { input = GermanDecimalInput.sanitize(it) },
                         label = { Text("Stückzahl") },
                         singleLine = true,
                         supportingText = { if (input.isNotBlank() && parsed == null) Text("Bitte eine Zahl größer als 0 eingeben.") }
