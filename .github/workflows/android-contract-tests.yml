@@ -9,6 +9,8 @@ on:
   push:
     paths:
       - 'android/**'
+      - 'scripts/assert-android-app-production-unchanged.sh'
+      - '.github/workflows/android-build.yml'
       - '.github/workflows/android-contract-tests.yml'
 
 jobs:
@@ -58,6 +60,7 @@ jobs:
             android/tests/test-fixed-income-custom-asset.sh \
             android/tests/test-savings-plans-ui.sh \
             android/tests/test-release-backend-gate.sh \
+            android/tests/test-release-app-code-guard.sh \
             android/tests/test-release-hardening.sh \
             android/tests/test-version-contract.sh; do
             echo "=== $test_file ==="

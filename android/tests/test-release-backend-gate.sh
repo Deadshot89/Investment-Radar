@@ -7,6 +7,7 @@ WF=".github/workflows/android-build.yml"
 GRADLE="android/app/build.gradle.kts"
 HEALTH="backend/src/functions/health.mjs"
 BACKEND="backend/package.json"
+HELPER="scripts/assert-android-app-production-unchanged.sh"
 
 VERSION_NAME=$(sed -n 's/.*versionName = "\([^"]*\)".*/\1/p' "$GRADLE" | head -1)
 VERSION_CODE=$(sed -n 's/.*versionCode = \([0-9][0-9]*\).*/\1/p' "$GRADLE" | head -1)
@@ -52,11 +53,18 @@ if grep -q -- '--clobber' "$WF"; then
   exit 1
 fi
 
+test -f "$HELPER" || { echo 'Produktionscode-Guard fehlt'; exit 1; }
 grep -Fq 'git fetch --no-tags origin "refs/tags/$TAG:refs/tags/$TAG"' "$WF"
-grep -Fq 'CURRENT_APP_TREE=$(git rev-parse "HEAD:android/app")' "$WF"
-grep -Fq 'RELEASE_APP_TREE=$(git rev-parse "$TAG:android/app")' "$WF"
+grep -Fq 'bash scripts/assert-android-app-production-unchanged.sh "$TAG" HEAD' "$WF" || {
+  echo 'Release workflow muss bestehende Versionen gegen echten Produktionscode prüfen'
+  exit 1
+}
+if grep -Fq 'CURRENT_APP_TREE=$(git rev-parse "HEAD:android/app")' "$WF"; then
+  echo 'Release workflow darf Testcode nicht mehr über den gesamten android/app Tree als App-Code behandeln'
+  exit 1
+fi
 grep -q 'Release $TAG existiert bereits mit anderem App-Code' "$WF"
-grep -q 'App-Code ist identisch' "$WF"
+grep -q 'Produktiver App-Code ist identisch' "$WF"
 grep -q 'Version erhöhen' "$WF"
 
 if grep -q 'sha256sum "$RELEASE_APK"' "$WF"; then
@@ -81,5 +89,5 @@ test "$gate_line" -lt "$publish_line"
 echo "PASS Android candidate and main validate backend 2.1.0, schema 2026-09-14.1, real deploy identity and >=2000 radar instruments"
 echo "PASS Android in-app publishing remains restricted to main"
 echo "PASS Android app release is monotonic at $VERSION_NAME / code $VERSION_CODE"
-echo "PASS existing releases are immutable by android/app tree"
+echo "PASS existing releases are immutable by production Android app code while tests may evolve"
 echo "PASS Android release notes follow VERSION_NAME instead of stale 2.1 copy"
