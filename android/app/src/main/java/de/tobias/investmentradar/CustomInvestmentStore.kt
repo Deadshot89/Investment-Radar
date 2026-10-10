@@ -62,7 +62,7 @@ object CustomInvestmentStore {
                         ticker = ticker,
                         isin = o.optString("isin").trim().uppercase(),
                         type = when (o.optString("type").trim().lowercase()) { "etf" -> "ETF"; "festzins" -> "Festzins"; else -> "Aktie" },
-                        tradeRepublicUrl = o.optString("tradeRepublicUrl").trim(),
+                        tradeRepublicUrl = TradeRepublicLinkPolicy.sanitizeOrBlank(o.optString("tradeRepublicUrl")),
                         risk = o.optInt("risk", 3).coerceIn(1, 5),
                         manualPriceEur = o.optDouble("manualPriceEur").takeIf { it.isFinite() && it > 0.0 },
                         fixedPrincipalEur = o.optDouble("fixedPrincipalEur").takeIf { it.isFinite() && it > 0.0 },
@@ -150,7 +150,7 @@ object CustomInvestmentStore {
                 .put("ticker", item.ticker)
                 .put("isin", item.isin)
                 .put("type", item.type)
-                .put("tradeRepublicUrl", item.tradeRepublicUrl)
+                .put("tradeRepublicUrl", TradeRepublicLinkPolicy.sanitizeOrBlank(item.tradeRepublicUrl))
                 .put("risk", item.risk)
                 .apply {
                     item.manualPriceEur?.let { put("manualPriceEur", it) }
