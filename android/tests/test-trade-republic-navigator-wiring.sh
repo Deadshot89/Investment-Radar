@@ -3,6 +3,8 @@ set -euo pipefail
 
 NAV="android/app/src/main/java/de/tobias/investmentradar/TradeRepublicNavigator.kt"
 MAIN="android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt"
+STORE="android/app/src/main/java/de/tobias/investmentradar/CustomInvestmentStore.kt"
+POLICY="android/app/src/main/java/de/tobias/investmentradar/TradeRepublicLinkPolicy.kt"
 MANIFEST="android/app/src/main/AndroidManifest.xml"
 
 fail() { echo "FAIL: $1" >&2; exit 1; }
@@ -21,10 +23,16 @@ if grep -Fq 'TRADE_REPUBLIC_STOCK_BASE_URL' "$MAIN"; then
   fail "Legacy Trade Republic navigation still lives in MainActivity"
 fi
 
+# Manually stored broker URLs remain backward-compatible data, but must be sanitized
+# before they can reach the UI. Only HTTPS on traderepublic.com or its real subdomains is trusted.
+grep -Fq 'object TradeRepublicLinkPolicy' "$POLICY" || fail "Trusted Trade Republic URL policy missing"
+grep -Fq 'TradeRepublicLinkPolicy.sanitizeOrBlank(o.optString("tradeRepublicUrl"))' "$STORE" || fail "Stored Trade Republic URLs are not sanitized on read"
+grep -Fq 'TradeRepublicLinkPolicy.sanitizeOrBlank(item.tradeRepublicUrl)' "$STORE" || fail "Trade Republic URLs are not sanitized before persistence"
+
 APP_LINE=$(grep -n -F 'if (launchTradeRepublic(context))' "$NAV" | head -n1 | cut -d: -f1)
 BROWSER_LINE=$(grep -n -F 'val browserUrl = directUrl ?: BROWSE_URL' "$NAV" | head -n1 | cut -d: -f1)
 if [ -z "$APP_LINE" ] || [ -z "$BROWSER_LINE" ] || [ "$APP_LINE" -ge "$BROWSER_LINE" ]; then
   fail "Browser fallback occurs before the Trade Republic app launcher"
 fi
 
-echo "PASS: Trade Republic app-first navigation with browser fallback"
+echo "PASS: Trade Republic app-first navigation and trusted persisted-link policy"
