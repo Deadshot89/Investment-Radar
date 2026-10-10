@@ -29,10 +29,17 @@ grep -Fq 'object TradeRepublicLinkPolicy' "$POLICY" || fail "Trusted Trade Repub
 grep -Fq 'TradeRepublicLinkPolicy.sanitizeOrBlank(o.optString("tradeRepublicUrl"))' "$STORE" || fail "Stored Trade Republic URLs are not sanitized on read"
 grep -Fq 'TradeRepublicLinkPolicy.sanitizeOrBlank(item.tradeRepublicUrl)' "$STORE" || fail "Trade Republic URLs are not sanitized before persistence"
 
+# Defense in depth: even if a stale/in-memory CustomInvestment bypasses the store,
+# the actual open boundary must revalidate the URL and must never accept arbitrary HTTP links.
+grep -Fq 'val safeUrl = TradeRepublicLinkPolicy.sanitize(url) ?: return' "$MAIN" || fail "Saved Trade Republic URLs are not revalidated immediately before opening"
+if grep -Fq 'normalized.startsWith("http://")' "$MAIN"; then
+  fail "Saved Trade Republic opener still accepts insecure HTTP URLs"
+fi
+
 APP_LINE=$(grep -n -F 'if (launchTradeRepublic(context))' "$NAV" | head -n1 | cut -d: -f1)
 BROWSER_LINE=$(grep -n -F 'val browserUrl = directUrl ?: BROWSE_URL' "$NAV" | head -n1 | cut -d: -f1)
 if [ -z "$APP_LINE" ] || [ -z "$BROWSER_LINE" ] || [ "$APP_LINE" -ge "$BROWSER_LINE" ]; then
   fail "Browser fallback occurs before the Trade Republic app launcher"
 fi
 
-echo "PASS: Trade Republic app-first navigation and trusted persisted-link policy"
+echo "PASS: Trade Republic app-first navigation and trusted persisted/opened-link policy"
