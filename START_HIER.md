@@ -1,6 +1,6 @@
-# START HIER – Investment Radar 2.5.38
+# START HIER – Investment Radar 2.5.39
 
-**Android:** 2.5.38 / versionCode 108  
+**Android:** 2.5.39 / versionCode 109  
 **Backend:** 2.1.0  
 **API-Schema:** 2026-09-14.1
 
@@ -66,8 +66,8 @@ Optional:
 Die produktive App wird mit einem dauerhaft erhaltenen Keystore signiert. Dieser Keystore darf nicht ersetzt werden, sonst akzeptiert Android spätere Updates nicht mehr.
 
 Aktueller Stand:
-- `versionName = 2.5.38`
-- `versionCode = 108`
+- `versionName = 2.5.39`
+- `versionCode = 109`
 
 Vor einem Release müssen grün sein:
 1. Android Contract Tests
@@ -81,6 +81,8 @@ Der Build prüft zusätzlich APK-Signatur und Live-Backend-Kompatibilität. Prod
 
 - Das monatliche Kaufbudget ist der einzige Rahmen für neue Kaufempfehlungen.
 - Bestätigte Käufe reduzieren das verfügbare Monatsbudget.
+- Beibehaltene Sparpläne reservieren ihren Monatsbetrag vor zusätzlichen Kaufempfehlungen und werden nicht als freies Cash ausgewiesen.
+- Sparpläne mit REDUZIEREN-/VERKAUFEN-Konflikt werden zur Prüfung markiert und nicht still als ausgeführte Budgetbindung behandelt.
 - Verkaufserlöse werden privat verwendet und erhöhen **weder App-Cash noch Kaufbudget**.
 - Historische Snapshots dürfen nicht als aktuelle Marktwerte ausgegeben werden.
 - Fehlende oder unzuverlässige Daten werden sichtbar als Datenlücke behandelt und nicht erfunden.
