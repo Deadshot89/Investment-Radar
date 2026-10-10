@@ -137,6 +137,21 @@ class PortfolioAdvisorEngineTest {
     }
 
     @Test
+    fun conflictedSavingsPlanDoesNotConsumeBudgetNeededForValidNewBuy() {
+        val plan = PortfolioAdvisorEngine.allocate(
+            listOf(
+                candidate("reduce", PortfolioAdvisorAction.REDUZIEREN, score = 44, savings = 20),
+                candidate("new", PortfolioAdvisorAction.NEU_AUFNEHMEN, score = 85, holding = false)
+            ),
+            100
+        )
+
+        assertEquals(1, plan.savingsPlanConflicts.size)
+        assertEquals(100, plan.allocations.single { it.itemId == "new" }.amountEur)
+        assertEquals(0, plan.cashEur)
+    }
+
+    @Test
     fun borderlineHaltenCanReceiveCapitalOnlyWhenNoStrongerEligibleCandidateExists() {
         val alone = PortfolioAdvisorEngine.allocate(
             listOf(candidate("hold", PortfolioAdvisorAction.HALTEN, score = 70)),
