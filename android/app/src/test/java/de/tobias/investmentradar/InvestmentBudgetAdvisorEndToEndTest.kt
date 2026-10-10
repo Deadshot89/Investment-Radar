@@ -42,10 +42,11 @@ class InvestmentBudgetAdvisorEndToEndTest {
         )
 
         assertNull(executed.error)
+        val executedPosition = requireNotNull(executed.position)
         val afterPurchaseView = InvestmentBudgetViewState.from(
             summary = InvestmentBudgetJournalEngine.summarize(executed.entries, executed.reservations),
             entries = executed.entries,
-            activeInvestedEur = executed.position!!.activeCostBasis,
+            activeInvestedEur = executedPosition.activeCostBasis,
             today = today
         )
         assertEquals(60.0, afterPurchaseView.monthlyAvailableEur, 0.000001)
@@ -53,7 +54,7 @@ class InvestmentBudgetAdvisorEndToEndTest {
 
         val restartedEntries = InvestmentBudgetMigration.reconcileCurrentMonthTransactions(
             existing = executed.entries,
-            positions = mapOf("bought" to executed.position),
+            positions = mapOf("bought" to executedPosition),
             today = today
         )
         assertEquals(executed.entries, restartedEntries)
@@ -61,13 +62,13 @@ class InvestmentBudgetAdvisorEndToEndTest {
         val restartedView = InvestmentBudgetViewState.from(
             summary = InvestmentBudgetJournalEngine.summarize(restartedEntries, executed.reservations),
             entries = restartedEntries,
-            activeInvestedEur = executed.position.activeCostBasis,
+            activeInvestedEur = executedPosition.activeCostBasis,
             today = today
         )
         assertEquals(60, restartedView.advisorBudgetEur)
 
         val duplicateExecution = InvestmentBudgetExecutionService.executeBuy(
-            position = executed.position,
+            position = executedPosition,
             entries = restartedEntries,
             reservations = executed.reservations,
             request = BudgetBuyExecution(
@@ -80,10 +81,11 @@ class InvestmentBudgetAdvisorEndToEndTest {
                 source = BudgetJournalSource.RECOMMENDATION
             )
         )
+        val duplicatePosition = requireNotNull(duplicateExecution.position)
         val duplicateView = InvestmentBudgetViewState.from(
             summary = InvestmentBudgetJournalEngine.summarize(duplicateExecution.entries, duplicateExecution.reservations),
             entries = duplicateExecution.entries,
-            activeInvestedEur = duplicateExecution.position!!.activeCostBasis,
+            activeInvestedEur = duplicatePosition.activeCostBasis,
             today = today
         )
         assertEquals(60, duplicateView.advisorBudgetEur)
