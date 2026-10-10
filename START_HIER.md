@@ -1,6 +1,6 @@
-# START HIER – Investment Radar 2.5.37
+# START HIER – Investment Radar 2.5.38
 
-**Android:** 2.5.37 / versionCode 107  
+**Android:** 2.5.38 / versionCode 108  
 **Backend:** 2.1.0  
 **API-Schema:** 2026-09-14.1
 
@@ -66,8 +66,8 @@ Optional:
 Die produktive App wird mit einem dauerhaft erhaltenen Keystore signiert. Dieser Keystore darf nicht ersetzt werden, sonst akzeptiert Android spätere Updates nicht mehr.
 
 Aktueller Stand:
-- `versionName = 2.5.37`
-- `versionCode = 107`
+- `versionName = 2.5.38`
+- `versionCode = 108`
 
 Vor einem Release müssen grün sein:
 1. Android Contract Tests
@@ -85,6 +85,7 @@ Der Build prüft zusätzlich APK-Signatur und Live-Backend-Kompatibilität. Prod
 - Historische Snapshots dürfen nicht als aktuelle Marktwerte ausgegeben werden.
 - Fehlende oder unzuverlässige Daten werden sichtbar als Datenlücke behandelt und nicht erfunden.
 - Empfehlungen können direkt bearbeitet werden; dabei wird die konkrete Transaktionsausführung angepasst, nicht still die automatische Analyse überschrieben.
+- Gespeicherte Trade-Republic-Links werden auf vertrauenswürdige HTTPS-Hosts von Trade Republic begrenzt.
 - Die App führt **keine Orders automatisch aus**.
 
 Weitere Details stehen in `README.md`, `SETUP.md`, `android/README.md` und `backend/README.md`.
