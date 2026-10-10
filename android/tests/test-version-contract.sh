@@ -15,8 +15,8 @@ TEMP_PREFILL_WORKFLOW="$ROOT/.github/workflows/apply-action-prefill.yml"
 TEMP_PREFILL_SCRIPT="$ROOT/.github/scripts/apply_action_prefill.py"
 TEMP_SHARE_PREFILL_WORKFLOW="$ROOT/.github/workflows/apply-recommendation-share-prefill.yml"
 TEMP_SHARE_PREFILL_SCRIPT="$ROOT/.github/scripts/apply_recommendation_share_prefill.py"
-EXPECTED_VERSION_NAME="2.5.36"
-EXPECTED_VERSION_CODE=106
+EXPECTED_VERSION_NAME="2.5.37"
+EXPECTED_VERSION_CODE=107
 
 fail() {
   echo "FAIL: $1" >&2

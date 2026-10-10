@@ -287,7 +287,7 @@ fun PortfolioDashboard(
         var input by remember(itemId, position?.trackedShares) {
             mutableStateOf(position?.trackedShares?.let(::portfolioShares).orEmpty())
         }
-        val parsed = input.trim().replace(',', '.').toDoubleOrNull()?.takeIf { it.isFinite() && it > 0.0 }
+        val parsed = GermanDecimalInput.parse(input)?.takeIf { it.isFinite() && it > 0.0 }
         AlertDialog(
             onDismissRequest = { trackedSharesDialogItemId = null },
             title = { Text("Stückzahl ergänzen") },
