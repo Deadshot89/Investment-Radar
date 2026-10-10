@@ -55,7 +55,7 @@ Der Stückzahl-Dialog im Depot verwendet jetzt ebenfalls den zentralen Dezimalpa
 
 ### Änderung in 2.5.38
 
-Manuell gespeicherte Trade-Republic-Links werden beim Speichern und Laden auf vertrauenswürdige HTTPS-Hosts von `traderepublic.com` begrenzt. Neue oder bearbeitete Custom-Werte werden anschließend aus dem sanitisierten Store neu in den UI-State geladen.
+Manuell gespeicherte Trade-Republic-Links werden beim Speichern und Laden auf vertrauenswürdige HTTPS-Hosts von `traderepublic.com` begrenzt. Neue oder bearbeitete Custom-Werte werden anschließend aus dem sanitisierten Store neu in den UI-State geladen. Ungültige, unsichere oder fremde Links werden verworfen und nicht als Trade-Republic-Link im UI angeboten.
 
 ## Push
 
