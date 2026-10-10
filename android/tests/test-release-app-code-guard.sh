@@ -2,9 +2,14 @@
 set -euo pipefail
 
 HELPER="scripts/assert-android-app-production-unchanged.sh"
+BUILD_WF=".github/workflows/android-build.yml"
+CONTRACT_WF=".github/workflows/android-contract-tests.yml"
 fail(){ echo "FAIL: $1" >&2; exit 1; }
 
 [ -f "$HELPER" ] || fail 'Produktionscode-Guard fehlt; test-only Änderungen können noch nicht von App-Code getrennt werden.'
+grep -Fq "- 'scripts/assert-android-app-production-unchanged.sh'" "$BUILD_WF" || fail 'Änderungen am Guard müssen den APK-Build auslösen.'
+grep -Fq "- 'scripts/assert-android-app-production-unchanged.sh'" "$CONTRACT_WF" || fail 'Änderungen am Guard müssen die Android-Contracts auslösen.'
+grep -Fq "- '.github/workflows/android-build.yml'" "$CONTRACT_WF" || fail 'Änderungen am Publish-Workflow müssen die Android-Contracts auslösen.'
 
 root="$(pwd)"
 tmp="$(mktemp -d)"
@@ -44,4 +49,4 @@ if bash scripts/assert-android-app-production-unchanged.sh v-base HEAD; then
   fail 'App-Build-Konfiguration geändert: gleiche App-Version darf nicht erlaubt werden.'
 fi
 
-echo 'PASS: Release-Guard ignoriert nur Testcode und blockiert echten App-Code.'
+echo 'PASS: Release-Guard ignoriert nur Testcode, blockiert echten App-Code und bleibt in den CI-Gates.'
