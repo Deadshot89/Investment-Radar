@@ -75,9 +75,11 @@ object PortfolioAdvisorEngine {
             )
         }
 
+        val concentrationBlockedItemIds = concentrationBlockedItemIds(candidates)
         val strongEligible = candidates.filter { candidate ->
             candidate.advisor.reliable &&
                 candidate.advisor.score != null &&
+                candidate.itemId !in concentrationBlockedItemIds &&
                 (candidate.action == PortfolioAdvisorAction.NACHKAUFEN ||
                     candidate.action == PortfolioAdvisorAction.NEU_AUFNEHMEN)
         }
@@ -87,6 +89,7 @@ object PortfolioAdvisorEngine {
         } else {
             candidates.filter { candidate ->
                 candidate.advisor.reliable &&
+                    candidate.itemId !in concentrationBlockedItemIds &&
                     candidate.action == PortfolioAdvisorAction.HALTEN &&
                     candidate.advisor.score in 68..71
             }
@@ -160,6 +163,29 @@ object PortfolioAdvisorEngine {
             savingsPlanConflicts = conflicts,
             candidates = candidates
         )
+    }
+
+    private fun concentrationBlockedItemIds(
+        candidates: List<PortfolioAdvisorCandidate>
+    ): Set<String> {
+        val holdings = candidates.filter { it.isHolding }
+        if (holdings.isEmpty()) return emptySet()
+
+        // Concentration is only enforced when every represented holding has a usable value.
+        // If portfolio valuation is incomplete, keep the previous behavior instead of inventing weights.
+        val values = holdings.map { candidate ->
+            candidate.currentValueEur
+                ?.takeIf { it.isFinite() && it >= 0.0 }
+                ?: return emptySet()
+        }
+        val totalValue = values.sum()
+        if (!totalValue.isFinite() || totalValue <= 0.0) return emptySet()
+
+        return holdings.zip(values)
+            .filter { (_, value) ->
+                value / totalValue * 100.0 >= PortfolioAnalysis.CONCENTRATION_WARNING_PCT
+            }
+            .mapTo(mutableSetOf()) { (candidate, _) -> candidate.itemId }
     }
 
     private fun distributeWholeEuros(

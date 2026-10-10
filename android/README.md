@@ -1,7 +1,7 @@
 # Investment Radar Android App
 
-**Version:** 2.5.39  
-**versionCode:** 109
+**Version:** 2.5.40  
+**versionCode:** 110
 
 Die verbindlichen Android-Versionsmetadaten werden in `android/app/build.gradle.kts` gepflegt. Für jede produktiv auszuliefernde App-Änderung müssen `versionName` und `versionCode` erhöht werden, damit bestehende Installationen das In-App-Update eindeutig als neuer erkennen.
 
@@ -35,6 +35,7 @@ Die verbindlichen Android-Versionsmetadaten werden in `android/app/build.gradle.
 - Bestätigte Käufe reduzieren das Monatsbudget.
 - Aktive Sparpläne werden vor zusätzlichen Käufen aus dem Monatsbudget reserviert und nicht als freies Cash ausgewiesen.
 - Sparpläne mit REDUZIEREN-/VERKAUFEN-Konflikt werden zur Prüfung markiert und nicht still vom zusätzlichen Kaufbudget abgezogen.
+- Bestehende Positionen ab 40 % Anteil am vollständig bewertbaren Depot erhalten kein zusätzliches Advisor-Kaufbudget; bei unvollständigen Depotwerten wird keine Konzentration angenommen.
 - Manuell gesetzte Monatsbudgets werden centgenau gespeichert und in Folgemonate übernommen.
 - Verkaufserlöse werden erfasst, aber privat verwendet und erhöhen App-Cash sowie Kaufbudget nicht.
 - Der Geldbedarf-Flow kann vorhandenes App-Cash und private Verkaufserlöse getrennt auf einen Bedarf anrechnen.
@@ -62,6 +63,10 @@ Manuell gespeicherte Trade-Republic-Links werden beim Speichern und Laden auf ve
 ### Änderung in 2.5.39
 
 Der Portfolio-Advisor behandelt geplante Sparpläne jetzt konsistent mit dem Action-Plan: beibehaltene Sparpläne reservieren Budget, tauchen aber nicht erneut als freies Cash auf. Sparpläne, die wegen REDUZIEREN oder VERKAUFEN geprüft werden müssen, blockieren dagegen nicht still das Budget einer gültigen zusätzlichen Kaufempfehlung.
+
+### Änderung in 2.5.40
+
+Der Portfolio-Advisor berücksichtigt jetzt die bestehende Depotkonzentration bei zusätzlichen Kaufempfehlungen. Eine Position mit mindestens 40 % Anteil am vollständig bewertbaren Depot erhält kein weiteres Monatsbudget. Fehlt für mindestens einen berücksichtigten Bestand ein belastbarer Wert, bleibt die Konzentrationssperre aus, statt eine Gewichtung zu erfinden.
 
 ## Push
 
