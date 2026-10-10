@@ -2522,15 +2522,9 @@ private fun isValidPurchaseDate(value: String): Boolean {
     return format.format(parsed) == value
 }
 
-private fun parseDecimal(value: String): Double? = value.trim().replace(',', '.').toDoubleOrNull()
+private fun parseDecimal(value: String): Double? = GermanDecimalInput.parse(value)
 
-private fun sanitizeDecimalInput(value: String): String {
-    val normalized = value.filter { it.isDigit() || it == ',' || it == '.' }.replace('.', ',')
-    val firstComma = normalized.indexOf(',')
-    return if (firstComma < 0) normalized.take(12) else {
-        normalized.substring(0, firstComma + 1) + normalized.substring(firstComma + 1).replace(",", "").take(6)
-    }.take(16)
-}
+private fun sanitizeDecimalInput(value: String): String = GermanDecimalInput.sanitize(value)
 
 private fun formatEditableNumber(value: Double): String =
     if (value % 1.0 == 0.0) value.toLong().toString() else String.format(Locale.GERMANY, "%.6f", value).trimEnd('0').trimEnd(',')

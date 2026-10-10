@@ -15,6 +15,8 @@ TEMP_PREFILL_WORKFLOW="$ROOT/.github/workflows/apply-action-prefill.yml"
 TEMP_PREFILL_SCRIPT="$ROOT/.github/scripts/apply_action_prefill.py"
 TEMP_SHARE_PREFILL_WORKFLOW="$ROOT/.github/workflows/apply-recommendation-share-prefill.yml"
 TEMP_SHARE_PREFILL_SCRIPT="$ROOT/.github/scripts/apply_recommendation_share_prefill.py"
+EXPECTED_VERSION_NAME="2.5.36"
+EXPECTED_VERSION_CODE=106
 
 fail() {
   echo "FAIL: $1" >&2
@@ -26,11 +28,11 @@ VERSION_CODE=$(sed -n 's/.*versionCode = \([0-9][0-9]*\).*/\1/p' "$GRADLE_FILE" 
 [ -n "$VERSION_NAME" ] || fail 'Android versionName konnte nicht aus build.gradle.kts gelesen werden.'
 [ -n "$VERSION_CODE" ] || fail 'Android versionCode konnte nicht aus build.gradle.kts gelesen werden.'
 
-if [ "$VERSION_CODE" -lt 105 ]; then
-  fail "Android versionCode muss für das Update nach 2.5.34/code104 mindestens 105 sein (gefunden: $VERSION_CODE)."
+if [ "$VERSION_CODE" -ne "$EXPECTED_VERSION_CODE" ]; then
+  fail "Android versionCode muss für diesen Release-Kandidaten exakt $EXPECTED_VERSION_CODE sein (gefunden: $VERSION_CODE)."
 fi
-if [ "$VERSION_NAME" = "2.5.34" ]; then
-  fail 'Android versionName muss für die Auslieferung der neuen Fehlerkorrekturen höher als 2.5.34 sein.'
+if [ "$VERSION_NAME" != "$EXPECTED_VERSION_NAME" ]; then
+  fail "Android versionName muss für diesen Release-Kandidaten exakt $EXPECTED_VERSION_NAME sein (gefunden: $VERSION_NAME)."
 fi
 
 grep -Fq "Release candidate: Investment Radar $VERSION_NAME" "$GRADLE_FILE" || fail "Release-Kandidat muss die aktuelle Android-Version $VERSION_NAME benennen."
