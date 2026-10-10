@@ -46,6 +46,7 @@ Empfehlungszeilen zeigen Instrument, Signal und Betrag getrennt. Über **Bearbei
 - Stückzahl wird bei vorhandenem EUR-Kurs vorbefüllt
 - Kauf/Verkauf wird passend zur Empfehlung geöffnet
 - der Nutzer kann die Werte vor der Bestätigung ändern
+- gruppierte Dezimaleingaben wie `1.000,50` und `1,000.50` werden ohne Größenordnungsfehler normalisiert
 
 ## Push
 
