@@ -1,7 +1,7 @@
 # Investment Radar Android App
 
-**Version:** 2.5.36  
-**versionCode:** 106
+**Version:** 2.5.37  
+**versionCode:** 107
 
 Die verbindlichen Android-Versionsmetadaten werden in `android/app/build.gradle.kts` gepflegt. Für jede produktiv auszuliefernde App-Änderung müssen `versionName` und `versionCode` erhöht werden, damit bestehende Installationen das In-App-Update eindeutig als neuer erkennen.
 
@@ -38,7 +38,7 @@ Die verbindlichen Android-Versionsmetadaten werden in `android/app/build.gradle.
 - Der Geldbedarf-Flow kann vorhandenes App-Cash und private Verkaufserlöse getrennt auf einen Bedarf anrechnen.
 - Geldaktions-Karten stapeln auf kompakten Displays Instrument/Begründung und Cash-Wirkung, damit lange Werte die Inhalte nicht zusammendrücken.
 
-## Empfehlungen
+## Empfehlungen und Dezimaleingaben
 
 Empfehlungszeilen zeigen Instrument, Signal und Betrag getrennt. Über **Bearbeiten** wird die bestehende Transaktionsmaske geöffnet:
 
@@ -47,6 +47,7 @@ Empfehlungszeilen zeigen Instrument, Signal und Betrag getrennt. Über **Bearbei
 - Kauf/Verkauf wird passend zur Empfehlung geöffnet
 - der Nutzer kann die Werte vor der Bestätigung ändern
 - gruppierte Dezimaleingaben wie `1.000,50` und `1,000.50` werden ohne Größenordnungsfehler normalisiert
+- manuell ergänzte Depot-Stückzahlen verwenden dieselbe locale-sichere Dezimallogik
 
 ## Push
 
