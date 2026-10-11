@@ -1,7 +1,7 @@
 # Investment Radar Android App
 
-**Version:** 2.5.40  
-**versionCode:** 110
+**Version:** 2.5.41  
+**versionCode:** 111
 
 Die verbindlichen Android-Versionsmetadaten werden in `android/app/build.gradle.kts` gepflegt. Für jede produktiv auszuliefernde App-Änderung müssen `versionName` und `versionCode` erhöht werden, damit bestehende Installationen das In-App-Update eindeutig als neuer erkennen.
 
@@ -67,6 +67,10 @@ Der Portfolio-Advisor behandelt geplante Sparpläne jetzt konsistent mit dem Act
 ### Änderung in 2.5.40
 
 Der Portfolio-Advisor berücksichtigt jetzt die bestehende Depotkonzentration bei zusätzlichen Kaufempfehlungen. Eine Position mit mindestens 40 % Anteil am vollständig bewertbaren Depot erhält kein weiteres Monatsbudget. Fehlt für mindestens einen berücksichtigten Bestand ein belastbarer Wert, bleibt die Konzentrationssperre aus, statt eine Gewichtung zu erfinden.
+
+### Änderung in 2.5.41
+
+Die kompakte Depotkarte auf dem Dashboard zeigt bei einem unvollständig bewertbaren Depot keine technischen Custom-/iBond-IDs und keine globale rote „Prüfen“-Warnung mehr. Der Gesamtwert bleibt korrekt als unvollständig gekennzeichnet und ein berechenbarer Teil bleibt sichtbar; die konkrete Datenlücke wird weiterhin direkt bei der betroffenen Depotposition angezeigt.
 
 ## Push
 
