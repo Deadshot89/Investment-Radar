@@ -94,8 +94,8 @@ Der Workflow bricht bewusst ab, wenn die dauerhafte Signierung nicht vollständi
 
 Aktueller App-Stand:
 
-- `versionName = 2.5.40`
-- `versionCode = 110`
+- `versionName = 2.5.41`
+- `versionCode = 111`
 
 Workflow **Build Android APK** starten.
 
@@ -129,6 +129,7 @@ Die UI-Tests laufen auf Phone- und Tablet-Konfigurationen.
 - Beibehaltene Sparpläne reservieren Monatsbudget; dieses Geld darf nicht zusätzlich als freies Cash angezeigt werden.
 - Sparpläne mit REDUZIEREN-/VERKAUFEN-Konflikt werden geprüft und blockieren nicht still andere gültige Kaufempfehlungen.
 - Bestehende Positionen ab 40 % Anteil am vollständig bewertbaren Depot erhalten kein zusätzliches Advisor-Kaufbudget; bei fehlenden Bestandswerten wird keine Gewichtung erfunden.
+- Die kompakte Depotkarte zeigt keine technischen Custom-/iBond-IDs mehr als globale Warnung; fehlende aktuelle Werte bleiben in der betroffenen Depotposition sichtbar.
 - Verkaufserlöse werden privat verwendet und erhöhen App-Cash oder Kaufbudget nicht.
 - Historische Snapshots dürfen nicht als aktuelle Depotwerte verwendet werden.
 - Fehlende Daten werden als Datenqualitätsproblem angezeigt statt durch erfundene Werte ersetzt.
