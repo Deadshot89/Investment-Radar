@@ -22,7 +22,7 @@ class PortfolioImportStoreInstrumentedTest {
     )
 
     @Test
-    fun commitImportDoesNotTouchBudgetPreferences() {
+    fun markSoldDoesNotTouchBudgetPreferences() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val portfolioPrefs = context.getSharedPreferences("investment_radar_portfolio", 0)
         val budgetPrefs = context.getSharedPreferences("investment_radar_budget", 0)
@@ -51,6 +51,49 @@ class PortfolioImportStoreInstrumentedTest {
 
             assertTrue(PortfolioStore.commitImport(context, result, metadata()))
             assertEquals(PortfolioLifecycleStatus.SOLD_MARKED, PortfolioStore.readPositions(context).getValue("meta").lifecycleStatus)
+            assertEquals(budgetBefore, budgetPrefs.all.toMap())
+        } finally {
+            portfolioPrefs.edit().clear().commit()
+            budgetPrefs.edit().clear().commit()
+        }
+    }
+
+    @Test
+    fun deleteDoesNotTouchBudgetPreferences() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val portfolioPrefs = context.getSharedPreferences("investment_radar_portfolio", 0)
+        val budgetPrefs = context.getSharedPreferences("investment_radar_budget", 0)
+        portfolioPrefs.edit().clear().commit()
+        budgetPrefs.edit().clear().commit()
+        try {
+            val initial = PortfolioPosition(
+                itemId = "apple",
+                snapshotValueEur = 50.0,
+                purchases = listOf(PortfolioPurchase("buy-apple", "2026-09-02", 45.0, 0.5))
+            )
+            PortfolioStore.save(context, initial)
+            budgetPrefs.edit()
+                .putString("entries_v1", "sentinel-entries-delete")
+                .putString("reservations_v1", "sentinel-reservations-delete")
+                .commit()
+            val budgetBefore = budgetPrefs.all.toMap()
+
+            val result = PortfolioImportApplier.preview(
+                existing = mapOf("apple" to initial),
+                changes = listOf(
+                    PortfolioImportChange.MissingPosition("apple", MissingPositionDecision.DELETE)
+                ),
+                capturedAt = "2026-10-15T12:10:30Z"
+            )
+
+            assertTrue(
+                PortfolioStore.commitImport(
+                    context,
+                    result,
+                    metadata().copy(soldCount = 0, deletedCount = 1)
+                )
+            )
+            assertTrue(PortfolioStore.readPositions(context).isEmpty())
             assertEquals(budgetBefore, budgetPrefs.all.toMap())
         } finally {
             portfolioPrefs.edit().clear().commit()
