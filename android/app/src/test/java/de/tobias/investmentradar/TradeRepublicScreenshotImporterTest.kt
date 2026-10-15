@@ -1,5 +1,6 @@
 package de.tobias.investmentradar
 
+// Task 5 RED contract: importer/OCR types intentionally do not exist yet.
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
