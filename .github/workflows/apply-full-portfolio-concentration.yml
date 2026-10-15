@@ -1,4 +1,4 @@
-name: Apply full portfolio concentration fix
+name: Finalize Android 2.5.42 metadata
 
 on:
   push:
@@ -11,13 +11,13 @@ permissions:
   contents: write
 
 jobs:
-  apply:
+  finalize:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
         with:
           ref: fix/full-portfolio-concentration
-      - name: Apply bounded concentration fix
+      - name: Update release contracts and current docs
         shell: bash
         run: |
           set -euo pipefail
@@ -29,73 +29,40 @@ jobs:
               text = p.read_text()
               count = text.count(old)
               if count != 1:
-                  raise SystemExit(f"{path}: expected exactly one match, found {count}: {old[:120]!r}")
+                  raise SystemExit(f"{path}: expected exactly one match, found {count}: {old!r}")
               p.write_text(text.replace(old, new, 1))
 
-          engine_path = Path('android/app/src/main/java/de/tobias/investmentradar/PortfolioAdvisorEngine.kt')
-          engine = engine_path.read_text()
-          if 'data class PortfolioConcentrationContext(' in engine:
-              raise SystemExit('PortfolioConcentrationContext already exists; refusing duplicate patch')
-
-          marker = '\nobject PortfolioAdvisorEngine {\n'
-          if engine.count(marker) != 1:
-              raise SystemExit('PortfolioAdvisorEngine marker not unique')
-          context_model = '''\ndata class PortfolioConcentrationContext(\n    val holdingIds: Set<String>,\n    val valuesEur: Map<String, Double>\n) {\n    companion object {\n        fun fromCandidates(candidates: List<PortfolioAdvisorCandidate>): PortfolioConcentrationContext {\n            val holdings = candidates.filter { it.isHolding }\n            return PortfolioConcentrationContext(\n                holdingIds = holdings.mapTo(mutableSetOf()) { it.itemId },\n                valuesEur = holdings.mapNotNull { candidate ->\n                    candidate.currentValueEur\n                        ?.takeIf { it.isFinite() && it >= 0.0 }\n                        ?.let { candidate.itemId to it }\n                }.toMap()\n            )\n        }\n    }\n}\n'''
-          engine = engine.replace(marker, context_model + marker, 1)
-
-          old_signature = '''    fun allocate(\n        candidates: List<PortfolioAdvisorCandidate>,\n        budgetEur: Int\n    ): PortfolioAdvisorPlan {'''
-          new_signature = '''    fun allocate(\n        candidates: List<PortfolioAdvisorCandidate>,\n        budgetEur: Int,\n        concentrationContext: PortfolioConcentrationContext = PortfolioConcentrationContext.fromCandidates(candidates)\n    ): PortfolioAdvisorPlan {'''
-          if engine.count(old_signature) != 1:
-              raise SystemExit('allocate signature not unique')
-          engine = engine.replace(old_signature, new_signature, 1)
-
-          old_call = '        val concentrationBlockedItemIds = concentrationBlockedItemIds(candidates)'
-          new_call = '        val concentrationBlockedItemIds = concentrationBlockedItemIds(candidates, concentrationContext)'
-          if engine.count(old_call) != 1:
-              raise SystemExit('concentrationBlockedItemIds call not unique')
-          engine = engine.replace(old_call, new_call, 1)
-
-          start = engine.index('    private fun concentrationBlockedItemIds(')
-          end = engine.index('    private fun distributeWholeEuros(', start)
-          new_concentration = '''    private fun concentrationBlockedItemIds(\n        candidates: List<PortfolioAdvisorCandidate>,\n        context: PortfolioConcentrationContext\n    ): Set<String> {\n        val candidateHoldingIds = candidates\n            .filter { it.isHolding }\n            .mapTo(mutableSetOf()) { it.itemId }\n        if (candidateHoldingIds.isEmpty()) return emptySet()\n\n        val holdingIds = context.holdingIds\n        if (holdingIds.isEmpty() || candidateHoldingIds.any { it !in holdingIds }) return emptySet()\n\n        // The denominator must represent the complete known portfolio. If even one holding\n        // cannot be valued, do not invent a portfolio weight or block a purchase from partial data.\n        val valuesById = linkedMapOf<String, Double>()\n        holdingIds.forEach { itemId ->\n            val value = context.valuesEur[itemId]\n                ?.takeIf { it.isFinite() && it >= 0.0 }\n                ?: return emptySet()\n            valuesById[itemId] = value\n        }\n        val totalValue = valuesById.values.sum()\n        if (!totalValue.isFinite() || totalValue <= 0.0) return emptySet()\n\n        return candidateHoldingIds.filterTo(mutableSetOf()) { itemId ->\n            val value = valuesById[itemId] ?: return@filterTo false\n            value / totalValue * 100.0 >= PortfolioAnalysis.CONCENTRATION_WARNING_PCT\n        }\n    }\n\n'''
-          engine = engine[:start] + new_concentration + engine[end:]
-          engine_path.write_text(engine)
-
           replace_once(
-              'android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt',
-              '                        val advisorPlan = PortfolioAdvisorEngine.allocate(advisorCandidates, budgetState.advisorBudgetEur)',
-              '''                        val advisorPlan = PortfolioAdvisorEngine.allocate(\n                            candidates = advisorCandidates,\n                            budgetEur = budgetState.advisorBudgetEur,\n                            concentrationContext = PortfolioConcentrationContext(\n                                holdingIds = holdingIds,\n                                valuesEur = portfolioValues\n                            )\n                        )'''
+              'android/tests/test-version-contract.sh',
+              'EXPECTED_VERSION_NAME="2.5.41"\nEXPECTED_VERSION_CODE=111',
+              'EXPECTED_VERSION_NAME="2.5.42"\nEXPECTED_VERSION_CODE=112'
           )
-
           replace_once(
-              'android/app/src/main/java/de/tobias/investmentradar/MainViewModel.kt',
-              '        val plan = PortfolioAdvisorEngine.allocate(candidates, advisorBudgetEur)',
-              '''        val plan = PortfolioAdvisorEngine.allocate(\n            candidates = candidates,\n            budgetEur = advisorBudgetEur,\n            concentrationContext = PortfolioConcentrationContext(\n                holdingIds = _holdingIds.value,\n                valuesEur = portfolioValues\n            )\n        )'''
+              'SETUP.md',
+              '- `versionName = 2.5.41`\n- `versionCode = 111`',
+              '- `versionName = 2.5.42`\n- `versionCode = 112`'
           )
-
           replace_once(
-              'android/app/src/main/java/de/tobias/investmentradar/DailyAnalysisWorker.kt',
-              '        val plan = PortfolioAdvisorEngine.allocate(candidates, budgetState.advisorBudgetEur)',
-              '''        val plan = PortfolioAdvisorEngine.allocate(\n            candidates = candidates,\n            budgetEur = budgetState.advisorBudgetEur,\n            concentrationContext = PortfolioConcentrationContext(\n                holdingIds = holdingIds,\n                valuesEur = currentValues\n            )\n        )'''
+              'START_HIER.md',
+              '# START HIER – Investment Radar 2.5.41\n\n**Android:** 2.5.41 / versionCode 111',
+              '# START HIER – Investment Radar 2.5.42\n\n**Android:** 2.5.42 / versionCode 112'
           )
-
-          contract = Path('android/tests/test-portfolio-allocation-ui.sh')
-          contract_text = contract.read_text()
-          anchor = 'grep -q \'SavingsPlanBudget.monthlyAmounts\' "$SRC"\n'
-          if contract_text.count(anchor) != 1:
-              raise SystemExit('portfolio allocation contract anchor not unique')
-          wiring = '''grep -q 'concentrationContext = PortfolioConcentrationContext' "$SRC"\nVM="android/app/src/main/java/de/tobias/investmentradar/MainViewModel.kt"\nWORKER="android/app/src/main/java/de/tobias/investmentradar/DailyAnalysisWorker.kt"\ngrep -q 'concentrationContext = PortfolioConcentrationContext' "$VM"\ngrep -q 'concentrationContext = PortfolioConcentrationContext' "$WORKER"\n'''
-          contract.write_text(contract_text.replace(anchor, anchor + wiring, 1))
+          replace_once(
+              'android/README.md',
+              '**Version:** 2.5.41  \n**versionCode:** 111',
+              '**Version:** 2.5.42  \n**versionCode:** 112'
+          )
+          replace_once(
+              'README.md',
+              '**Aktueller Android-Stand:** 2.5.41 / versionCode 111',
+              '**Aktueller Android-Stand:** 2.5.42 / versionCode 112'
+          )
           PY
 
           git diff --check
-          git diff --exit-code --quiet && { echo 'No changes produced'; exit 1; }
+          git diff --exit-code --quiet && { echo 'No metadata changes produced'; exit 1; }
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add android/app/src/main/java/de/tobias/investmentradar/PortfolioAdvisorEngine.kt \
-                  android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt \
-                  android/app/src/main/java/de/tobias/investmentradar/MainViewModel.kt \
-                  android/app/src/main/java/de/tobias/investmentradar/DailyAnalysisWorker.kt \
-                  android/tests/test-portfolio-allocation-ui.sh
-          git commit -m 'fix: use full portfolio for concentration guard'
+          git add android/tests/test-version-contract.sh SETUP.md START_HIER.md android/README.md README.md
+          git commit -m 'docs: prepare Android 2.5.42 release metadata'
           git push origin HEAD:fix/full-portfolio-concentration
