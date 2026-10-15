@@ -9,7 +9,7 @@ object WatchlistStore {
 
     fun read(context: Context): Set<String> {
         val raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY, "[]") ?: "[]"
-        return runCatching {
+        val parsed = runCatching {
             val array = JSONArray(raw)
             buildSet {
                 for (i in 0 until array.length()) {
@@ -17,9 +17,13 @@ object WatchlistStore {
                 }
             }
         }.getOrDefault(emptySet())
+        val sanitized = parsed.filterNot { it == LegacyPortfolioCleanup.RETIRED_IBOND_ID }.toSet()
+        if (sanitized.size != parsed.size) write(context, sanitized)
+        return sanitized
     }
 
     fun toggle(context: Context, itemId: String): Set<String> {
+        if (itemId == LegacyPortfolioCleanup.RETIRED_IBOND_ID) return read(context)
         val next = read(context).toMutableSet().apply {
             if (!add(itemId)) remove(itemId)
         }
