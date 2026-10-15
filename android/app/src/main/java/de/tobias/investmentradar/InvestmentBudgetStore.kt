@@ -203,6 +203,33 @@ object InvestmentBudgetStore {
         )
     }
 
+    /**
+     * Pure projection used after a screenshot depot import. It never reconciles transactions,
+     * seeds months, writes preferences, or refreshes the global runtime.
+     */
+    fun viewStateReadOnly(
+        context: Context,
+        activeInvestedEur: Double = 0.0,
+        today: LocalDate = LocalDate.now()
+    ): InvestmentBudgetViewState = viewStateReadOnly(
+        entries = readEntries(context),
+        reservations = readReservations(context),
+        activeInvestedEur = activeInvestedEur,
+        today = today
+    )
+
+    fun viewStateReadOnly(
+        entries: List<BudgetJournalEntry>,
+        reservations: List<BudgetReservation>,
+        activeInvestedEur: Double = 0.0,
+        today: LocalDate = LocalDate.now()
+    ): InvestmentBudgetViewState = InvestmentBudgetViewState.from(
+        summary = InvestmentBudgetJournalEngine.summarize(entries, reservations),
+        entries = entries,
+        activeInvestedEur = activeInvestedEur,
+        today = today
+    )
+
     fun ensureInitialized(context: Context, today: LocalDate = LocalDate.now()) {
         val storedEntries = readEntries(context)
         val settings = context.getSharedPreferences(SETTINGS_PREFS, Context.MODE_PRIVATE)
