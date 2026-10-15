@@ -295,15 +295,18 @@ class DepotScreenshotImportViewModel(
         if (!reviewing.canApply) return
         val source = sourceSnapshot ?: return
         val capturedAt = capturedAtProvider()
+
+        val result: PortfolioImportResult
+        val summary: PortfolioImportSummary
         try {
             val changes = reviewing.rows.map { it.toImportChange() }
-            val result = PortfolioImportApplier.preview(
+            result = PortfolioImportApplier.preview(
                 existingPositions = source.positions,
                 existingCustomAssets = source.customItems,
                 changes = changes,
                 capturedAt = capturedAt
             )
-            val summary = result.summary
+            summary = result.summary
             val metadata = PortfolioImportMetadata(
                 importId = importIdProvider(),
                 capturedAt = capturedAt,
@@ -318,18 +321,20 @@ class DepotScreenshotImportViewModel(
                 _state.value = DepotScreenshotImportState.Failed("Depot-Update konnte nicht gespeichert werden.", reviewing)
                 return
             }
-            val previousActive = source.positions
-                .filterValues { it.isActiveHolding() }
-                .keys
-                .toSet()
-            onCommitted(previousActive)
-            _state.value = DepotScreenshotImportState.Completed(summary)
         } catch (error: Exception) {
             _state.value = DepotScreenshotImportState.Failed(
                 error.message?.takeIf { it.isNotBlank() } ?: "Depot-Update konnte nicht übernommen werden.",
                 reviewing
             )
+            return
         }
+
+        val previousActive = source.positions
+            .filterValues { it.isActiveHolding() }
+            .keys
+            .toSet()
+        runCatching { onCommitted(previousActive) }
+        _state.value = DepotScreenshotImportState.Completed(summary)
     }
 
     fun cancel() {
