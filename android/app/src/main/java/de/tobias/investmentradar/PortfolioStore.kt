@@ -1,6 +1,7 @@
 package de.tobias.investmentradar
 
 import android.content.Context
+import android.content.SharedPreferences
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -8,6 +9,8 @@ object PortfolioStore {
     private const val PREFS = "investment_radar_portfolio"
     private const val LEGACY_KEY = "holding_ids"
     private const val POSITION_IDS_KEY = "position_ids"
+    private const val IMPORT_HISTORY_KEY = "import_history_v1"
+    private const val MAX_IMPORT_HISTORY = 50
 
     fun read(context: Context): Set<String> = readPositions(context).keys
 
@@ -89,23 +92,7 @@ object PortfolioStore {
         val editor = prefs.edit()
             .putStringSet(LEGACY_KEY, ids)
             .putStringSet(POSITION_IDS_KEY, ids)
-            .putString(investedKey(position.itemId), position.investedAmount.toString())
-            .putString(sharesKey(position.itemId), position.shares.toString())
-            .putString(purchasesKey(position.itemId), encodePurchases(position.purchases))
-            .putString(salesKey(position.itemId), encodeSales(position.sales))
-            .putString(lifecycleStatusKey(position.itemId), position.lifecycleStatus.name)
-        position.snapshotValueEur?.takeIf { it.isFinite() && it >= 0.0 }?.let {
-            editor.putString(snapshotKey(position.itemId), it.toString())
-        } ?: editor.remove(snapshotKey(position.itemId))
-        position.snapshotCostBasisEur?.takeIf { it.isFinite() && it >= 0.0 }?.let {
-            editor.putString(snapshotCostBasisKey(position.itemId), it.toString())
-        } ?: editor.remove(snapshotCostBasisKey(position.itemId))
-        position.trackedShares?.takeIf { it.isFinite() && it > 0.0 }?.let {
-            editor.putString(trackedSharesKey(position.itemId), it.toString())
-        } ?: editor.remove(trackedSharesKey(position.itemId))
-        position.snapshotCapturedAt?.trim()?.takeIf { it.isNotBlank() }?.let {
-            editor.putString(snapshotCapturedAtKey(position.itemId), it)
-        } ?: editor.remove(snapshotCapturedAtKey(position.itemId))
+        writePosition(editor, position)
         editor.apply()
     }
 
@@ -126,6 +113,120 @@ object PortfolioStore {
             .remove(snapshotCapturedAtKey(itemId))
             .apply()
     }
+
+    fun commitImport(
+        context: Context,
+        result: PortfolioImportResult,
+        metadata: PortfolioImportMetadata,
+        commitEditor: (SharedPreferences.Editor) -> Boolean = { it.commit() }
+    ): Boolean {
+        require(metadata.importId.isNotBlank()) { "Import-ID fehlt." }
+        require(metadata.capturedAt.isNotBlank()) { "Import-Zeitpunkt fehlt." }
+        require(metadata.screenshotCount > 0) { "Mindestens ein Screenshot ist erforderlich." }
+
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val previous = snapshotPreferences(prefs)
+        val previousHistory = decodeImportHistory(previous[IMPORT_HISTORY_KEY] as? String)
+        val nextHistory = (previousHistory + metadata).takeLast(MAX_IMPORT_HISTORY)
+
+        val editor = prefs.edit().clear()
+            .putStringSet(LEGACY_KEY, result.positions.keys)
+            .putStringSet(POSITION_IDS_KEY, result.positions.keys)
+            .putString(IMPORT_HISTORY_KEY, encodeImportHistory(nextHistory))
+        result.positions.values.sortedBy { it.itemId }.forEach { position ->
+            writePosition(editor, position)
+        }
+
+        val committed = runCatching { commitEditor(editor) }.getOrDefault(false)
+        if (committed) return true
+
+        check(restorePreferences(prefs, previous)) {
+            "Depot-Import fehlgeschlagen und der vorherige Zustand konnte nicht wiederhergestellt werden."
+        }
+        return false
+    }
+
+    private fun writePosition(editor: SharedPreferences.Editor, position: PortfolioPosition) {
+        editor
+            .putString(investedKey(position.itemId), position.investedAmount.toString())
+            .putString(sharesKey(position.itemId), position.shares.toString())
+            .putString(purchasesKey(position.itemId), encodePurchases(position.purchases))
+            .putString(salesKey(position.itemId), encodeSales(position.sales))
+            .putString(lifecycleStatusKey(position.itemId), position.lifecycleStatus.name)
+        position.snapshotValueEur?.takeIf { it.isFinite() && it >= 0.0 }?.let {
+            editor.putString(snapshotKey(position.itemId), it.toString())
+        } ?: editor.remove(snapshotKey(position.itemId))
+        position.snapshotCostBasisEur?.takeIf { it.isFinite() && it >= 0.0 }?.let {
+            editor.putString(snapshotCostBasisKey(position.itemId), it.toString())
+        } ?: editor.remove(snapshotCostBasisKey(position.itemId))
+        position.trackedShares?.takeIf { it.isFinite() && it > 0.0 }?.let {
+            editor.putString(trackedSharesKey(position.itemId), it.toString())
+        } ?: editor.remove(trackedSharesKey(position.itemId))
+        position.snapshotCapturedAt?.trim()?.takeIf { it.isNotBlank() }?.let {
+            editor.putString(snapshotCapturedAtKey(position.itemId), it)
+        } ?: editor.remove(snapshotCapturedAtKey(position.itemId))
+    }
+
+    private fun snapshotPreferences(prefs: SharedPreferences): Map<String, Any> =
+        prefs.all.mapValues { (_, value) ->
+            if (value is Set<*>) value.filterIsInstance<String>().toSet() else value
+        }
+
+    private fun restorePreferences(prefs: SharedPreferences, values: Map<String, Any>): Boolean {
+        val editor = prefs.edit().clear()
+        values.forEach { (key, value) ->
+            when (value) {
+                is String -> editor.putString(key, value)
+                is Boolean -> editor.putBoolean(key, value)
+                is Int -> editor.putInt(key, value)
+                is Long -> editor.putLong(key, value)
+                is Float -> editor.putFloat(key, value)
+                is Set<*> -> editor.putStringSet(key, value.filterIsInstance<String>().toSet())
+            }
+        }
+        return editor.commit()
+    }
+
+    private fun encodeImportHistory(history: List<PortfolioImportMetadata>): String {
+        val array = JSONArray()
+        history.forEach { metadata ->
+            array.put(
+                JSONObject()
+                    .put("importId", metadata.importId)
+                    .put("capturedAt", metadata.capturedAt)
+                    .put("screenshotCount", metadata.screenshotCount)
+                    .put("updatedCount", metadata.updatedCount)
+                    .put("addedCount", metadata.addedCount)
+                    .put("soldCount", metadata.soldCount)
+                    .put("deletedCount", metadata.deletedCount)
+            )
+        }
+        return array.toString()
+    }
+
+    private fun decodeImportHistory(raw: String?): List<PortfolioImportMetadata> = runCatching {
+        val array = JSONArray(raw ?: "[]")
+        buildList {
+            for (index in 0 until array.length()) {
+                val item = array.optJSONObject(index) ?: continue
+                val importId = item.optString("importId").trim()
+                val capturedAt = item.optString("capturedAt").trim()
+                val screenshotCount = item.optInt("screenshotCount", 0)
+                if (importId.isBlank() || capturedAt.isBlank() || screenshotCount <= 0) continue
+                add(
+                    PortfolioImportMetadata(
+                        importId = importId,
+                        capturedAt = capturedAt,
+                        screenshotCount = screenshotCount,
+                        updatedCount = item.optInt("updatedCount", 0).coerceAtLeast(0),
+                        addedCount = item.optInt("addedCount", 0).coerceAtLeast(0),
+                        soldCount = item.optInt("soldCount", 0).coerceAtLeast(0),
+                        deletedCount = item.optInt("deletedCount", 0).coerceAtLeast(0)
+                    )
+                )
+            }
+        }
+    }.getOrDefault(emptyList())
 
     private fun encodePurchases(purchases: List<PortfolioPurchase>): String {
         val array = JSONArray()
