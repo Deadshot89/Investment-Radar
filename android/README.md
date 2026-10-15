@@ -1,7 +1,7 @@
 # Investment Radar Android App
 
-**Version:** 2.5.43  
-**versionCode:** 113
+**Version:** 2.5.44  
+**versionCode:** 114
 
 Die verbindlichen Android-Versionsmetadaten werden in `android/app/build.gradle.kts` gepflegt. Für jede produktiv auszuliefernde App-Änderung müssen `versionName` und `versionCode` erhöht werden, damit bestehende Installationen das In-App-Update eindeutig als neuer erkennen.
 
@@ -80,6 +80,10 @@ Die Konzentrationsberechnung verwendet für vollständig bewertbare Depots den v
 ### Änderung in 2.5.43
 
 Der alte iBond-Datensatz `custom-ibonds-dec-2026-usd` wird nicht mehr nur im Dashboard verborgen, sondern beim Laden physisch aus den persistenten Custom-Instrumenten, Depot-IDs und Watchlist-Daten entfernt. Speichern bzw. erneutes Hinzufügen dieser zurückgezogenen ID wird blockiert. Damit greift die Bereinigung auch bei bestehenden Installationen und nach einer Wiederherstellung alter Backups.
+
+### Änderung in 2.5.44
+
+Aktien- und ETF-Positionen zeigen den aktuell für die Depotbewertung verwendeten EUR-Stückkurs jetzt direkt im Portfolio-Dashboard und in der kompakten Depotkarte. Der Kurs wird aus derselben belastbaren Quelle übernommen, die bereits für die Positionsbewertung verwendet wird; Festzins-Werte bleiben unverändert als Anlagewert dargestellt und bei fehlendem Kurs wird kein Wert erfunden.
 
 ## Push
 

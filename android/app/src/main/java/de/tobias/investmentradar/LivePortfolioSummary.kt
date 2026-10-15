@@ -2,6 +2,7 @@ package de.tobias.investmentradar
 
 data class LivePortfolioPosition(
     val itemId: String,
+    val currentPriceEur: Double?,
     val currentValue: Double,
     val weightPct: Double
 )
@@ -57,6 +58,7 @@ object LivePortfolioSummary {
                 .map {
                     LivePortfolioPosition(
                         itemId = it.itemId,
+                        currentPriceEur = it.currentPriceEur,
                         currentValue = it.currentValue ?: 0.0,
                         weightPct = it.weightPct ?: 0.0
                     )
