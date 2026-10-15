@@ -86,7 +86,14 @@ class DailyAnalysisWorker(
             today = LocalDate.now()
         )
         val previousPlan = PortfolioAdvisorStore.latest(applicationContext)?.plan
-        val plan = PortfolioAdvisorEngine.allocate(candidates, budgetState.advisorBudgetEur)
+        val plan = PortfolioAdvisorEngine.allocate(
+            candidates = candidates,
+            budgetEur = budgetState.advisorBudgetEur,
+            concentrationContext = PortfolioConcentrationContext(
+                holdingIds = holdingIds,
+                valuesEur = currentValues
+            )
+        )
         val planEvents = AdvisorChangePolicy.planEvents(previousPlan, plan, today)
         PortfolioAdvisorStore.save(applicationContext, today, plan)
 
