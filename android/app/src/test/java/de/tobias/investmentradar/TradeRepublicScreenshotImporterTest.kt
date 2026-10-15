@@ -1,6 +1,6 @@
 package de.tobias.investmentradar
 
-// Task 5 RED contract: importer/OCR types intentionally do not exist yet.
+// Task 5 contract: importer behavior stays deterministic and independent from Android storage.
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
