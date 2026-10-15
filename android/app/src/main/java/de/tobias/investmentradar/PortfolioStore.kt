@@ -167,12 +167,12 @@ object PortfolioStore {
         } ?: editor.remove(snapshotCapturedAtKey(position.itemId))
     }
 
-    private fun snapshotPreferences(prefs: SharedPreferences): Map<String, Any> =
+    private fun snapshotPreferences(prefs: SharedPreferences): Map<String, Any?> =
         prefs.all.mapValues { (_, value) ->
             if (value is Set<*>) value.filterIsInstance<String>().toSet() else value
         }
 
-    private fun restorePreferences(prefs: SharedPreferences, values: Map<String, Any>): Boolean {
+    private fun restorePreferences(prefs: SharedPreferences, values: Map<String, Any?>): Boolean {
         val editor = prefs.edit().clear()
         values.forEach { (key, value) ->
             when (value) {
@@ -182,6 +182,7 @@ object PortfolioStore {
                 is Long -> editor.putLong(key, value)
                 is Float -> editor.putFloat(key, value)
                 is Set<*> -> editor.putStringSet(key, value.filterIsInstance<String>().toSet())
+                null -> Unit
             }
         }
         return editor.commit()
