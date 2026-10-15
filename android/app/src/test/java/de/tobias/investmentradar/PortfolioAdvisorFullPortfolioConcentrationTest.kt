@@ -123,23 +123,14 @@ class PortfolioAdvisorFullPortfolioConcentrationTest {
         budgetEur: Int,
         holdingIds: Set<String>,
         valuesEur: Map<String, Double>
-    ): PortfolioAdvisorPlan {
-        val contextClass = runCatching {
-            Class.forName("de.tobias.investmentradar.PortfolioConcentrationContext")
-        }.getOrElse { error ->
-            throw AssertionError("PortfolioConcentrationContext fehlt", error)
-        }
-        val constructor = contextClass.constructors.firstOrNull { it.parameterCount == 2 }
-            ?: throw AssertionError("PortfolioConcentrationContext braucht holdingIds + valuesEur")
-        val context = constructor.newInstance(holdingIds, valuesEur)
-        val allocate = PortfolioAdvisorEngine::class.java.declaredMethods.firstOrNull { method ->
-            method.name == "allocate" &&
-                method.parameterCount == 3 &&
-                method.parameterTypes[2].name == contextClass.name
-        } ?: throw AssertionError("PortfolioAdvisorEngine.allocate braucht vollständigen Depot-Kontext")
-
-        return allocate.invoke(PortfolioAdvisorEngine, candidates, budgetEur, context) as PortfolioAdvisorPlan
-    }
+    ): PortfolioAdvisorPlan = PortfolioAdvisorEngine.allocate(
+        candidates = candidates,
+        budgetEur = budgetEur,
+        concentrationContext = PortfolioConcentrationContext(
+            holdingIds = holdingIds,
+            valuesEur = valuesEur
+        )
+    )
 
     private fun candidate(
         id: String,
