@@ -31,6 +31,10 @@ class DepotScreenshotAmbiguousMatchTest {
                                     TradeRepublicScreenshotObservation(
                                         name = "Alpha Technolog",
                                         valueEur = 105.0,
+                                        profitLossEur = null,
+                                        profitLossPct = null,
+                                        shares = null,
+                                        derivedCostBasisEur = null,
                                         sourceIndex = 0
                                     )
                                 )
