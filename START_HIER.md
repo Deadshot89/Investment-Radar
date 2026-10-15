@@ -1,6 +1,6 @@
-# START HIER – Investment Radar 2.5.41
+# START HIER – Investment Radar 2.5.42
 
-**Android:** 2.5.41 / versionCode 111  
+**Android:** 2.5.42 / versionCode 112  
 **Backend:** 2.1.0  
 **API-Schema:** 2026-09-14.1
 
