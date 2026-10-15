@@ -56,7 +56,7 @@ class DepotScreenshotImportUiTest {
             name = "Meta Platforms",
             valueEur = 812.40,
             profitLossEur = null,
-            profitLossPercent = null,
+            profitLossPct = null,
             derivedCostBasisEur = 760.0,
             shares = null,
             sourceIndex = 0
@@ -114,7 +114,7 @@ class DepotScreenshotImportUiTest {
                 name = "Meta Platforms",
                 valueEur = 812.40,
                 profitLossEur = null,
-                profitLossPercent = null,
+                profitLossPct = null,
                 derivedCostBasisEur = 760.0,
                 shares = null,
                 sourceIndex = 0
