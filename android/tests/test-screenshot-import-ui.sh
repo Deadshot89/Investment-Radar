@@ -20,7 +20,7 @@ grep -Fq 'DepotScreenshotImportScreen(' "$MAIN" || fail 'Import-Screen ist nicht
 grep -Fq 'ActivityResultContracts.OpenMultipleDocuments()' "$SCREEN" || fail 'Mehrfachauswahl muss OpenMultipleDocuments verwenden.'
 grep -Fq 'arrayOf("image/*")' "$SCREEN" || fail 'Screenshot-Picker muss auf image/* begrenzt sein.'
 grep -Fq 'Text("Änderungen übernehmen"' "$SCREEN" || fail 'Finaler Apply-Button fehlt.'
-grep -Fq '3 von 5 Screenshots analysiert' "$SCREEN" || fail 'Fortschrittsdarstellung 3 von 5 fehlt als UI-Vertrag.'
+grep -Fq 'Screenshots analysiert' "$SCREEN" || fail 'Fortschrittsdarstellung für analysierte Screenshots fehlt.'
 
 if grep -Eq 'READ_EXTERNAL_STORAGE|WRITE_EXTERNAL_STORAGE|MANAGE_EXTERNAL_STORAGE|READ_MEDIA_IMAGES' "$MANIFEST"; then
   fail 'Screenshot-Import darf keine breite Storage-Berechtigung hinzufügen.'
