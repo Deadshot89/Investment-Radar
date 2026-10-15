@@ -1,6 +1,7 @@
 package de.tobias.investmentradar
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -14,6 +15,22 @@ class PortfolioSnapshotValueTest {
         assertNull(position.currentValue(null))
         assertNull(position.unrealizedProfitLoss(null))
         assertNull(position.totalProfitLoss(null))
+    }
+
+    @Test
+    fun soldMarkedHoldingIsInactiveEvenWithTrackedSharesAndSnapshot() {
+        val position = PortfolioPosition(
+            itemId = "meta",
+            snapshotValueEur = 1675.88,
+            snapshotCostBasisEur = 1500.0,
+            trackedShares = 2.0,
+            lifecycleStatus = PortfolioLifecycleStatus.SOLD_MARKED
+        )
+
+        assertFalse(position.isActiveHolding())
+        assertNull(position.currentValue(900.0))
+        assertNull(position.unrealizedProfitLoss(900.0))
+        assertNull(position.unrealizedProfitLossPercent(900.0))
     }
 
     @Test
