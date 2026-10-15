@@ -59,7 +59,8 @@ jobs:
           )
           PY
 
-          git diff --check
+          # Markdown uses intentional two-space hard breaks on current-version lines.
+          git diff --check -- android/tests/test-version-contract.sh
           git diff --exit-code --quiet && { echo 'No metadata changes produced'; exit 1; }
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
