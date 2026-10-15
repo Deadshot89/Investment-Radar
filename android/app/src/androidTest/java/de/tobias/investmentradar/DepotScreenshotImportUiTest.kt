@@ -6,6 +6,7 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performScrollTo
 import org.junit.Rule
 import org.junit.Test
 
@@ -14,7 +15,7 @@ class DepotScreenshotImportUiTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun selectingAndRecognitionShowFourStepProgress() {
+    fun selectingShowsSelectedScreenshotCount() {
         composeRule.setContent {
             MaterialTheme {
                 DepotScreenshotImportContent(
@@ -29,10 +30,14 @@ class DepotScreenshotImportUiTest {
                 )
             }
         }
+
         composeRule.onNodeWithText("1 von 4 · Screenshots auswählen").assertIsDisplayed()
         composeRule.onNodeWithText("2 Screenshots ausgewählt").assertIsDisplayed()
         composeRule.onNodeWithText("Screenshots analysieren").assertIsEnabled()
+    }
 
+    @Test
+    fun recognitionShowsProgress() {
         composeRule.setContent {
             MaterialTheme {
                 DepotScreenshotImportContent(
@@ -46,6 +51,7 @@ class DepotScreenshotImportUiTest {
                 )
             }
         }
+
         composeRule.onNodeWithText("2 von 4 · Lokal erkennen").assertIsDisplayed()
         composeRule.onNodeWithText("3 von 5 Screenshots analysiert").assertIsDisplayed()
     }
@@ -99,14 +105,14 @@ class DepotScreenshotImportUiTest {
 
         composeRule.onNodeWithText("3 von 4 · Prüfen & korrigieren").assertIsDisplayed()
         composeRule.onNodeWithText("Konflikt · bitte prüfen").assertIsDisplayed()
-        composeRule.onNodeWithText("Behalten").assertIsDisplayed()
-        composeRule.onNodeWithText("Als verkauft markieren").assertIsDisplayed()
-        composeRule.onNodeWithText("Löschen").assertIsDisplayed()
-        composeRule.onNodeWithText("Änderungen übernehmen").assertIsNotEnabled()
+        composeRule.onNodeWithText("Behalten").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("Als verkauft markieren").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("Löschen").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("Änderungen übernehmen").performScrollTo().assertIsNotEnabled()
     }
 
     @Test
-    fun resolvedReviewEnablesApplyAndCompletedShowsSummary() {
+    fun resolvedReviewEnablesApply() {
         val row = DepotScreenshotImportReviewRow(
             key = "ready",
             itemId = "meta",
@@ -138,8 +144,12 @@ class DepotScreenshotImportUiTest {
                 )
             }
         }
-        composeRule.onNodeWithText("Änderungen übernehmen").assertIsEnabled()
 
+        composeRule.onNodeWithText("Änderungen übernehmen").performScrollTo().assertIsEnabled()
+    }
+
+    @Test
+    fun completedShowsSummary() {
         composeRule.setContent {
             MaterialTheme {
                 DepotScreenshotImportContent(
@@ -157,6 +167,7 @@ class DepotScreenshotImportUiTest {
                 )
             }
         }
+
         composeRule.onNodeWithText("4 von 4 · Übernommen").assertIsDisplayed()
         composeRule.onNodeWithText("6 aktualisiert · 1 neu · 1 verkauft · 0 gelöscht · 1 behalten").assertIsDisplayed()
     }
