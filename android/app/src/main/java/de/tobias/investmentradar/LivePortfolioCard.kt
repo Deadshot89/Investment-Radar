@@ -88,6 +88,7 @@ fun LivePortfolioCard(
             HorizontalDivider()
             summary.positions.forEach { row ->
                 val name = itemById[row.itemId]?.name ?: customById[row.itemId]?.name ?: row.itemId
+                val isFixedIncome = customById[row.itemId]?.type.equals("Festzins", ignoreCase = true)
                 Row(
                     Modifier
                         .fillMaxWidth()
@@ -99,6 +100,9 @@ fun LivePortfolioCard(
                     Text(name, modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall)
                     Column(horizontalAlignment = Alignment.End) {
                         Text(formatLiveMoney(row.currentValue), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall)
+                        if (!isFixedIncome && row.currentPriceEur != null) {
+                            Text("Kurs: ${formatLiveMoney(row.currentPriceEur)}", color = muted, style = MaterialTheme.typography.labelSmall)
+                        }
                         Text(formatLivePercent(row.weightPct), color = muted, style = MaterialTheme.typography.labelSmall)
                     }
                 }
