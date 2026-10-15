@@ -1,0 +1,99 @@
+name: Task 7 Wire Screenshot Import
+
+on:
+  push:
+    paths:
+      - '.github/workflows/task7-wire-screenshot-import.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  wire:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.ref_name }}
+      - name: Wire screenshot import into portfolio UI
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: Path, old: str, new: str, label: str):
+              text = path.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected exactly 1 match, found {count}")
+              path.write_text(text.replace(old, new, 1))
+
+          dashboard = Path('android/app/src/main/java/de/tobias/investmentradar/PortfolioDashboard.kt')
+          replace_once(
+              dashboard,
+              '''    onRemove: (String) -> Unit,\n    onAddCustom: () -> Unit,\n''',
+              '''    onRemove: (String) -> Unit,\n    onUpdateDepot: () -> Unit,\n    onAddCustom: () -> Unit,\n''',
+              'PortfolioDashboard callback'
+          )
+          replace_once(
+              dashboard,
+              '''        item {\n            PortfolioDashboardCard {\n                Text("Was soll ich jetzt tun?", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)\n''',
+              '''        item {\n            OutlinedButton(onClick = onUpdateDepot, modifier = Modifier.fillMaxWidth()) {\n                Text("Depot aktualisieren", fontWeight = FontWeight.Bold)\n            }\n        }\n\n        item {\n            PortfolioDashboardCard {\n                Text("Was soll ich jetzt tun?", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)\n''',
+              'PortfolioDashboard update button'
+          )
+
+          main = Path('android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt')
+          replace_once(
+              main,
+              '''    var showSavingsPlans by remember { mutableStateOf(initialOpenSavingsPlans) }\n    var missingAlertItemMessage by rememberSaveable { mutableStateOf<String?>(null) }\n''',
+              '''    var showSavingsPlans by remember { mutableStateOf(initialOpenSavingsPlans) }\n    var showDepotScreenshotImport by rememberSaveable { mutableStateOf(false) }\n    var missingAlertItemMessage by rememberSaveable { mutableStateOf<String?>(null) }\n''',
+              'MainActivity import child state'
+          )
+          replace_once(
+              main,
+              '''    var updateStatusMessage by remember { mutableStateOf<String?>(null) }\n    var updateCheckRequested by remember { mutableIntStateOf(0) }\n    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }\n''',
+              '''    var updateStatusMessage by remember { mutableStateOf<String?>(null) }\n    var updateCheckRequested by remember { mutableIntStateOf(0) }\n    val latestImportPositions = rememberUpdatedState(positions)\n    val latestImportItems = rememberUpdatedState((state as? UiState.Ready)?.data?.items.orEmpty())\n    val latestImportCustomItems = rememberUpdatedState(customItems)\n    val screenshotImportCoordinator = remember(context, vm) {\n        val recognizer = MlKitLocalScreenshotTextRecognizer(context)\n        DepotScreenshotImportViewModel(\n            batchLoader = ScreenshotImportBatchLoader { images, onProgress ->\n                TradeRepublicScreenshotImporter.import(images, recognizer, onProgress)\n            },\n            sourceProvider = {\n                DepotImportSourceSnapshot(\n                    positions = latestImportPositions.value,\n                    builtInItems = latestImportItems.value,\n                    customItems = latestImportCustomItems.value\n                )\n            },\n            persistImport = { result, metadata ->\n                DepotImportPersistence.commit(context, result, metadata)\n            },\n            capturedAtProvider = {\n                SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US).format(Date())\n            },\n            importIdProvider = { UUID.randomUUID().toString() },\n            onCommitted = vm::reloadPortfolioAfterImport\n        )\n    }\n    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }\n''',
+              'MainActivity screenshot coordinator'
+          )
+          replace_once(
+              main,
+              '''        child = if (showSavingsPlans) AppChildScreen.SAVINGS_PLANS else AppChildScreen.NONE,\n''',
+              '''        child = when {\n            showDepotScreenshotImport -> AppChildScreen.DEPOT_SCREENSHOT_IMPORT\n            showSavingsPlans -> AppChildScreen.SAVINGS_PLANS\n            else -> AppChildScreen.NONE\n        },\n''',
+              'MainActivity child navigation state'
+          )
+          replace_once(
+              main,
+              '''                showSavingsPlans = next.child == AppChildScreen.SAVINGS_PLANS\n''',
+              '''                showSavingsPlans = next.child == AppChildScreen.SAVINGS_PLANS\n                showDepotScreenshotImport = next.child == AppChildScreen.DEPOT_SCREENSHOT_IMPORT\n''',
+              'MainActivity back child state'
+          )
+          replace_once(
+              main,
+              '''            showSavingsPlans = initialOpenSavingsPlans\n            initialAlertId?.takeIf { it.isNotBlank() }?.let { vm.markAlertRead(it) }\n''',
+              '''            showSavingsPlans = initialOpenSavingsPlans\n            showDepotScreenshotImport = false\n            initialAlertId?.takeIf { it.isNotBlank() }?.let { vm.markAlertRead(it) }\n''',
+              'MainActivity push reset'
+          )
+
+          text = main.read_text()
+          needle = 'showSavingsPlans = false; tab ='
+          if text.count(needle) < 5:
+              raise SystemExit(f'MainActivity root navigation reset: expected >=5 matches, found {text.count(needle)}')
+          text = text.replace(needle, 'showSavingsPlans = false; showDepotScreenshotImport = false; tab =')
+          main.write_text(text)
+
+          replace_once(
+              main,
+              '''                            2 -> PortfolioDashboard(\n                                items = s.data.items,\n                                positions = positions,\n                                customItems = customItems,\n                                advisorPlan = advisorPlan,\n                                showSavingsPlans = showSavingsPlans,\n                                onShowSavingsPlansChange = { showSavingsPlans = it },\n                                onOpenDetail = { id ->\n                                    detailReturnTab = 2\n                                    selectedDetailId = id\n                                },\n                                onEdit = { investmentDialogItem = it },\n                                onRemove = vm::removeHolding,\n                                onAddCustom = { customAssetDialog = true },\n                                onEditCustom = { editingCustomAsset = it },\n                                onRemoveCustom = vm::removeCustomInvestment\n                            )\n''',
+              '''                            2 -> if (showDepotScreenshotImport) {\n                                DepotScreenshotImportScreen(\n                                    coordinator = screenshotImportCoordinator,\n                                    items = s.data.items,\n                                    customItems = customItems,\n                                    onClose = { showDepotScreenshotImport = false }\n                                )\n                            } else {\n                                PortfolioDashboard(\n                                    items = s.data.items,\n                                    positions = positions,\n                                    customItems = customItems,\n                                    advisorPlan = advisorPlan,\n                                    showSavingsPlans = showSavingsPlans,\n                                    onShowSavingsPlansChange = { showSavingsPlans = it },\n                                    onOpenDetail = { id ->\n                                        detailReturnTab = 2\n                                        selectedDetailId = id\n                                    },\n                                    onEdit = { investmentDialogItem = it },\n                                    onRemove = vm::removeHolding,\n                                    onUpdateDepot = {\n                                        selectedDetailId = null\n                                        showSavingsPlans = false\n                                        screenshotImportCoordinator.cancel()\n                                        showDepotScreenshotImport = true\n                                    },\n                                    onAddCustom = { customAssetDialog = true },\n                                    onEditCustom = { editingCustomAsset = it },\n                                    onRemoveCustom = vm::removeCustomInvestment\n                                )\n                            }\n''',
+              'MainActivity portfolio screenshot screen'
+          )
+          PY
+
+          git diff --check
+          git diff -- android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt android/app/src/main/java/de/tobias/investmentradar/PortfolioDashboard.kt
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt android/app/src/main/java/de/tobias/investmentradar/PortfolioDashboard.kt
+          git commit -m 'feat: wire depot screenshot review UI'
+          git push origin HEAD:${GITHUB_REF_NAME}
