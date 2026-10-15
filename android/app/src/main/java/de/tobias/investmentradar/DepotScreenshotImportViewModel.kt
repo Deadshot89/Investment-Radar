@@ -139,29 +139,59 @@ class DepotScreenshotImportViewModel(
 
     fun assignMatch(rowKey: String, itemId: String) {
         val source = sourceSnapshot ?: return
+        val reviewing = _state.value as? DepotScreenshotImportState.Reviewing ?: return
         val normalized = itemId.trim()
         if (normalized.isBlank()) return
-        mutateReviewRow(rowKey) { row ->
-            val current = source.positions[normalized]
-            val kind = when (current?.lifecycleStatus) {
-                PortfolioLifecycleStatus.SOLD_MARKED -> DepotScreenshotImportRowKind.REACTIVATE
-                PortfolioLifecycleStatus.ACTIVE -> DepotScreenshotImportRowKind.UPDATE
-                null -> DepotScreenshotImportRowKind.ADD
-            }
-            row.copy(
-                itemId = normalized,
-                kind = kind,
-                status = when (kind) {
-                    DepotScreenshotImportRowKind.REACTIVATE -> ScreenshotReviewStatus.SOLD_REAPPEARED
-                    DepotScreenshotImportRowKind.ADD -> ScreenshotReviewStatus.NEW_POSITION
-                    DepotScreenshotImportRowKind.UPDATE -> ScreenshotReviewStatus.NEEDS_REVIEW
-                    DepotScreenshotImportRowKind.MISSING -> row.status
-                },
-                reason = "Zuordnung muss bestätigt werden",
-                resolved = false,
-                customAssetDraft = null
-            )
+        val original = reviewing.rows.firstOrNull { it.key == rowKey } ?: return
+        val current = source.positions[normalized]
+        val kind = when (current?.lifecycleStatus) {
+            PortfolioLifecycleStatus.SOLD_MARKED -> DepotScreenshotImportRowKind.REACTIVATE
+            PortfolioLifecycleStatus.ACTIVE -> DepotScreenshotImportRowKind.UPDATE
+            null -> DepotScreenshotImportRowKind.ADD
         }
+        val updated = original.copy(
+            itemId = normalized,
+            kind = kind,
+            status = when (kind) {
+                DepotScreenshotImportRowKind.REACTIVATE -> ScreenshotReviewStatus.SOLD_REAPPEARED
+                DepotScreenshotImportRowKind.ADD -> ScreenshotReviewStatus.NEW_POSITION
+                DepotScreenshotImportRowKind.UPDATE -> ScreenshotReviewStatus.NEEDS_REVIEW
+                DepotScreenshotImportRowKind.MISSING -> original.status
+            },
+            reason = "Zuordnung muss bestätigt werden",
+            resolved = false,
+            customAssetDraft = null
+        )
+
+        val candidateScope = (original.candidateItemIds + normalized).toSet()
+        val baseRows = reviewing.rows
+            .map { row -> if (row.key == rowKey) updated else row }
+            .filterNot { row -> row.kind == DepotScreenshotImportRowKind.MISSING && row.itemId in candidateScope }
+        val alreadyObservedIds = baseRows
+            .asSequence()
+            .filter { row -> row.key != rowKey && row.kind != DepotScreenshotImportRowKind.MISSING && row.observation != null }
+            .mapNotNull { it.itemId }
+            .toSet()
+        val derivedMissingRows = original.candidateItemIds
+            .asSequence()
+            .distinct()
+            .filter { candidateId -> candidateId != normalized }
+            .filter { candidateId -> candidateId !in alreadyObservedIds }
+            .filter { candidateId -> shouldTrackMissingCandidate(candidateId, source) }
+            .map { candidateId ->
+                DepotScreenshotImportReviewRow(
+                    key = "ambiguous-missing|$rowKey|$candidateId",
+                    itemId = candidateId,
+                    observation = null,
+                    status = ScreenshotReviewStatus.NOT_FOUND,
+                    reason = "Nach manueller Zuordnung auf den aktuellen Trade-Republic-Screenshots nicht gefunden",
+                    kind = DepotScreenshotImportRowKind.MISSING,
+                    resolved = false
+                )
+            }
+            .toList()
+
+        publishReview(baseRows + derivedMissingRows, reviewing.failedImages)
     }
 
     fun confirmReviewedRow(rowKey: String) {
@@ -364,6 +394,22 @@ class DepotScreenshotImportViewModel(
         val reviewing = _state.value as? DepotScreenshotImportState.Reviewing ?: return
         val rows = reviewing.rows.map { row -> if (row.itemId == itemId) transform(row) else row }
         publishReview(rows, reviewing.failedImages)
+    }
+
+    private fun shouldTrackMissingCandidate(
+        itemId: String,
+        source: DepotImportSourceSnapshot
+    ): Boolean {
+        val position = source.positions[itemId] ?: return false
+        if (!position.isActiveHolding()) return false
+        source.builtInItems.firstOrNull { it.id == itemId }?.let { item ->
+            return PortfolioAssetMatcher.isTradeRepublicCandidate(item) && item.tradeRepublicName.isNotBlank()
+        }
+        source.customItems.firstOrNull { it.id == itemId }?.let { item ->
+            return PortfolioAssetMatcher.isTradeRepublicCandidate(item) &&
+                (item.tradeRepublicUrl.isNotBlank() || !position.snapshotCapturedAt.isNullOrBlank())
+        }
+        return false
     }
 
     private fun TradeRepublicScreenshotReviewItem.toCoordinatorRow(
