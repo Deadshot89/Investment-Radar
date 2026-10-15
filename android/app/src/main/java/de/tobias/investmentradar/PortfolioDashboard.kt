@@ -30,6 +30,7 @@ fun PortfolioDashboard(
     onOpenDetail: (String) -> Unit,
     onEdit: (InvestmentItem) -> Unit,
     onRemove: (String) -> Unit,
+    onUpdateDepot: () -> Unit,
     onAddCustom: () -> Unit,
     onEditCustom: (CustomInvestment) -> Unit,
     onRemoveCustom: (String) -> Unit,
@@ -74,6 +75,12 @@ fun PortfolioDashboard(
                 }
                 OutlinedButton(onClick = { onShowSavingsPlansChange(true) }) { Text("Sparpläne") }
                 Button(onClick = onAddCustom) { Text("Wert hinzufügen") }
+            }
+        }
+
+        item {
+            OutlinedButton(onClick = onUpdateDepot, modifier = Modifier.fillMaxWidth()) {
+                Text("Depot aktualisieren", fontWeight = FontWeight.Bold)
             }
         }
 
