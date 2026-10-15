@@ -224,7 +224,11 @@ class DepotScreenshotImportViewModel(
         mutateReviewRow(rowKey) { row ->
             if (row.observation == null || !validObservation(row.observation)) return@mutateReviewRow row
             val custom = runCatching { draft.toCustomInvestment() }.getOrNull() ?: return@mutateReviewRow row
-            if (custom.id in source.positions || source.customItems.any { it.id == custom.id }) return@mutateReviewRow row
+            if (
+                custom.id in source.positions ||
+                source.builtInItems.any { it.id == custom.id } ||
+                source.customItems.any { it.id == custom.id }
+            ) return@mutateReviewRow row
             row.copy(
                 itemId = custom.id,
                 kind = DepotScreenshotImportRowKind.ADD,
