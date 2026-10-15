@@ -87,6 +87,44 @@ class PortfolioImportApplierTest {
     }
 
     @Test
+    fun approvedUnknownAssetProducesCustomAssetAndSnapshotPosition() {
+        val draft = CustomAssetDraft(
+            id = "custom-nvda",
+            name = "NVIDIA",
+            ticker = "NVDA",
+            isin = "US67066G1040",
+            type = "Aktie"
+        )
+
+        val result = PortfolioImportApplier.preview(
+            existingPositions = existing,
+            existingCustomAssets = emptyList(),
+            changes = listOf(
+                PortfolioImportChange.AddPosition(
+                    itemId = draft.id,
+                    valueEur = 88.0,
+                    costBasisEur = 80.0,
+                    customAssetDraft = draft
+                )
+            ),
+            capturedAt = "2026-10-15T12:02:30Z"
+        )
+
+        val custom = result.customAssets.single()
+        val position = result.positions.getValue(draft.id)
+        assertEquals(draft.id, custom.id)
+        assertEquals("NVIDIA", custom.name)
+        assertEquals("NVDA", custom.ticker)
+        assertEquals("US67066G1040", custom.isin)
+        assertEquals("Aktie", custom.type)
+        assertTrue(position.purchases.isEmpty())
+        assertTrue(position.sales.isEmpty())
+        assertEquals(88.0, position.snapshotValueEur!!, 0.001)
+        assertEquals(80.0, position.snapshotCostBasisEur!!, 0.001)
+        assertEquals(1, result.summary.addedCount)
+    }
+
+    @Test
     fun keepMissingPositionIsANoOp() {
         val result = PortfolioImportApplier.preview(
             existing = existing,
