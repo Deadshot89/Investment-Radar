@@ -25,6 +25,30 @@ sealed interface UiState {
     data class Error(val message: String) : UiState
 }
 
+data class HoldingTopicChanges(
+    val subscribe: Set<String>,
+    val unsubscribe: Set<String>,
+    val activeIds: Set<String>
+)
+
+private fun activeInvestedEur(
+    positions: Map<String, PortfolioPosition>,
+    customItems: List<CustomInvestment>
+): Double {
+    val fixedIncomePrincipalById = customItems
+        .filter { it.type.equals("Festzins", ignoreCase = true) }
+        .mapNotNull { item ->
+            item.fixedPrincipalEur
+                ?.takeIf { it.isFinite() && it > 0.0 }
+                ?.let { item.id to it }
+        }
+        .toMap()
+    return positions.values
+        .asSequence()
+        .filter { it.isActiveHolding() }
+        .sumOf { position -> fixedIncomePrincipalById[position.itemId] ?: position.activeCostBasis }
+}
+
 class MainViewModel(app: Application) : AndroidViewModel(app) {
     init {
         InvestmentBudgetStore.ensureInitialized(app)
@@ -41,25 +65,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private val initialPositions = PortfolioStore.readPositions(app)
     private val initialCustomItems = CustomInvestmentStore.read(app)
-    private val initialFixedIncomePrincipalById = initialCustomItems
-        .filter { it.type.equals("Festzins", ignoreCase = true) }
-        .mapNotNull { item ->
-            item.fixedPrincipalEur
-                ?.takeIf { it.isFinite() && it > 0.0 }
-                ?.let { item.id to it }
-        }
-        .toMap()
     private val _budgetState = MutableStateFlow(
         InvestmentBudgetStore.viewState(
             app,
-            activeInvestedEur = initialPositions.values.sumOf { position ->
-                initialFixedIncomePrincipalById[position.itemId] ?: position.activeCostBasis
-            }
+            activeInvestedEur = activeInvestedEur(initialPositions, initialCustomItems)
         )
     )
     val budgetState: StateFlow<InvestmentBudgetViewState> = _budgetState.asStateFlow()
 
-    private val _holdingIds = MutableStateFlow(initialPositions.keys)
+    private val _holdingIds = MutableStateFlow(
+        initialPositions.filterValues { it.isActiveHolding() }.keys.toSet()
+    )
     val holdingIds: StateFlow<Set<String>> = _holdingIds.asStateFlow()
 
     private val _positions = MutableStateFlow(initialPositions)
@@ -212,7 +228,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             PortfolioStore.save(application, source.copy(itemId = targetId))
             PortfolioStore.remove(application, sourceId)
             if (FirebaseBootstrap.isConfigured()) {
-                FirebaseMessaging.getInstance().subscribeToTopic(holdingTopic(targetId))
+                if (source.isActiveHolding()) {
+                    FirebaseMessaging.getInstance().subscribeToTopic(holdingTopic(targetId))
+                }
                 FirebaseMessaging.getInstance().unsubscribeFromTopic(holdingTopic(sourceId))
             }
         }
@@ -348,11 +366,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun savePosition(position: PortfolioPosition) {
         val app = getApplication<Application>()
-        val isNew = position.itemId !in _holdingIds.value
+        val wasActive = position.itemId in _holdingIds.value
         PortfolioStore.save(app, position)
         reloadPortfolio(app)
-        if (isNew && FirebaseBootstrap.isConfigured()) {
-            FirebaseMessaging.getInstance().subscribeToTopic(holdingTopic(position.itemId))
+        val isActive = position.itemId in _holdingIds.value
+        if (FirebaseBootstrap.isConfigured()) {
+            if (!wasActive && isActive) {
+                FirebaseMessaging.getInstance().subscribeToTopic(holdingTopic(position.itemId))
+            } else if (wasActive && !isActive) {
+                FirebaseMessaging.getInstance().unsubscribeFromTopic(holdingTopic(position.itemId))
+            }
         }
     }
 
@@ -549,15 +572,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         SavingsPlanStore.ensureSeeded(app)
 
         val restoredPositions = PortfolioStore.readPositions(app)
-        val restoredHoldingIds = restoredPositions.keys
+        val topicChanges = holdingTopicChanges(previousHoldingIds, restoredPositions)
         if (FirebaseBootstrap.isConfigured()) {
-            (previousHoldingIds - restoredHoldingIds).forEach { itemId ->
+            topicChanges.unsubscribe.forEach { itemId ->
                 FirebaseMessaging.getInstance().unsubscribeFromTopic(holdingTopic(itemId))
+            }
+            topicChanges.subscribe.forEach { itemId ->
+                FirebaseMessaging.getInstance().subscribeToTopic(holdingTopic(itemId))
             }
         }
 
         _positions.value = restoredPositions
-        _holdingIds.value = restoredHoldingIds
+        _holdingIds.value = topicChanges.activeIds
         _customItems.value = CustomInvestmentStore.read(app)
         _exitStrategies.value = ExitStrategyStore.readAll(app)
         _watchlistIds.value = WatchlistStore.read(app)
@@ -568,21 +594,42 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         refresh(silent = true)
     }
 
+    /**
+     * Post-import refresh that deliberately does not reconcile or write the budget journal.
+     * It runs only after transactional depot persistence has succeeded.
+     */
+    fun reloadPortfolioAfterImport(previousActiveHoldingIds: Set<String>) {
+        val app = getApplication<Application>()
+        val nextPositions = PortfolioStore.readPositions(app)
+        val nextCustomItems = CustomInvestmentStore.read(app)
+        val topicChanges = holdingTopicChanges(previousActiveHoldingIds, nextPositions)
+
+        if (FirebaseBootstrap.isConfigured()) {
+            topicChanges.unsubscribe.forEach { itemId ->
+                FirebaseMessaging.getInstance().unsubscribeFromTopic(holdingTopic(itemId))
+            }
+            topicChanges.subscribe.forEach { itemId ->
+                FirebaseMessaging.getInstance().subscribeToTopic(holdingTopic(itemId))
+            }
+        }
+
+        _positions.value = nextPositions
+        _holdingIds.value = topicChanges.activeIds
+        _customItems.value = nextCustomItems
+        _budgetState.value = InvestmentBudgetStore.viewStateReadOnly(
+            app,
+            activeInvestedEur = activeInvestedEur(nextPositions, nextCustomItems)
+        )
+        (_state.value as? UiState.Ready)?.data?.let { dashboard ->
+            persistAdvisorPlan(app, dashboard)
+        }
+    }
+
     private fun refreshBudgetState(app: Application) {
         InvestmentBudgetStore.ensureCurrentMonth(app)
-        val fixedIncomePrincipalById = _customItems.value
-            .filter { it.type.equals("Festzins", ignoreCase = true) }
-            .mapNotNull { item ->
-                item.fixedPrincipalEur
-                    ?.takeIf { it.isFinite() && it > 0.0 }
-                    ?.let { item.id to it }
-            }
-            .toMap()
         _budgetState.value = InvestmentBudgetStore.viewState(
             app,
-            activeInvestedEur = _positions.value.values.sumOf { position ->
-                fixedIncomePrincipalById[position.itemId] ?: position.activeCostBasis
-            }
+            activeInvestedEur = activeInvestedEur(_positions.value, _customItems.value)
         )
         (_state.value as? UiState.Ready)?.data?.let { dashboard ->
             persistAdvisorPlan(app, dashboard)
@@ -592,10 +639,25 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private fun reloadPortfolio(app: Application) {
         val next = PortfolioStore.readPositions(app)
         _positions.value = next
-        _holdingIds.value = next.keys
+        _holdingIds.value = next.filterValues { it.isActiveHolding() }.keys.toSet()
     }
 
     companion object {
+        fun holdingTopicChanges(
+            previousActiveHoldingIds: Set<String>,
+            currentPositions: Map<String, PortfolioPosition>
+        ): HoldingTopicChanges {
+            val activeIds = currentPositions
+                .filterValues { it.isActiveHolding() }
+                .keys
+                .toSet()
+            return HoldingTopicChanges(
+                subscribe = activeIds - previousActiveHoldingIds,
+                unsubscribe = previousActiveHoldingIds - activeIds,
+                activeIds = activeIds
+            )
+        }
+
         fun holdingTopic(itemId: String): String = "holding-" + itemId
             .lowercase()
             .replace(Regex("[^a-z0-9._~%-]"), "-")
