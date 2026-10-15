@@ -35,4 +35,20 @@ class MainActivitySmokeTest {
         composeRule.onNodeWithTag("moneyManagementList").performScrollToIndex(2)
         composeRule.onNodeWithText("ICH BRAUCHE GELD").assertIsDisplayed()
     }
+
+    @Test
+    fun portfolioOpensDepotScreenshotImport() {
+        composeRule.onNodeWithText("Portfolio").assertIsDisplayed().performClick()
+
+        composeRule.waitUntil(timeoutMillis = 45_000) {
+            composeRule.onAllNodesWithText("Mein Depot")
+                .fetchSemanticsNodes()
+                .isNotEmpty()
+        }
+        composeRule.onNodeWithText("Mein Depot").assertIsDisplayed()
+        composeRule.onNodeWithText("Depot aktualisieren").assertIsDisplayed().performClick()
+
+        composeRule.onNodeWithText("1 von 4 · Screenshots auswählen").assertIsDisplayed()
+        composeRule.onNodeWithText("Screenshots auswählen").assertIsDisplayed()
+    }
 }
