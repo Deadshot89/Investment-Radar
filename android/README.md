@@ -1,7 +1,7 @@
 # Investment Radar Android App
 
-**Version:** 2.5.44  
-**versionCode:** 114
+**Version:** 2.5.45  
+**versionCode:** 115
 
 Die verbindlichen Android-Versionsmetadaten werden in `android/app/build.gradle.kts` gepflegt. Für jede produktiv auszuliefernde App-Änderung müssen `versionName` und `versionCode` erhöht werden, damit bestehende Installationen das In-App-Update eindeutig als neuer erkennen.
 
@@ -84,6 +84,10 @@ Der alte iBond-Datensatz `custom-ibonds-dec-2026-usd` wird nicht mehr nur im Das
 ### Änderung in 2.5.44
 
 Aktien- und ETF-Positionen zeigen den aktuell für die Depotbewertung verwendeten EUR-Stückkurs jetzt direkt im Portfolio-Dashboard und in der kompakten Depotkarte. Der Kurs wird aus derselben belastbaren Quelle übernommen, die bereits für die Positionsbewertung verwendet wird; Festzins-Werte bleiben unverändert als Anlagewert dargestellt und bei fehlendem Kurs wird kein Wert erfunden.
+
+### Änderung in 2.5.45
+
+Benachrichtigungen des Advisors geben bei fehlender oder unzuverlässiger Datenbasis nicht mehr fälschlich „HALTEN“ als Entscheidung aus. Stattdessen erscheint ausdrücklich „KEINE BELASTBARE BEWERTUNG“ mit Datenwarnung. Echte, belastbare HALTEN-, NACHKAUFEN- und VERKAUFEN-Signale bleiben unverändert.
 
 ## Push
 
