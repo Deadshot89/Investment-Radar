@@ -1,7 +1,7 @@
 # Investment Radar Android App
 
-**Version:** 2.5.42  
-**versionCode:** 112
+**Version:** 2.5.43  
+**versionCode:** 113
 
 Die verbindlichen Android-Versionsmetadaten werden in `android/app/build.gradle.kts` gepflegt. Für jede produktiv auszuliefernde App-Änderung müssen `versionName` und `versionCode` erhöht werden, damit bestehende Installationen das In-App-Update eindeutig als neuer erkennen.
 
@@ -27,6 +27,7 @@ Die verbindlichen Android-Versionsmetadaten werden in `android/app/build.gradle.
 - Parallele Refreshes werden verhindert.
 - Schlägt ein Refresh fehl und sind bereits Daten geladen, bleiben die vorhandenen Daten sichtbar und es erscheint ein Aktualisierungshinweis.
 - Depotdaten werden ausschließlich aus den gespeicherten Nutzerdaten geladen; es werden keine fest eingebauten Altbestände automatisch erzeugt.
+- Der zurückgezogene Legacy-iBond `custom-ibonds-dec-2026-usd` wird beim Laden aus Custom-Instrumenten, Depot und Watchlist entfernt; alte lokale Daten oder wiederhergestellte Backups können ihn dadurch nicht erneut in die aktive Depotbewertung bringen.
 
 ## Budget und Geldverwaltung
 
@@ -71,6 +72,14 @@ Der Portfolio-Advisor berücksichtigt jetzt die bestehende Depotkonzentration be
 ### Änderung in 2.5.41
 
 Die kompakte Depotkarte auf dem Dashboard zeigt bei einem unvollständig bewertbaren Depot keine technischen Custom-/iBond-IDs und keine globale rote „Prüfen“-Warnung mehr. Der Gesamtwert bleibt korrekt als unvollständig gekennzeichnet und ein berechenbarer Teil bleibt sichtbar; die konkrete Datenlücke wird weiterhin direkt bei der betroffenen Depotposition angezeigt.
+
+### Änderung in 2.5.42
+
+Die Konzentrationsberechnung verwendet für vollständig bewertbare Depots den vollständigen Depotwert als Nenner, damit einzelne Positionsgewichte nicht durch einen zu kleinen Teilwert künstlich aufgebläht werden.
+
+### Änderung in 2.5.43
+
+Der alte iBond-Datensatz `custom-ibonds-dec-2026-usd` wird nicht mehr nur im Dashboard verborgen, sondern beim Laden physisch aus den persistenten Custom-Instrumenten, Depot-IDs und Watchlist-Daten entfernt. Speichern bzw. erneutes Hinzufügen dieser zurückgezogenen ID wird blockiert. Damit greift die Bereinigung auch bei bestehenden Installationen und nach einer Wiederherstellung alter Backups.
 
 ## Push
 

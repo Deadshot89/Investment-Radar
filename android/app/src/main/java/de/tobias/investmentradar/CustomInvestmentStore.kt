@@ -48,7 +48,7 @@ object CustomInvestmentStore {
 
     fun read(context: Context): List<CustomInvestment> {
         val raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY, "[]") ?: "[]"
-        return runCatching {
+        val parsed = runCatching {
             val array = JSONArray(raw)
             buildList {
                 for (i in 0 until array.length()) {
@@ -72,6 +72,9 @@ object CustomInvestmentStore {
                 }
             }
         }.getOrDefault(emptyList())
+        val sanitized = parsed.filterNot { it.id == LegacyPortfolioCleanup.RETIRED_IBOND_ID }
+        if (sanitized.size != parsed.size) write(context, sanitized)
+        return sanitized
     }
 
     fun promotedIds(customItems: List<CustomInvestment>, builtInIds: Set<String>): Set<String> =
@@ -126,6 +129,7 @@ object CustomInvestmentStore {
     }
 
     fun save(context: Context, item: CustomInvestment) {
+        if (item.id == LegacyPortfolioCleanup.RETIRED_IBOND_ID) return
         val next = read(context).filterNot { it.id == item.id }.toMutableList().apply { add(item) }
         write(context, next)
     }
