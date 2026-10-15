@@ -31,6 +31,22 @@ class PortfolioMetricsTest {
     }
 
     @Test
+    fun exposesCurrentEurUnitPriceWithoutChangingValuation() {
+        val item = portfolioItem("a", 20.0)
+        val position = PortfolioPosition("a", investedAmount = 100.0, shares = 10.0)
+
+        val result = PortfolioMetrics.calculate(
+            items = listOf(item),
+            positions = mapOf("a" to position),
+            customItems = emptyList()
+        )
+
+        val row = result.positions.single()
+        assertEquals(20.0, row.currentPriceEur!!, 0.001)
+        assertEquals(200.0, row.currentValue!!, 0.001)
+    }
+
+    @Test
     fun missingActivePriceProducesPartialValueAndNoCompletePerformance() {
         val priced = portfolioItem("a", 20.0)
         val missing = portfolioItem("b", null)
