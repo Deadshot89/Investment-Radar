@@ -29,36 +29,32 @@ class LegacyIBondCleanupInstrumentedTest {
 
     @Test
     fun viewModelStartupRemovesRetiredIBondFromPersistedPortfolio() {
-        val retiredId = "custom-ibonds-dec-2026-usd"
-        CustomInvestmentStore.save(
-            context,
-            CustomInvestment(
-                id = retiredId,
-                name = "iBonds Dec 2026 USD",
-                ticker = "IBONDDEC26",
-                isin = "",
-                type = "ETF"
+        val retiredId = LegacyPortfolioCleanup.RETIRED_IBOND_ID
+        val customPrefs = context.getSharedPreferences("investment_radar_custom_assets", Context.MODE_PRIVATE)
+        val portfolioPrefs = context.getSharedPreferences("investment_radar_portfolio", Context.MODE_PRIVATE)
+
+        customPrefs.edit()
+            .putString(
+                "items",
+                """[{"id":"$retiredId","name":"iBonds Dec 2026 USD","ticker":"IBONDDEC26","isin":"","type":"ETF"}]"""
             )
-        )
-        PortfolioStore.save(
-            context,
-            PortfolioPosition(
-                itemId = retiredId,
-                purchases = listOf(
-                    PortfolioPurchase(
-                        id = "legacy-ibond-purchase",
-                        date = "2026-09-01",
-                        investedAmount = 100.0,
-                        shares = 1.0
-                    )
-                )
-            )
-        )
+            .commit()
+        portfolioPrefs.edit()
+            .putStringSet("holding_ids", setOf(retiredId))
+            .putStringSet("position_ids", setOf(retiredId))
+            .putString("position.$retiredId.invested", "100.0")
+            .putString("position.$retiredId.shares", "1.0")
+            .commit()
 
         MainViewModel(app)
 
         assertFalse(CustomInvestmentStore.read(context).any { it.id == retiredId })
         assertFalse(PortfolioStore.readPositions(context).containsKey(retiredId))
+        assertFalse(customPrefs.getString("items", "").orEmpty().contains(retiredId))
+        assertFalse(portfolioPrefs.getStringSet("holding_ids", emptySet()).orEmpty().contains(retiredId))
+        assertFalse(portfolioPrefs.getStringSet("position_ids", emptySet()).orEmpty().contains(retiredId))
+        assertFalse(portfolioPrefs.contains("position.$retiredId.invested"))
+        assertFalse(portfolioPrefs.contains("position.$retiredId.shares"))
     }
 
     private fun clearLegacyStores() {
