@@ -6,6 +6,36 @@ enum class MissingPositionDecision {
     DELETE
 }
 
+data class CustomAssetDraft(
+    val id: String,
+    val name: String,
+    val ticker: String,
+    val isin: String = "",
+    val type: String
+) {
+    fun toCustomInvestment(): CustomInvestment {
+        val normalizedId = id.trim()
+        val normalizedName = name.trim()
+        val normalizedTicker = ticker.trim().uppercase()
+        val normalizedIsin = isin.trim().uppercase()
+        val normalizedType = when (type.trim().lowercase()) {
+            "aktie", "stock" -> "Aktie"
+            "etf" -> "ETF"
+            else -> throw IllegalArgumentException("Nur Aktien und ETFs können aus Trade-Republic-Screenshots neu angelegt werden.")
+        }
+        require(normalizedId.isNotBlank()) { "Custom-Asset-ID fehlt." }
+        require(normalizedName.isNotBlank()) { "Name des neuen Wertpapiers fehlt." }
+        require(normalizedTicker.isNotBlank()) { "Ticker des neuen Wertpapiers fehlt." }
+        return CustomInvestment(
+            id = normalizedId,
+            name = normalizedName,
+            ticker = normalizedTicker,
+            isin = normalizedIsin,
+            type = normalizedType
+        )
+    }
+}
+
 sealed interface PortfolioImportChange {
     val itemId: String
 
@@ -20,7 +50,8 @@ sealed interface PortfolioImportChange {
         override val itemId: String,
         val valueEur: Double,
         val costBasisEur: Double? = null,
-        val trackedShares: Double? = null
+        val trackedShares: Double? = null,
+        val customAssetDraft: CustomAssetDraft? = null
     ) : PortfolioImportChange
 
     data class Reactivate(
@@ -47,6 +78,7 @@ data class PortfolioImportSummary(
 
 data class PortfolioImportResult(
     val positions: Map<String, PortfolioPosition>,
+    val customAssets: List<CustomInvestment> = emptyList(),
     val summary: PortfolioImportSummary
 )
 
@@ -65,9 +97,22 @@ object PortfolioImportApplier {
         existing: Map<String, PortfolioPosition>,
         changes: List<PortfolioImportChange>,
         capturedAt: String
+    ): PortfolioImportResult = preview(
+        existingPositions = existing,
+        existingCustomAssets = emptyList(),
+        changes = changes,
+        capturedAt = capturedAt
+    )
+
+    fun preview(
+        existingPositions: Map<String, PortfolioPosition>,
+        existingCustomAssets: List<CustomInvestment>,
+        changes: List<PortfolioImportChange>,
+        capturedAt: String
     ): PortfolioImportResult {
         require(capturedAt.isNotBlank()) { "Snapshot-Zeitpunkt fehlt." }
-        val next = existing.toMutableMap()
+        val next = existingPositions.toMutableMap()
+        val nextCustomAssets = existingCustomAssets.toMutableList()
         var summary = PortfolioImportSummary()
 
         changes.forEach { change ->
@@ -92,6 +137,15 @@ object PortfolioImportApplier {
                 is PortfolioImportChange.AddPosition -> {
                     validateSnapshot(change.valueEur, change.costBasisEur, change.trackedShares)
                     require(change.itemId !in next) { "Position '${change.itemId}' ist bereits vorhanden." }
+                    change.customAssetDraft?.let { draft ->
+                        require(draft.id.trim() == change.itemId.trim()) {
+                            "Custom-Asset-ID und Depotposition stimmen nicht überein."
+                        }
+                        require(nextCustomAssets.none { it.id == change.itemId }) {
+                            "Custom-Wert '${change.itemId}' ist bereits vorhanden."
+                        }
+                        nextCustomAssets += draft.toCustomInvestment()
+                    }
                     next[change.itemId] = PortfolioPosition(
                         itemId = change.itemId,
                         snapshotValueEur = change.valueEur,
@@ -142,7 +196,11 @@ object PortfolioImportApplier {
             }
         }
 
-        return PortfolioImportResult(next.toMap(), summary)
+        return PortfolioImportResult(
+            positions = next.toMap(),
+            customAssets = nextCustomAssets.toList(),
+            summary = summary
+        )
     }
 
     private fun validateSnapshot(valueEur: Double, costBasisEur: Double?, trackedShares: Double?) {
