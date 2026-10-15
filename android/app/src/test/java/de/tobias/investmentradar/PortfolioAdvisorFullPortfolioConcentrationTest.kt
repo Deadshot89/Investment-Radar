@@ -1,5 +1,6 @@
 package de.tobias.investmentradar
 
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -40,6 +41,79 @@ class PortfolioAdvisorFullPortfolioConcentrationTest {
 
         assertTrue(
             "35% Gesamtdepot-Anteil darf nicht als >=40% Konzentration blockiert werden",
+            plan.allocations.any { it.itemId == "visible-buy" && it.amountEur > 0 }
+        )
+    }
+
+    @Test
+    fun realFortyPercentHoldingStaysBlockedWithFullPortfolioContext() {
+        val candidates = listOf(
+            candidate(
+                id = "visible-buy",
+                action = PortfolioAdvisorAction.NACHKAUFEN,
+                score = 90,
+                currentValueEur = 400.0
+            ),
+            candidate(
+                id = "new",
+                action = PortfolioAdvisorAction.NEU_AUFNEHMEN,
+                score = 85,
+                holding = false
+            )
+        )
+
+        val plan = allocateWithFullPortfolioContext(
+            candidates = candidates,
+            budgetEur = 100,
+            holdingIds = setOf("visible-buy", "hidden-holding"),
+            valuesEur = mapOf(
+                "visible-buy" to 400.0,
+                "hidden-holding" to 600.0
+            )
+        )
+
+        assertFalse(
+            "Eine echte 40%-Position muss weiterhin für zusätzliche Käufe gesperrt bleiben",
+            plan.allocations.any { it.itemId == "visible-buy" }
+        )
+        assertTrue(plan.allocations.any { it.itemId == "new" && it.amountEur > 0 })
+    }
+
+    @Test
+    fun incompleteFullPortfolioValuationDoesNotInventConcentrationBlock() {
+        val candidates = listOf(
+            candidate(
+                id = "visible-buy",
+                action = PortfolioAdvisorAction.NACHKAUFEN,
+                score = 90,
+                currentValueEur = 600.0
+            ),
+            candidate(
+                id = "visible-hold",
+                action = PortfolioAdvisorAction.HALTEN,
+                score = 65,
+                currentValueEur = 400.0
+            ),
+            candidate(
+                id = "new",
+                action = PortfolioAdvisorAction.NEU_AUFNEHMEN,
+                score = 85,
+                holding = false
+            )
+        )
+
+        val plan = allocateWithFullPortfolioContext(
+            candidates = candidates,
+            budgetEur = 100,
+            holdingIds = setOf("visible-buy", "visible-hold", "hidden-without-value"),
+            valuesEur = mapOf(
+                "visible-buy" to 600.0,
+                "visible-hold" to 400.0
+            )
+        )
+
+        assertTrue(
+            "Bei unvollständiger Depotbewertung darf kein 60%-Anteil aus einem Teildepot erfunden werden",
             plan.allocations.any { it.itemId == "visible-buy" && it.amountEur > 0 }
         )
     }
