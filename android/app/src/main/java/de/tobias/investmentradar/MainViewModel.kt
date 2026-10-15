@@ -187,7 +187,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 freshness = DataFreshness.summarize(item)
             )
         }
-        val plan = PortfolioAdvisorEngine.allocate(candidates, advisorBudgetEur)
+        val plan = PortfolioAdvisorEngine.allocate(
+            candidates = candidates,
+            budgetEur = advisorBudgetEur,
+            concentrationContext = PortfolioConcentrationContext(
+                holdingIds = _holdingIds.value,
+                valuesEur = portfolioValues
+            )
+        )
         val analysisDay = dashboard.generatedAt.take(10).takeIf { it.length == 10 } ?: LocalDate.now().toString()
         PortfolioAdvisorStore.save(application, analysisDay, plan)
     }

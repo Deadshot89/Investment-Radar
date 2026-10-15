@@ -32,10 +32,30 @@ data class PortfolioAdvisorPlan(
     val candidates: List<PortfolioAdvisorCandidate>
 )
 
+data class PortfolioConcentrationContext(
+    val holdingIds: Set<String>,
+    val valuesEur: Map<String, Double>
+) {
+    companion object {
+        fun fromCandidates(candidates: List<PortfolioAdvisorCandidate>): PortfolioConcentrationContext {
+            val holdings = candidates.filter { it.isHolding }
+            return PortfolioConcentrationContext(
+                holdingIds = holdings.mapTo(mutableSetOf()) { it.itemId },
+                valuesEur = holdings.mapNotNull { candidate ->
+                    candidate.currentValueEur
+                        ?.takeIf { it.isFinite() && it >= 0.0 }
+                        ?.let { candidate.itemId to it }
+                }.toMap()
+            )
+        }
+    }
+}
+
 object PortfolioAdvisorEngine {
     fun allocate(
         candidates: List<PortfolioAdvisorCandidate>,
-        budgetEur: Int
+        budgetEur: Int,
+        concentrationContext: PortfolioConcentrationContext = PortfolioConcentrationContext.fromCandidates(candidates)
     ): PortfolioAdvisorPlan {
         val budget = budgetEur.coerceAtLeast(0)
         val conflicts = candidates
@@ -75,7 +95,7 @@ object PortfolioAdvisorEngine {
             )
         }
 
-        val concentrationBlockedItemIds = concentrationBlockedItemIds(candidates)
+        val concentrationBlockedItemIds = concentrationBlockedItemIds(candidates, concentrationContext)
         val strongEligible = candidates.filter { candidate ->
             candidate.advisor.reliable &&
                 candidate.advisor.score != null &&
@@ -166,26 +186,33 @@ object PortfolioAdvisorEngine {
     }
 
     private fun concentrationBlockedItemIds(
-        candidates: List<PortfolioAdvisorCandidate>
+        candidates: List<PortfolioAdvisorCandidate>,
+        context: PortfolioConcentrationContext
     ): Set<String> {
-        val holdings = candidates.filter { it.isHolding }
-        if (holdings.isEmpty()) return emptySet()
+        val candidateHoldingIds = candidates
+            .filter { it.isHolding }
+            .mapTo(mutableSetOf()) { it.itemId }
+        if (candidateHoldingIds.isEmpty()) return emptySet()
 
-        // Concentration is only enforced when every represented holding has a usable value.
-        // If portfolio valuation is incomplete, keep the previous behavior instead of inventing weights.
-        val values = holdings.map { candidate ->
-            candidate.currentValueEur
+        val holdingIds = context.holdingIds
+        if (holdingIds.isEmpty() || candidateHoldingIds.any { it !in holdingIds }) return emptySet()
+
+        // The denominator must represent the complete known portfolio. If even one holding
+        // cannot be valued, do not invent a portfolio weight or block a purchase from partial data.
+        val valuesById = linkedMapOf<String, Double>()
+        holdingIds.forEach { itemId ->
+            val value = context.valuesEur[itemId]
                 ?.takeIf { it.isFinite() && it >= 0.0 }
                 ?: return emptySet()
+            valuesById[itemId] = value
         }
-        val totalValue = values.sum()
+        val totalValue = valuesById.values.sum()
         if (!totalValue.isFinite() || totalValue <= 0.0) return emptySet()
 
-        return holdings.zip(values)
-            .filter { (_, value) ->
-                value / totalValue * 100.0 >= PortfolioAnalysis.CONCENTRATION_WARNING_PCT
-            }
-            .mapTo(mutableSetOf()) { (candidate, _) -> candidate.itemId }
+        return candidateHoldingIds.filterTo(mutableSetOf()) { itemId ->
+            val value = valuesById[itemId] ?: return@filterTo false
+            value / totalValue * 100.0 >= PortfolioAnalysis.CONCENTRATION_WARNING_PCT
+        }
     }
 
     private fun distributeWholeEuros(

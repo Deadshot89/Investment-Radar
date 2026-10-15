@@ -369,7 +369,14 @@ fun InvestmentRadarUi(
                                 freshness = DataFreshness.summarize(item)
                             )
                         }
-                        val advisorPlan = PortfolioAdvisorEngine.allocate(advisorCandidates, budgetState.advisorBudgetEur)
+                        val advisorPlan = PortfolioAdvisorEngine.allocate(
+                            candidates = advisorCandidates,
+                            budgetEur = budgetState.advisorBudgetEur,
+                            concentrationContext = PortfolioConcentrationContext(
+                                holdingIds = holdingIds,
+                                valuesEur = portfolioValues
+                            )
+                        )
                         val advisorById = advisorPlan.candidates.associateBy { it.itemId }
                         val itemsById = s.data.items.associateBy { it.id }
                         val liquidityItemsById = buildMap {
