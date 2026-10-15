@@ -71,13 +71,11 @@ fun DepotScreenshotImportScreen(
         }
     }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
-        val refs = uris.mapIndexed { index, uri ->
-            ScreenshotImageRef(
-                sourceId = "${uri}#$index",
-                uriString = uri.toString()
-            )
-        }
-        coordinator.selectImages(refs)
+        coordinator.selectImages(
+            uris.mapIndexed { index, uri ->
+                ScreenshotImageRef(sourceId = "${uri}#$index", uriString = uri.toString())
+            }
+        )
     }
 
     DepotScreenshotImportContent(
@@ -119,68 +117,55 @@ fun DepotScreenshotImportContent(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Column(Modifier.weight(1f)) {
-                    Text("Depot aktualisieren", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
-                    Text(
-                        "Trade-Republic-Screenshots werden ausschließlich lokal auf diesem Gerät ausgewertet.",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
+            ImportCard("Depot aktualisieren") {
+                Text(
+                    "Trade-Republic-Screenshots werden ausschließlich lokal auf diesem Gerät ausgewertet.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall
+                )
                 TextButton(onClick = actions.onClose) { Text("Schließen") }
             }
         }
 
         when (state) {
-            is DepotScreenshotImportState.Selecting -> {
-                item {
-                    ImportStepCard("1 von 4 · Screenshots auswählen") {
-                        val count = state.images.size
-                        Text(if (count == 1) "1 Screenshot ausgewählt" else "$count Screenshots ausgewählt")
-                        Text(
-                            "Wähle alle Screenshots aus, die zusammen dein aktuelles Trade-Republic-Depot abdecken.",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                        Button(onClick = actions.onPickImages, modifier = Modifier.fillMaxWidth()) {
-                            Text(if (count == 0) "Screenshots auswählen" else "Auswahl ändern")
-                        }
-                        OutlinedButton(
-                            onClick = actions.onAnalyze,
-                            enabled = count > 0,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Screenshots analysieren")
-                        }
+            is DepotScreenshotImportState.Selecting -> item {
+                ImportCard("1 von 4 · Screenshots auswählen") {
+                    val count = state.images.size
+                    Text(if (count == 1) "1 Screenshot ausgewählt" else "$count Screenshots ausgewählt")
+                    Text(
+                        "Wähle alle Screenshots aus, die zusammen dein aktuelles Trade-Republic-Depot abdecken.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Button(onClick = actions.onPickImages, modifier = Modifier.fillMaxWidth()) {
+                        Text(if (count == 0) "Screenshots auswählen" else "Auswahl ändern")
                     }
+                    OutlinedButton(
+                        onClick = actions.onAnalyze,
+                        enabled = count > 0,
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Screenshots analysieren") }
                 }
             }
 
-            is DepotScreenshotImportState.Recognizing -> {
-                item {
-                    ImportStepCard("2 von 4 · Lokal erkennen") {
-                        val total = state.total.coerceAtLeast(1)
-                        Text("${state.completed} von ${state.total} Screenshots analysiert")
-                        LinearProgressIndicator(
-                            progress = { state.completed.toFloat() / total.toFloat() },
-                            modifier = Modifier.fillMaxWidth()
+            is DepotScreenshotImportState.Recognizing -> item {
+                ImportCard("2 von 4 · Lokal erkennen") {
+                    Text("${state.completed} von ${state.total} Screenshots analysiert")
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        CircularProgressIndicator()
+                        Text(
+                            "Texterkennung läuft lokal. Bilder und OCR-Rohtext werden nicht hochgeladen.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall
                         )
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            CircularProgressIndicator()
-                            Text(
-                                "Texterkennung läuft lokal. Bilder und OCR-Rohtext werden nicht hochgeladen.",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
                     }
                 }
             }
 
             is DepotScreenshotImportState.Reviewing -> {
                 item {
-                    ImportStepCard("3 von 4 · Prüfen & korrigieren") {
+                    ImportCard("3 von 4 · Prüfen & korrigieren") {
                         Text("${state.images.size} Screenshots · ${state.rows.size} Depotzeilen")
                         Text(
                             "Erst nach deiner Bestätigung werden Änderungen gespeichert. Fehlende Positionen werden niemals automatisch verkauft oder gelöscht.",
@@ -192,7 +177,7 @@ fun DepotScreenshotImportContent(
 
                 if (state.failedImages.isNotEmpty()) {
                     item {
-                        ImportStepCard("Nicht lesbare Screenshots") {
+                        ImportCard("Nicht lesbare Screenshots") {
                             state.failedImages.forEach { failed ->
                                 Text(failed.errorMessage ?: "Screenshot konnte nicht gelesen werden")
                                 OutlinedButton(onClick = { actions.onRetryFailedImage(failed.image.sourceId) }) {
@@ -204,91 +189,72 @@ fun DepotScreenshotImportContent(
                 }
 
                 items(state.rows, key = { it.key }) { row ->
-                    ScreenshotReviewRow(
+                    ReviewRow(
                         row = row,
                         itemNames = itemNames,
+                        actions = actions,
                         onCorrect = { correctionRow = row },
-                        onAssign = actions.onAssignMatch,
-                        onConfirmReviewed = actions.onConfirmReviewed,
-                        onConfirmKnownNew = actions.onConfirmKnownNew,
-                        onConfirmCustomNew = actions.onConfirmCustomNew,
-                        onConfirmReactivation = actions.onConfirmReactivation,
-                        onChooseMissing = { itemId, decision ->
-                            if (decision == MissingPositionDecision.DELETE) {
-                                deleteRow = row
-                            } else {
-                                actions.onChooseMissing(itemId, decision)
-                            }
-                        }
+                        onDeleteRequested = { deleteRow = row }
                     )
                 }
 
                 item {
-                    ImportSummaryCard(state.summary)
-                    Spacer(Modifier.height(8.dp))
-                    Button(
-                        onClick = actions.onApply,
-                        enabled = state.canApply,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Änderungen übernehmen")
-                    }
-                    if (!state.canApply) {
-                        Text(
-                            "Alle Konflikte, neuen Werte und fehlenden Positionen müssen zuerst eindeutig bestätigt werden.",
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-                }
-            }
-
-            is DepotScreenshotImportState.Applying -> {
-                item {
-                    ImportStepCard("4 von 4 · Änderungen speichern") {
-                        CircularProgressIndicator()
+                    ImportCard("Vorschau") {
                         ImportSummaryText(state.summary)
-                        Text("Der Depotstand wird atomar gespeichert.")
-                    }
-                }
-            }
-
-            is DepotScreenshotImportState.Completed -> {
-                item {
-                    ImportStepCard("4 von 4 · Übernommen") {
-                        ImportSummaryText(state.summary)
-                        Text(
-                            "Depot erfolgreich aktualisiert. Der Screenshot-Import hat keine Kauf-, Verkaufs- oder Budgetbuchung erzeugt.",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                        Button(onClick = actions.onClose, modifier = Modifier.fillMaxWidth()) {
-                            Text("Zurück zu Mein Depot")
+                        Button(
+                            onClick = actions.onApply,
+                            enabled = state.canApply,
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("Änderungen übernehmen") }
+                        if (!state.canApply) {
+                            Text(
+                                "Alle Konflikte, neuen Werte und fehlenden Positionen müssen zuerst eindeutig bestätigt werden.",
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodySmall
+                            )
                         }
                     }
                 }
             }
 
-            is DepotScreenshotImportState.Failed -> {
-                item {
-                    ImportStepCard("Import nicht übernommen") {
-                        Text(state.message, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
-                        Text(
-                            "Es wurden keine unvollständigen Änderungen übernommen.",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                        Button(onClick = actions.onCancel, modifier = Modifier.fillMaxWidth()) {
-                            Text("Neu starten")
-                        }
+            is DepotScreenshotImportState.Applying -> item {
+                ImportCard("4 von 4 · Änderungen speichern") {
+                    CircularProgressIndicator()
+                    ImportSummaryText(state.summary)
+                    Text("Der Depotstand wird atomar gespeichert.")
+                }
+            }
+
+            is DepotScreenshotImportState.Completed -> item {
+                ImportCard("4 von 4 · Übernommen") {
+                    ImportSummaryText(state.summary)
+                    Text(
+                        "Depot erfolgreich aktualisiert. Der Screenshot-Import hat keine Kauf-, Verkaufs- oder Budgetbuchung erzeugt.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Button(onClick = actions.onClose, modifier = Modifier.fillMaxWidth()) {
+                        Text("Zurück zu Mein Depot")
                     }
+                }
+            }
+
+            is DepotScreenshotImportState.Failed -> item {
+                ImportCard("Import nicht übernommen") {
+                    Text(state.message, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                    Text(
+                        "Es wurden keine unvollständigen Änderungen übernommen.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Button(onClick = actions.onCancel, modifier = Modifier.fillMaxWidth()) { Text("Neu starten") }
                 }
             }
         }
     }
 
     correctionRow?.let { row ->
-        ScreenshotValueCorrectionDialog(
+        ValueCorrectionDialog(
             row = row,
             onDismiss = { correctionRow = null },
             onConfirm = { value, costBasis, shares ->
@@ -311,34 +277,25 @@ fun DepotScreenshotImportContent(
                     deleteRow = null
                 }) { Text("Endgültig löschen") }
             },
-            dismissButton = {
-                TextButton(onClick = { deleteRow = null }) { Text("Abbrechen") }
-            }
+            dismissButton = { TextButton(onClick = { deleteRow = null }) { Text("Abbrechen") } }
         )
     }
 }
 
 @Composable
-private fun ScreenshotReviewRow(
+private fun ReviewRow(
     row: DepotScreenshotImportReviewRow,
     itemNames: Map<String, String>,
+    actions: DepotScreenshotImportUiActions,
     onCorrect: () -> Unit,
-    onAssign: (String, String) -> Unit,
-    onConfirmReviewed: (String) -> Unit,
-    onConfirmKnownNew: (String) -> Unit,
-    onConfirmCustomNew: (String, CustomAssetDraft) -> Unit,
-    onConfirmReactivation: (String) -> Unit,
-    onChooseMissing: (String, MissingPositionDecision) -> Unit
+    onDeleteRequested: () -> Unit
 ) {
     var ticker by remember(row.key) { mutableStateOf("") }
     var isin by remember(row.key) { mutableStateOf("") }
     var type by remember(row.key) { mutableStateOf("Aktie") }
-    val title = row.observation?.name
-        ?: row.itemId?.let(itemNames::get)
-        ?: row.itemId
-        ?: "Unbekannte Position"
+    val title = row.observation?.name ?: row.itemId?.let(itemNames::get) ?: row.itemId ?: "Unbekannte Position"
 
-    ImportStepCard(title) {
+    ImportCard(title) {
         Text(reviewStatusLabel(row), fontWeight = FontWeight.Bold, color = reviewStatusColor(row))
         row.reason?.takeIf { it.isNotBlank() }?.let {
             Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
@@ -356,25 +313,22 @@ private fun ScreenshotReviewRow(
             Text("Zuordnung auswählen", fontWeight = FontWeight.Bold)
             row.candidateItemIds.distinct().forEach { candidateId ->
                 OutlinedButton(
-                    onClick = { onAssign(row.key, candidateId) },
+                    onClick = { actions.onAssignMatch(row.key, candidateId) },
                     modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(itemNames[candidateId] ?: candidateId)
-                }
+                ) { Text(itemNames[candidateId] ?: candidateId) }
             }
         }
 
         when (row.kind) {
-            DepotScreenshotImportRowKind.UPDATE -> {
-                if (!row.resolved && row.itemId != null && row.observation != null) {
-                    Button(onClick = { onConfirmReviewed(row.key) }, modifier = Modifier.fillMaxWidth()) {
-                        Text("Erkannte Werte bestätigen")
-                    }
+            DepotScreenshotImportRowKind.UPDATE -> if (!row.resolved && row.itemId != null && row.observation != null) {
+                Button(onClick = { actions.onConfirmReviewed(row.key) }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Erkannte Werte bestätigen")
                 }
             }
+
             DepotScreenshotImportRowKind.ADD -> {
                 if (!row.resolved && row.itemId != null && itemNames.containsKey(row.itemId)) {
-                    Button(onClick = { onConfirmKnownNew(row.key) }, modifier = Modifier.fillMaxWidth()) {
+                    Button(onClick = { actions.onConfirmKnownNew(row.key) }, modifier = Modifier.fillMaxWidth()) {
                         Text("Neue Position bestätigen")
                     }
                 }
@@ -401,7 +355,7 @@ private fun ScreenshotReviewRow(
                     }
                     Button(
                         onClick = {
-                            onConfirmCustomNew(
+                            actions.onConfirmCustomNew(
                                 row.key,
                                 CustomAssetDraft(
                                     id = "tr-import-${UUID.randomUUID()}",
@@ -414,31 +368,32 @@ private fun ScreenshotReviewRow(
                         },
                         enabled = ticker.isNotBlank(),
                         modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Als neuen Wert anlegen")
-                    }
+                    ) { Text("Als neuen Wert anlegen") }
                 }
             }
-            DepotScreenshotImportRowKind.REACTIVATE -> {
-                if (!row.resolved) {
-                    Button(onClick = { onConfirmReactivation(row.key) }, modifier = Modifier.fillMaxWidth()) {
-                        Text("Position reaktivieren")
-                    }
+
+            DepotScreenshotImportRowKind.REACTIVATE -> if (!row.resolved) {
+                Button(onClick = { actions.onConfirmReactivation(row.key) }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Position reaktivieren")
                 }
             }
+
             DepotScreenshotImportRowKind.MISSING -> {
-                val itemId = row.itemId ?: return@ImportStepCard
+                val itemId = row.itemId
                 Text("Auf den ausgewählten Trade-Republic-Screenshots nicht gefunden.")
                 OutlinedButton(
-                    onClick = { onChooseMissing(itemId, MissingPositionDecision.KEEP) },
+                    onClick = { itemId?.let { actions.onChooseMissing(it, MissingPositionDecision.KEEP) } },
+                    enabled = itemId != null,
                     modifier = Modifier.fillMaxWidth()
                 ) { Text("Behalten") }
                 OutlinedButton(
-                    onClick = { onChooseMissing(itemId, MissingPositionDecision.MARK_SOLD) },
+                    onClick = { itemId?.let { actions.onChooseMissing(it, MissingPositionDecision.MARK_SOLD) } },
+                    enabled = itemId != null,
                     modifier = Modifier.fillMaxWidth()
                 ) { Text("Als verkauft markieren") }
                 OutlinedButton(
-                    onClick = { onChooseMissing(itemId, MissingPositionDecision.DELETE) },
+                    onClick = onDeleteRequested,
+                    enabled = itemId != null,
                     modifier = Modifier.fillMaxWidth()
                 ) { Text("Löschen") }
             }
@@ -451,20 +406,20 @@ private fun ScreenshotReviewRow(
 }
 
 @Composable
-private fun ScreenshotValueCorrectionDialog(
+private fun ValueCorrectionDialog(
     row: DepotScreenshotImportReviewRow,
     onDismiss: () -> Unit,
     onConfirm: (Double, Double?, Double?) -> Unit
 ) {
     val observation = row.observation ?: return
     var valueText by remember(row.key) { mutableStateOf(observation.valueEur?.let(::formatEditableImportNumber).orEmpty()) }
-    var costBasisText by remember(row.key) { mutableStateOf(observation.derivedCostBasisEur?.let(::formatEditableImportNumber).orEmpty()) }
+    var costText by remember(row.key) { mutableStateOf(observation.derivedCostBasisEur?.let(::formatEditableImportNumber).orEmpty()) }
     var sharesText by remember(row.key) { mutableStateOf(observation.shares?.let(::formatEditableImportNumber).orEmpty()) }
     val value = parseImportNumber(valueText)
-    val costBasis = costBasisText.takeIf { it.isNotBlank() }?.let(::parseImportNumber)
+    val cost = costText.takeIf { it.isNotBlank() }?.let(::parseImportNumber)
     val shares = sharesText.takeIf { it.isNotBlank() }?.let(::parseImportNumber)
     val valid = value != null && value >= 0.0 &&
-        (costBasisText.isBlank() || (costBasis != null && costBasis >= 0.0)) &&
+        (costText.isBlank() || (cost != null && cost >= 0.0)) &&
         (sharesText.isBlank() || (shares != null && shares > 0.0))
 
     AlertDialog(
@@ -473,30 +428,22 @@ private fun ScreenshotValueCorrectionDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedTextField(valueText, { valueText = it }, label = { Text("Depotwert in €") }, singleLine = true)
-                OutlinedTextField(costBasisText, { costBasisText = it }, label = { Text("Einstandswert optional") }, singleLine = true)
+                OutlinedTextField(costText, { costText = it }, label = { Text("Einstandswert optional") }, singleLine = true)
                 OutlinedTextField(sharesText, { sharesText = it }, label = { Text("Anteile optional") }, singleLine = true)
             }
         },
         confirmButton = {
-            Button(
-                enabled = valid,
-                onClick = { value?.let { onConfirm(it, costBasis, shares) } }
-            ) { Text("Korrektur übernehmen") }
+            Button(enabled = valid, onClick = { value?.let { onConfirm(it, cost, shares) } }) {
+                Text("Korrektur übernehmen")
+            }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } }
     )
 }
 
 @Composable
-private fun ImportStepCard(
-    title: String,
-    content: @Composable Column.() -> Unit
-) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        tonalElevation = 2.dp,
-        shape = MaterialTheme.shapes.large
-    ) {
+private fun ImportCard(title: String, content: @Composable () -> Unit) {
+    Surface(modifier = Modifier.fillMaxWidth(), tonalElevation = 2.dp, shape = MaterialTheme.shapes.large) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -508,20 +455,9 @@ private fun ImportStepCard(
 }
 
 @Composable
-private fun ImportSummaryCard(summary: PortfolioImportSummary) {
-    ImportStepCard("Vorschau") {
-        ImportSummaryText(summary)
-    }
-}
-
-@Composable
 private fun ImportSummaryText(summary: PortfolioImportSummary) {
-    Text(
-        "${summary.updatedCount} aktualisiert · ${summary.addedCount} neu · ${summary.soldCount} verkauft · ${summary.deletedCount} gelöscht · ${summary.keptCount} behalten"
-    )
-    if (summary.reactivatedCount > 0) {
-        Text("${summary.reactivatedCount} reaktiviert")
-    }
+    Text("${summary.updatedCount} aktualisiert · ${summary.addedCount} neu · ${summary.soldCount} verkauft · ${summary.deletedCount} gelöscht · ${summary.keptCount} behalten")
+    if (summary.reactivatedCount > 0) Text("${summary.reactivatedCount} reaktiviert")
 }
 
 @Composable
@@ -545,4 +481,9 @@ private fun reviewStatusLabel(row: DepotScreenshotImportReviewRow): String = whe
 private fun formatImportMoney(value: Double): String = String.format(Locale.GERMANY, "%.2f €", value)
 private fun formatImportNumber(value: Double): String = String.format(Locale.GERMANY, "%.4f", value).trimEnd('0').trimEnd(',')
 private fun formatEditableImportNumber(value: Double): String = value.toString().replace('.', ',')
-private fun parseImportNumber(raw: String): Double? = raw.trim().replace(".", "").replace(',', '.').toDoubleOrNull()
+private fun parseImportNumber(raw: String): Double? {
+    val value = raw.trim().replace("€", "").replace(" ", "")
+    if (value.isBlank()) return null
+    val normalized = if (value.contains(',')) value.replace(".", "").replace(',', '.') else value
+    return normalized.toDoubleOrNull()
+}
