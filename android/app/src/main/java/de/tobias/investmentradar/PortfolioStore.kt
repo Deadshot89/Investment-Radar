@@ -27,6 +27,12 @@ object PortfolioStore {
             val trackedShares = prefs.getString(trackedSharesKey(itemId), null)
                 ?.toDoubleOrNull()
                 ?.takeIf { it.isFinite() && it > 0.0 }
+            val lifecycleStatus = prefs.getString(lifecycleStatusKey(itemId), null)
+                ?.let { stored -> runCatching { PortfolioLifecycleStatus.valueOf(stored) }.getOrNull() }
+                ?: PortfolioLifecycleStatus.ACTIVE
+            val snapshotCapturedAt = prefs.getString(snapshotCapturedAtKey(itemId), null)
+                ?.trim()
+                ?.takeIf { it.isNotBlank() }
             val storedPurchases = prefs.getString(purchasesKey(itemId), null)
                 ?.let(::decodePurchases)
                 .orEmpty()
@@ -40,7 +46,9 @@ object PortfolioStore {
                     snapshotCostBasisEur = snapshotCostBasis,
                     trackedShares = trackedShares,
                     purchases = storedPurchases,
-                    sales = storedSales
+                    sales = storedSales,
+                    lifecycleStatus = lifecycleStatus,
+                    snapshotCapturedAt = snapshotCapturedAt
                 )
             } else {
                 val invested = prefs.getString(investedKey(itemId), null)?.toDoubleOrNull() ?: 0.0
@@ -62,7 +70,9 @@ object PortfolioStore {
                     snapshotValueEur = snapshotValue,
                     snapshotCostBasisEur = snapshotCostBasis,
                     trackedShares = trackedShares,
-                    purchases = migrated
+                    purchases = migrated,
+                    lifecycleStatus = lifecycleStatus,
+                    snapshotCapturedAt = snapshotCapturedAt
                 )
             }
         }
@@ -83,6 +93,7 @@ object PortfolioStore {
             .putString(sharesKey(position.itemId), position.shares.toString())
             .putString(purchasesKey(position.itemId), encodePurchases(position.purchases))
             .putString(salesKey(position.itemId), encodeSales(position.sales))
+            .putString(lifecycleStatusKey(position.itemId), position.lifecycleStatus.name)
         position.snapshotValueEur?.takeIf { it.isFinite() && it >= 0.0 }?.let {
             editor.putString(snapshotKey(position.itemId), it.toString())
         } ?: editor.remove(snapshotKey(position.itemId))
@@ -92,6 +103,9 @@ object PortfolioStore {
         position.trackedShares?.takeIf { it.isFinite() && it > 0.0 }?.let {
             editor.putString(trackedSharesKey(position.itemId), it.toString())
         } ?: editor.remove(trackedSharesKey(position.itemId))
+        position.snapshotCapturedAt?.trim()?.takeIf { it.isNotBlank() }?.let {
+            editor.putString(snapshotCapturedAtKey(position.itemId), it)
+        } ?: editor.remove(snapshotCapturedAtKey(position.itemId))
         editor.apply()
     }
 
@@ -108,6 +122,8 @@ object PortfolioStore {
             .remove(trackedSharesKey(itemId))
             .remove(purchasesKey(itemId))
             .remove(salesKey(itemId))
+            .remove(lifecycleStatusKey(itemId))
+            .remove(snapshotCapturedAtKey(itemId))
             .apply()
     }
 
@@ -188,4 +204,6 @@ object PortfolioStore {
     private fun trackedSharesKey(itemId: String) = "position.$itemId.trackedShares"
     private fun purchasesKey(itemId: String) = "position.$itemId.purchases"
     private fun salesKey(itemId: String) = "position.$itemId.sales"
+    private fun lifecycleStatusKey(itemId: String) = "position.$itemId.lifecycleStatus"
+    private fun snapshotCapturedAtKey(itemId: String) = "position.$itemId.snapshotCapturedAt"
 }
