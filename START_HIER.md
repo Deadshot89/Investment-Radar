@@ -1,6 +1,6 @@
-# START HIER – Investment Radar 2.5.43
+# START HIER – Investment Radar 2.5.44
 
-**Android:** 2.5.43 / versionCode 113  
+**Android:** 2.5.44 / versionCode 114  
 **Backend:** 2.1.0  
 **API-Schema:** 2026-09-14.1
 
@@ -66,8 +66,8 @@ Optional:
 Die produktive App wird mit einem dauerhaft erhaltenen Keystore signiert. Dieser Keystore darf nicht ersetzt werden, sonst akzeptiert Android spätere Updates nicht mehr.
 
 Aktueller Stand:
-- `versionName = 2.5.43`
-- `versionCode = 113`
+- `versionName = 2.5.44`
+- `versionCode = 114`
 
 Vor einem Release müssen grün sein:
 1. Android Contract Tests
@@ -85,6 +85,7 @@ Der Build prüft zusätzlich APK-Signatur und Live-Backend-Kompatibilität. Prod
 - Sparpläne mit REDUZIEREN-/VERKAUFEN-Konflikt werden zur Prüfung markiert und nicht still als ausgeführte Budgetbindung behandelt.
 - Bestehende Positionen ab 40 % Anteil am vollständig bewertbaren Depot erhalten kein zusätzliches Advisor-Kaufbudget; fehlen belastbare Bestandswerte, wird keine Konzentration angenommen.
 - Die kompakte Depotkarte zeigt keine technischen Custom-/iBond-IDs mehr als globale Warnung; der zurückgezogene Legacy-iBond `custom-ibonds-dec-2026-usd` wird beim Laden dauerhaft aus Custom-Instrumenten, Depot und Watchlist entfernt, auch wenn alte lokale Daten oder Backups ihn noch enthalten.
+- Aktien- und ETF-Positionen zeigen den aktuell verwendeten EUR-Stückkurs separat vom Positionswert; bei fehlendem belastbarem Kurs wird kein Wert erfunden.
 - Verkaufserlöse werden privat verwendet und erhöhen **weder App-Cash noch Kaufbudget**.
 - Historische Snapshots dürfen nicht als aktuelle Marktwerte ausgegeben werden.
 - Fehlende oder unzuverlässige Daten werden sichtbar als Datenlücke behandelt und nicht erfunden.

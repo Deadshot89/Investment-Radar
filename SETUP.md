@@ -94,8 +94,8 @@ Der Workflow bricht bewusst ab, wenn die dauerhafte Signierung nicht vollständi
 
 Aktueller App-Stand:
 
-- `versionName = 2.5.43`
-- `versionCode = 113`
+- `versionName = 2.5.44`
+- `versionCode = 114`
 
 Workflow **Build Android APK** starten.
 
@@ -130,6 +130,7 @@ Die UI-Tests laufen auf Phone- und Tablet-Konfigurationen.
 - Sparpläne mit REDUZIEREN-/VERKAUFEN-Konflikt werden geprüft und blockieren nicht still andere gültige Kaufempfehlungen.
 - Bestehende Positionen ab 40 % Anteil am vollständig bewertbaren Depot erhalten kein zusätzliches Advisor-Kaufbudget; bei fehlenden Bestandswerten wird keine Gewichtung erfunden.
 - Die kompakte Depotkarte zeigt keine technischen Custom-/iBond-IDs mehr als globale Warnung; der zurückgezogene Legacy-iBond `custom-ibonds-dec-2026-usd` wird beim Laden dauerhaft aus Custom-Instrumenten, Depot und Watchlist entfernt.
+- Aktien und ETFs zeigen im Depot den aktuell für die Bewertung verwendeten EUR-Stückkurs zusätzlich zum Positionswert; fehlt der Kurs, bleibt die Datenlücke sichtbar.
 - Verkaufserlöse werden privat verwendet und erhöhen App-Cash oder Kaufbudget nicht.
 - Historische Snapshots dürfen nicht als aktuelle Depotwerte verwendet werden.
 - Fehlende Daten werden als Datenqualitätsproblem angezeigt statt durch erfundene Werte ersetzt.
