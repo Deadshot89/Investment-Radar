@@ -181,6 +181,9 @@ fun PortfolioDashboard(
                     if (isFixedIncome) "Anlagewert" else "Aktueller Wert",
                     row.currentValue?.let(::portfolioMoney) ?: if (isFixedIncome) "Anlagebetrag fehlt" else "Kurs fehlt"
                 )
+                if (!isFixedIncome) {
+                    PortfolioDashboardValue("Aktueller Kurs", row.currentPriceEur?.let(::portfolioMoney) ?: "Kurs fehlt")
+                }
                 if (isFixedIncome) {
                     custom?.fixedMaturityValueEur?.let { maturityValue ->
                         PortfolioDashboardValue("Auszahlung bei Fälligkeit", portfolioMoney(maturityValue))
