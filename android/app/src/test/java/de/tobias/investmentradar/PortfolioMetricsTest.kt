@@ -122,4 +122,26 @@ class PortfolioMetricsTest {
         assertEquals(0, result.missingPriceCount)
         assertTrue(result.currentValueComplete)
     }
+
+    @Test
+    fun soldMarkedPositionWithResidualSharesDoesNotCountAsHeld() {
+        val sold = PortfolioPosition(
+            itemId = "sold",
+            trackedShares = 4.0,
+            snapshotValueEur = 400.0,
+            snapshotCostBasisEur = 300.0,
+            lifecycleStatus = PortfolioLifecycleStatus.SOLD_MARKED
+        )
+
+        val result = PortfolioMetrics.calculate(
+            listOf(portfolioItem("sold", 110.0)),
+            mapOf("sold" to sold),
+            emptyList()
+        )
+
+        assertEquals(0, result.heldPositionCount)
+        assertEquals(0.0, result.calculableCurrentValue, 0.001)
+        assertEquals(0, result.missingPriceCount)
+        assertNull(result.positions.single().weightPct)
+    }
 }
