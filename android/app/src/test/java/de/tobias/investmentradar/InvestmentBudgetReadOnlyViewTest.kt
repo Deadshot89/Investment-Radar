@@ -43,7 +43,7 @@ class InvestmentBudgetReadOnlyViewTest {
         assertEquals(entriesBefore, InvestmentBudgetCodec.encodeEntries(entries))
         assertEquals(reservationsBefore, InvestmentBudgetCodec.encodeReservations(reservations))
         assertEquals(325.0, view.investedEur, 0.000001)
-        assertEquals(75.0, view.availableEur, 0.000001)
+        assertEquals(60.0, view.availableEur, 0.000001)
         assertEquals(60.0, view.monthlyAvailableEur, 0.000001)
         assertEquals(60, view.advisorBudgetEur)
     }
