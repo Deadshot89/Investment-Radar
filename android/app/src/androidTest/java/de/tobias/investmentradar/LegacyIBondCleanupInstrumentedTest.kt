@@ -28,10 +28,11 @@ class LegacyIBondCleanupInstrumentedTest {
     }
 
     @Test
-    fun viewModelStartupRemovesRetiredIBondFromPersistedPortfolio() {
+    fun viewModelStartupRemovesRetiredIBondFromPersistedUserData() {
         val retiredId = LegacyPortfolioCleanup.RETIRED_IBOND_ID
         val customPrefs = context.getSharedPreferences("investment_radar_custom_assets", Context.MODE_PRIVATE)
         val portfolioPrefs = context.getSharedPreferences("investment_radar_portfolio", Context.MODE_PRIVATE)
+        val watchlistPrefs = context.getSharedPreferences("investment_radar_watchlist", Context.MODE_PRIVATE)
 
         customPrefs.edit()
             .putString(
@@ -45,20 +46,26 @@ class LegacyIBondCleanupInstrumentedTest {
             .putString("position.$retiredId.invested", "100.0")
             .putString("position.$retiredId.shares", "1.0")
             .commit()
+        watchlistPrefs.edit()
+            .putString("item_ids", "[\"$retiredId\"]")
+            .commit()
 
         MainViewModel(app)
 
         assertFalse(CustomInvestmentStore.read(context).any { it.id == retiredId })
         assertFalse(PortfolioStore.readPositions(context).containsKey(retiredId))
+        assertFalse(WatchlistStore.read(context).contains(retiredId))
         assertFalse(customPrefs.getString("items", "").orEmpty().contains(retiredId))
         assertFalse(portfolioPrefs.getStringSet("holding_ids", emptySet()).orEmpty().contains(retiredId))
         assertFalse(portfolioPrefs.getStringSet("position_ids", emptySet()).orEmpty().contains(retiredId))
         assertFalse(portfolioPrefs.contains("position.$retiredId.invested"))
         assertFalse(portfolioPrefs.contains("position.$retiredId.shares"))
+        assertFalse(watchlistPrefs.getString("item_ids", "").orEmpty().contains(retiredId))
     }
 
     private fun clearLegacyStores() {
         context.getSharedPreferences("investment_radar_custom_assets", Context.MODE_PRIVATE).edit().clear().commit()
         context.getSharedPreferences("investment_radar_portfolio", Context.MODE_PRIVATE).edit().clear().commit()
+        context.getSharedPreferences("investment_radar_watchlist", Context.MODE_PRIVATE).edit().clear().commit()
     }
 }
