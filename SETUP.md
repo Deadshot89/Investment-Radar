@@ -94,8 +94,8 @@ Der Workflow bricht bewusst ab, wenn die dauerhafte Signierung nicht vollständi
 
 Aktueller App-Stand:
 
-- `versionName = 2.5.44`
-- `versionCode = 114`
+- `versionName = 2.5.45`
+- `versionCode = 115`
 
 Workflow **Build Android APK** starten.
 
@@ -134,4 +134,5 @@ Die UI-Tests laufen auf Phone- und Tablet-Konfigurationen.
 - Verkaufserlöse werden privat verwendet und erhöhen App-Cash oder Kaufbudget nicht.
 - Historische Snapshots dürfen nicht als aktuelle Depotwerte verwendet werden.
 - Fehlende Daten werden als Datenqualitätsproblem angezeigt statt durch erfundene Werte ersetzt.
+- Fehlt eine belastbare Advisor-Datenbasis, wird keine HALTEN-Empfehlung erfunden; die Benachrichtigung zeigt KEINE BELASTBARE BEWERTUNG.
 - Manuell gespeicherte Trade-Republic-Links werden nur akzeptiert, wenn sie HTTPS verwenden und auf `traderepublic.com` oder eine echte Subdomain zeigen.

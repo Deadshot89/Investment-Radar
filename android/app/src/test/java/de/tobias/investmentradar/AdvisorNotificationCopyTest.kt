@@ -1,6 +1,7 @@
 package de.tobias.investmentradar
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -107,7 +108,7 @@ class AdvisorNotificationCopyTest {
     }
 
     @Test
-    fun `unreliable analysis keeps the primary action at hold and adds a data warning`() {
+    fun `unreliable analysis is labeled as unavailable decision instead of hold`() {
         val event = AdvisorNotificationEvent(
             id = "risk|reliability|2026-09-14",
             instrumentId = "risk",
@@ -120,8 +121,10 @@ class AdvisorNotificationCopyTest {
 
         val copy = AdvisorNotificationCopy.format(event, "Beispiel Aktie")
 
-        assertEquals("🟡 HALTEN – Beispiel Aktie", copy.title)
-        assertTrue(copy.body.startsWith("Entscheidung: HALTEN"))
+        assertEquals("⚠️ KEINE BELASTBARE BEWERTUNG – Beispiel Aktie", copy.title)
+        assertTrue(copy.body.startsWith("Entscheidung: KEINE BELASTBARE BEWERTUNG"))
+        assertFalse(copy.title.contains("HALTEN"))
+        assertFalse(copy.body.startsWith("Entscheidung: HALTEN"))
         assertTrue(copy.body.contains("Datenwarnung:"))
         assertTrue(copy.body.contains("Marktdaten sind unvollständig"))
     }
