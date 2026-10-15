@@ -3,7 +3,7 @@
 **Datum:** 15.10.2026  
 **Status:** Design zur Freigabe  
 **Zielplattform:** Android  
-**Scope:** Investment-Radar בלבד; keine Daten, Komponenten oder Logik aus KPI Logistik verwenden.
+**Scope:** ausschließlich Investment-Radar; keine Daten, Komponenten oder Logik aus KPI Logistik verwenden.
 
 ## 1. Ziel
 
@@ -14,7 +14,7 @@ Der Import ist ein **Depotabgleich**, kein Transaktionsimport. Ein Screenshot da
 Erfolg bedeutet:
 
 - mehrere Trade-Republic-Screenshots können in einem Aktualisierungsvorgang verarbeitet werden;
-- keine Screenshots oder OCR-Daten müssen an einen Server übertragen werden;
+- Screenshots und OCR-Daten verlassen das Gerät nicht;
 - bestehende Positionen können sicher aktualisiert werden;
 - neue Positionen können nach manueller Bestätigung angelegt werden;
 - nicht gefundene Positionen können behalten, als verkauft markiert oder gelöscht werden;
@@ -32,7 +32,8 @@ Nicht Teil dieses Features:
 - automatische Erzeugung realer Kauf- oder Verkaufstransaktionen aus einem Depot-Screenshot;
 - Erfindung eines Verkaufspreises, Verkaufserlöses, Kaufpreises oder einer Stückzahl, wenn diese nicht eindeutig im Screenshot vorliegt;
 - automatische Löschung oder automatische Verkaufsmarkierung, nur weil eine Position auf einem Screenshot fehlt;
-- Änderung von Sparplänen, monatlichem Kaufbudget oder globalem Budget-Journal durch einen reinen Screenshot-Abgleich.
+- Änderung von Sparplänen, monatlichem Kaufbudget oder globalem Budget-Journal durch einen reinen Screenshot-Abgleich;
+- Performanceberechnungen „seit Verkauf“, solange kein echter Verkaufskurs und kein echtes Verkaufsdatum vorhanden sind.
 
 ## 3. Einstieg und Benutzerfluss
 
@@ -49,7 +50,7 @@ Der Flow besteht aus vier Schritten:
 
 ### 3.2 Lokal erkennen
 
-- On-Device-Texterkennung mit gebündeltem lokalem Text-Recognizer für lateinische Schrift.
+- On-Device-Texterkennung mit einem gebündelten lokalen Text-Recognizer für lateinische Schrift.
 - Kein eigener Server-Endpunkt für Bilder oder OCR-Text.
 - Fortschrittsanzeige pro Bild, z. B. „3 von 5 Screenshots analysiert“.
 - OCR-Fehler eines Bildes dürfen den gesamten Import nicht zerstören.
@@ -85,7 +86,7 @@ Die OCR-Schicht liefert ausschließlich Textblöcke inklusive Positionen im Bild
 
 Pipeline:
 
-`Bild -> lokale OCR -> normalisierte Textblöcke -> TradeRepublicScreenshotParser -> erkannte Positionen -> PortfolioMatcher -> Prüfmodell`
+`Bild -> lokale OCR -> normalisierte Textblöcke -> TradeRepublicScreenshotParser -> erkannte Positionen -> PortfolioAssetMatcher -> Prüfmodell`
 
 Der Parser ist auf Trade-Republic-Depotansichten beschränkt und erkennt nur Werte, die tatsächlich sichtbar sind, insbesondere:
 
@@ -157,7 +158,13 @@ Standard für bestehende Daten ist `ACTIVE`.
 - `SOLD_MARKED` -> immer `false` für aktive Depotanalysen;
 - `ACTIVE` -> bisherige Bestandslogik bleibt erhalten.
 
-Damit wirkt der Status automatisch konsistent auf Depotmetriken, Advisor, Exit-Strategien und andere Stellen, die bereits `isActiveHolding()` verwenden.
+Zusätzlich gilt für `SOLD_MARKED`:
+
+- `currentValue(...)` liefert keinen aktiven Depotwert;
+- `unrealizedProfitLoss(...)` liefert keine aktive unrealisierte Performance;
+- der aktuelle Marktpreis wird für die Anzeige direkt aus den vorhandenen `InvestmentItem`-/Marktdaten gelesen, nicht aus `PortfolioPosition.currentValue(...)`.
+
+Damit kann eine verkaufte Position weiterhin einen aktuellen **Marktpreis** anzeigen, ohne versehentlich wieder als Depotbestand zu zählen.
 
 ### 6.2 Snapshot-Daten
 
@@ -169,13 +176,19 @@ Bestehende Felder bleiben die Basis:
 - `purchases`
 - `sales`
 
+Ergänzt wird:
+
+- `snapshotCapturedAt` – Zeitpunkt des zuletzt bestätigten Screenshot-Snapshots.
+
 Ein Screenshot-Update einer bestehenden Position darf standardmäßig nur Snapshot-Felder aktualisieren. `purchases` und `sales` bleiben unverändert.
 
 Eine erkannte Stückzahl darf nur nach expliziter Bestätigung in `trackedShares` übernommen werden.
 
+Wenn keine Stückzahl vorhanden ist, darf `snapshotValueEur` nicht als dauerhaft live fortgeschriebener Depotwert ausgegeben werden. Die UI zeigt stattdessen **„Letzter bestätigter Trade-Republic-Wert“** mit Zeitstempel. Sobald eine verlässliche Stückzahl vorhanden ist, kann der bestehende Live-Wert über Stückzahl × aktuellen Kurs berechnet werden.
+
 ### 6.3 Import-Metadaten
 
-Optionaler kleiner lokaler Datensatz je bestätigtem Import:
+Für jeden bestätigten Import wird ein kleiner lokaler Metadatensatz gespeichert:
 
 - Import-ID;
 - Zeitpunkt;
@@ -193,6 +206,7 @@ Diese Historie dient Nachvollziehbarkeit und Vorher/Nachher-Anzeige, nicht der R
 Nach Bestätigung können aktualisiert werden:
 
 - `snapshotValueEur`;
+- `snapshotCapturedAt`;
 - `snapshotCostBasisEur`, wenn eindeutig erkannt/abgeleitet und bestätigt;
 - `trackedShares`, nur wenn explizit sichtbar und bestätigt.
 
@@ -239,19 +253,31 @@ Wenn ein `SOLD_MARKED`-Asset später wieder in Trade Republic erkannt wird, zeig
 
 Erst nach Bestätigung wird der Status wieder `ACTIVE`. Es wird keine neue Kauftransaktion erfunden.
 
-## 8. Darstellung verkaufter Positionen
+## 8. Darstellung aktiver und verkaufter Positionen
 
-Verkaufte Positionen erscheinen getrennt von aktiven Depotpositionen, z. B. unter **„Verkaufte Positionen“**.
+### 8.1 Aktive Position ohne Stückzahl
 
-Sie dürfen weiterhin anzeigen:
+Wenn ein Screenshot einen aktuellen Positionswert liefert, aber keine Stückzahl vorhanden ist, zeigt die App:
+
+- **Letzter bestätigter Trade-Republic-Wert**;
+- Zeitstempel des Imports;
+- bekannten Einstand, falls vorhanden;
+- aktuellen Einzelkurs des Wertpapiers aus der bestehenden Kursversorgung, falls verfügbar.
+
+Der Screenshot-Wert wird nicht fälschlich als ständig aktueller Live-Wert bezeichnet.
+
+### 8.2 Verkaufte Position
+
+Verkaufte Positionen erscheinen getrennt von aktiven Depotpositionen unter **„Verkaufte Positionen“**.
+
+Sie zeigen:
 
 - Wertpapiername und Ticker;
 - Status „Verkauft“;
 - vorhandene historische Kauf-/Verkaufsdaten;
-- aktuellen Marktpreis aus der bestehenden Kursversorgung;
-- optional Veränderung seit dem letzten bekannten Depot-Snapshot, sofern mathematisch belastbar.
+- aktuellen Marktpreis aus der bestehenden Kursversorgung, wenn verfügbar.
 
-Sie dürfen nicht in aktiven Depotwert, Gewichtung, freies Budget oder Kaufempfehlungen eingehen.
+Sie gehen nicht in aktiven Depotwert, Gewichtung, freies Budget oder Kaufempfehlungen ein.
 
 Der aktuelle Marktpreis ist ausdrücklich **nicht** der tatsächliche Verkaufskurs.
 
@@ -259,13 +285,16 @@ Der aktuelle Marktpreis ist ausdrücklich **nicht** der tatsächliche Verkaufsku
 
 Vor jeder bestätigten Übernahme wird der aktuelle lokale Depotzustand als Sicherungspunkt serialisiert.
 
-Die Übernahme wird fachlich als eine Transaktion behandelt:
+Die eigentliche Portfolioänderung wird nicht durch viele einzelne `PortfolioStore.save(...)`-Aufrufe durchgeführt. `PortfolioStore` erhält eine Import-Operation, die alle final bestätigten Positionsänderungen in einem vorbereiteten Gesamtzustand zusammenfasst und mit einem synchron bestätigten Persistenzschritt schreibt.
+
+Ablauf:
 
 1. aktuellen Zustand sichern;
 2. alle validierten Änderungen auf einen neuen In-Memory-Zustand anwenden;
-3. vollständigen neuen Zustand speichern;
-4. nach erfolgreichem Persistieren UI-State neu laden;
-5. bei Fehler den Sicherungspunkt vollständig wiederherstellen.
+3. vollständige Änderung in einem Store-Commit persistieren;
+4. Commit-Erfolg prüfen;
+5. UI-State neu laden;
+6. bei Fehler Sicherungspunkt wiederherstellen.
 
 Es darf keinen Zustand geben, bei dem nur ein Teil des Abgleichs gespeichert wurde.
 
@@ -288,8 +317,6 @@ Die UI verwendet das bestehende Material-/Investment-Radar-Design. Kein neues vi
 
 ## 11. Technische Komponenten
 
-Vorgesehene Verantwortlichkeiten:
-
 ### `TradeRepublicScreenshotImporter`
 Koordiniert mehrere Bild-URIs und die lokale OCR-Verarbeitung.
 
@@ -303,10 +330,10 @@ Ordnet erkannte Namen bekannten Investment-Radar-Assets zu und liefert Konfidenz
 Reine fachliche Abgleichschicht. Erzeugt Vorschläge und Konflikte, schreibt selbst nichts.
 
 ### `PortfolioImportApplier`
-Validiert die final bestätigten Nutzerentscheidungen und erzeugt den neuen Portfoliozustand atomar.
+Validiert die final bestätigten Nutzerentscheidungen und erzeugt den neuen Portfoliozustand.
 
 ### `PortfolioStore`
-Persistiert Status und Depotdaten. Bestehende Migrationen müssen ältere Datensätze automatisch als `ACTIVE` lesen.
+Persistiert Status, Snapshot-Zeitpunkt, Import-Metadaten und Depotdaten. Bestehende Datensätze ohne Status werden automatisch als `ACTIVE` gelesen.
 
 Diese Trennung hält OCR, Parser, Matching, Fachlogik und Speicherung unabhängig testbar.
 
@@ -328,7 +355,7 @@ Diese Trennung hält OCR, Parser, Matching, Fachlogik und Speicherung unabhängi
 - Ungültige/negative Positionswerte -> keine Übernahme.
 - Fehlende Werte -> leer lassen, nicht mit Null ersetzen.
 - Speicherfehler -> kompletter Rollback auf den Sicherungspunkt.
-- Marktpreis nicht verfügbar -> verkaufte Position darf trotzdem geschlossen bleiben; UI zeigt „Kurs nicht verfügbar“ statt alten Snapshot als Live-Kurs.
+- Marktpreis nicht verfügbar -> verkaufte Position bleibt korrekt geschlossen; UI zeigt „Kurs nicht verfügbar“ statt einen alten Snapshot als Live-Kurs.
 
 ## 14. Tests
 
@@ -362,16 +389,18 @@ Mindestens:
 - nicht gefundene Position bleibt standardmäßig unverändert;
 - als verkauft markieren;
 - löschen;
-- SOLD_MARKED wieder aktivieren;
+- `SOLD_MARKED` wieder aktivieren;
 - Kauf-/Verkaufshistorie bleibt bei Snapshot-Update identisch;
-- kein Cash-/Budgeteffekt durch SOLD_MARKED;
+- kein Cash-/Budgeteffekt durch `SOLD_MARKED`;
 - Duplikat/Konflikt blockiert automatische Übernahme.
 
 ### 14.4 Store-/Migrations-Tests
 
 - bestehende Datensätze ohne Status lesen als `ACTIVE`;
 - `SOLD_MARKED` persistieren und wieder laden;
+- `snapshotCapturedAt` persistieren;
 - Backup/Rollback;
+- atomarer Gesamt-Commit;
 - Löschung entfernt positionsbezogene Daten vollständig;
 - globales Budget-Journal bleibt bei Löschung unverändert.
 
@@ -384,7 +413,8 @@ Mindestens:
 - „Behalten / Verkauft / Löschen“;
 - Löschbestätigung;
 - Zusammenfassung vor Übernahme;
-- Import abbrechen ohne Datenänderung.
+- Import abbrechen ohne Datenänderung;
+- verkaufte Position zeigt Marktpreis, zählt aber nicht zum aktiven Depot.
 
 ### 14.6 Regressionstests
 
@@ -427,6 +457,7 @@ Auf `feature/depot-screenshot-review-20261015` existiert bereits eine erste rein
 - neue Positionen;
 - Mehrfach-Screenshot-Konflikte;
 - lokale OCR;
+- Snapshot-Zeitstempel;
 - atomare Übernahme;
 - vollständige UI.
 
@@ -443,6 +474,7 @@ Das Feature ist fachlich akzeptiert, wenn der Nutzer in der Android-App:
 7. eine Position als verkauft markieren kann, ohne Verkaufskurs/-erlös eingeben zu müssen;
 8. verkaufte Positionen nicht mehr im aktiven Depotwert sieht;
 9. für verkaufte Positionen weiterhin den aktuellen Marktpreis sehen kann, wenn Kursdaten verfügbar sind;
-10. keine unbeabsichtigte Änderung von Kauf-/Verkaufshistorie, Sparplänen oder Budget erlebt;
-11. vor dem Speichern eine vollständige Änderungszusammenfassung erhält;
-12. bei Fehlern automatisch auf den vorherigen konsistenten Depotstand zurückfällt.
+10. Snapshotwerte ohne Stückzahl klar als letzten bestätigten Trade-Republic-Wert mit Zeitstempel sieht;
+11. keine unbeabsichtigte Änderung von Kauf-/Verkaufshistorie, Sparplänen oder Budget erlebt;
+12. vor dem Speichern eine vollständige Änderungszusammenfassung erhält;
+13. bei Fehlern automatisch auf den vorherigen konsistenten Depotstand zurückfällt.
