@@ -75,10 +75,6 @@ jobs:
               '- Der Trade-Republic-Screenshot-Abgleich läuft vollständig lokal auf dem Gerät; Screenshots und OCR-Rohtext werden weder hochgeladen noch im Backup gespeichert.\n- Screenshot-Snapshots erzeugen keine erfundenen Käufe, Verkäufe, Verkaufserlöse oder Budgetbewegungen; Änderungen werden vor der Übernahme bestätigt.\n',
               'Der Trade-Republic-Screenshot-Abgleich läuft vollständig lokal auf dem Gerät;'
           )
-
-          release_notes_old = 'RELEASE_NOTES="Investment Radar $VERSION_NAME: Release-Härtung für zuverlässige Aktualisierung, sichtbare Datenfehler, geschützte lokale Finanzdaten und strengere Backend-Kompatibilitätsprüfung. Keine automatischen Trades."'
-          release_notes_new = 'RELEASE_NOTES="Investment Radar $VERSION_NAME: Trade-Republic-Depot per lokalem Multi-Screenshot-OCR aktualisieren, Änderungen vor Übernahme prüfen und verkaufte Positionen ohne erfundene Verkaufserlöse verwalten. Screenshots und OCR-Rohtext bleiben auf dem Gerät. Keine automatischen Trades."'
-          replace_exact('.github/workflows/android-build.yml', release_notes_old, release_notes_new)
           PY
 
       - name: Verify release metadata
@@ -96,7 +92,7 @@ jobs:
           set -euo pipefail
           git config user.name 'Deadshot89'
           git config user.email '86518220+Deadshot89@users.noreply.github.com'
-          git add android/app/build.gradle.kts android/tests/test-version-contract.sh README.md android/README.md START_HIER.md SETUP.md .github/workflows/android-build.yml
+          git add android/app/build.gradle.kts README.md android/README.md START_HIER.md SETUP.md
           if git diff --cached --quiet; then
             echo 'No release metadata changes needed.'
             exit 0
