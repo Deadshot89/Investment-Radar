@@ -2,11 +2,11 @@ package de.tobias.investmentradar
 
 import android.app.Application
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -112,7 +112,9 @@ class DepotScreenshotImportUiTest {
         composeRule.onNodeWithText("Verkaufte Positionen").assertIsDisplayed()
         composeRule.onNodeWithText("Aktueller Marktpreis").assertIsDisplayed()
         composeRule.onNodeWithText("123,45 €").assertIsDisplayed()
-        composeRule.onNodeWithText("Verkaufspreis", substring = true).assertDoesNotExist()
+        composeRule.runOnIdle {
+            assertTrue(composeRule.onAllNodesWithText("Verkaufspreis", substring = true).fetchSemanticsNodes().isEmpty())
+        }
     }
 
     @Test
@@ -146,7 +148,9 @@ class DepotScreenshotImportUiTest {
         composeRule.onNodeWithText("15.10.2026", substring = true).assertIsDisplayed()
         composeRule.onNodeWithText("Aktueller Marktpreis").assertIsDisplayed()
         composeRule.onNodeWithText("150,00 €").assertIsDisplayed()
-        composeRule.onNodeWithText("Aktueller Wert").assertDoesNotExist()
+        composeRule.runOnIdle {
+            assertTrue(composeRule.onAllNodesWithText("Aktueller Wert").fetchSemanticsNodes().isEmpty())
+        }
     }
 
     @Test
