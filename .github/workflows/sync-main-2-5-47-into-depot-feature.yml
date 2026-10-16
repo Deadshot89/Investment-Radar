@@ -1,0 +1,105 @@
+name: Sync main 2.5.47 into depot feature
+
+on:
+  push:
+    branches:
+      - feature/depot-screenshot-review-20261015
+    paths:
+      - '.github/workflows/sync-main-2-5-47-into-depot-feature.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Merge main with guarded feature-first conflict resolution
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+
+          set +e
+          git merge --no-ff --no-commit origin/main
+          merge_status=$?
+          set -e
+
+          conflicts="$(git diff --name-only --diff-filter=U || true)"
+          echo "merge_status=$merge_status"
+          echo "Conflicts:"
+          printf '%s\n' "$conflicts"
+
+          allowed_conflict() {
+            case "$1" in
+              .github/workflows/android-contract-tests.yml|\
+              android/app/build.gradle.kts|\
+              android/app/src/main/java/de/tobias/investmentradar/CustomInvestmentStore.kt|\
+              android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt|\
+              android/app/src/main/java/de/tobias/investmentradar/MainViewModel.kt|\
+              android/app/src/main/java/de/tobias/investmentradar/PortfolioDashboard.kt|\
+              android/app/src/main/java/de/tobias/investmentradar/PortfolioMetrics.kt|\
+              android/app/src/main/java/de/tobias/investmentradar/PortfolioStore.kt)
+                return 0 ;;
+              *)
+                return 1 ;;
+            esac
+          }
+
+          if [ -n "$conflicts" ]; then
+            while IFS= read -r conflict; do
+              [ -z "$conflict" ] && continue
+              if ! allowed_conflict "$conflict"; then
+                echo "Unexpected merge conflict: $conflict" >&2
+                exit 1
+              fi
+            done <<< "$conflicts"
+
+            while IFS= read -r conflict; do
+              [ -z "$conflict" ] && continue
+              git checkout --ours -- "$conflict"
+            done <<< "$conflicts"
+          elif [ "$merge_status" -ne 0 ]; then
+            echo "Merge failed without a listed file conflict." >&2
+            exit 1
+          fi
+
+          python3 scripts/resolve-main-2-5-47-into-depot-feature.py
+          git add -A
+
+          unresolved="$(git diff --name-only --diff-filter=U || true)"
+          if [ -n "$unresolved" ]; then
+            echo "Unresolved conflicts remain:" >&2
+            printf '%s\n' "$unresolved" >&2
+            exit 1
+          fi
+
+      - name: Verify focused integration contracts before push
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash android/tests/test-main-2-5-47-feature-integration.sh
+          bash android/tests/test-portfolio-current-price-ui.sh
+          bash android/tests/test-legacy-ibond-cleanup.sh
+          bash android/tests/test-portfolio-allocation-ui.sh
+          bash android/tests/test-screenshot-import-privacy.sh
+          bash android/tests/test-screenshot-import-ui.sh
+          bash scripts/test-current-docs.sh
+
+      - name: Commit and push integration merge
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/sync-main-2-5-47-into-depot-feature.yml
+          rm -f scripts/resolve-main-2-5-47-into-depot-feature.py
+          git add -A
+          git status --short
+          git commit -m "merge: sync main 2.5.47 into depot screenshot import"
+          git push origin HEAD:feature/depot-screenshot-review-20261015
