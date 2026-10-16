@@ -181,7 +181,7 @@ fun PortfolioDashboard(
                     if (isFixedIncome) "Anlagewert" else "Aktueller Wert",
                     row.currentValue?.let(::portfolioMoney) ?: when {
               isFixedIncome -> "Anlagebetrag fehlt"
-              row.hasUsablePrice -> "Stückzahl fehlt"
+              row.currentPriceEur != null -> "Stückzahl fehlt"
               else -> "Kurs fehlt"
           }
                 )
