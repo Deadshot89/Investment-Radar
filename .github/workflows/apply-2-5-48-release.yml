@@ -63,22 +63,6 @@ jobs:
 
           replace('android/tests/test-version-contract.sh', 'EXPECTED_VERSION_NAME="2.5.47"', 'EXPECTED_VERSION_NAME="2.5.48"')
           replace('android/tests/test-version-contract.sh', 'EXPECTED_VERSION_CODE=117', 'EXPECTED_VERSION_CODE=118')
-
-          p = Path('android/app/src/main/java/de/tobias/investmentradar/PortfolioDashboard.kt')
-          text = p.read_text()
-          old = '''row.currentValue?.let(::portfolioMoney) ?: when {
-              isFixedIncome -> "Anlagebetrag fehlt"
-              row.hasUsablePrice -> "Stückzahl fehlt"
-              else -> "Kurs fehlt"
-          }'''
-          new = '''row.currentValue?.let(::portfolioMoney) ?: when {
-                        isFixedIncome -> "Anlagebetrag fehlt"
-                        row.hasUsablePrice -> "Stückzahl fehlt"
-                        else -> "Kurs fehlt"
-                    }'''
-          if old not in text:
-              raise SystemExit('missing portfolio current-value fallback for formatting cleanup')
-          p.write_text(text.replace(old, new, 1))
           PY
 
           bash android/tests/test-portfolio-tracked-shares-ui.sh
@@ -92,9 +76,7 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add README.md SETUP.md START_HIER.md android/README.md android/app/build.gradle.kts \
-            android/app/src/main/java/de/tobias/investmentradar/PortfolioDashboard.kt \
-            android/tests/test-version-contract.sh
+          git add README.md SETUP.md START_HIER.md android/README.md android/app/build.gradle.kts android/tests/test-version-contract.sh
           git diff --cached --quiet && exit 0
           git commit -m 'release: prepare Android 2.5.48'
           git push origin HEAD:fix/portfolio-missing-value-reason
