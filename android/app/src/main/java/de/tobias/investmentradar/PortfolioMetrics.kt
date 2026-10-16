@@ -68,7 +68,7 @@ object PortfolioMetrics {
                 fixedIncomePrincipal != null -> fixedIncomePrincipal
                 else -> position.currentValue(usablePrice)
             }
-            val hasUsablePrice = !active || fixedIncomePrincipal != null || usablePrice != null
+            val hasUsablePrice = !active || currentValue != null
             Draft(id, position, active, usablePrice, currentValue, hasUsablePrice, fixedIncomePrincipal)
         }
 
