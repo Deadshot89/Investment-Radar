@@ -108,13 +108,14 @@ class DepotScreenshotImportUiTest {
         )
         renderPortfolioDashboard(listOf(item), mapOf("meta" to sold))
 
-        composeRule.onNodeWithTag("portfolioDashboardList").performScrollToIndex(5)
-        composeRule.onNodeWithText("Verkaufte Positionen").assertIsDisplayed()
-        composeRule.onNodeWithText("Aktueller Marktpreis").assertIsDisplayed()
-        composeRule.onNodeWithText("123,45 €").assertIsDisplayed()
-        composeRule.runOnIdle {
-            assertTrue(composeRule.onAllNodesWithText("Verkaufspreis", substring = true).fetchSemanticsNodes().isEmpty())
-        }
+        val list = composeRule.onNodeWithTag("portfolioDashboardList")
+        list.performScrollToIndex(4)
+        composeRule.onNodeWithText("Verkaufte Positionen").performScrollTo().assertIsDisplayed()
+
+        list.performScrollToIndex(5)
+        composeRule.onNodeWithText("Aktueller Marktpreis").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("123,45 €").performScrollTo().assertIsDisplayed()
+        assertTrue(composeRule.onAllNodesWithText("Verkaufspreis", substring = true).fetchSemanticsNodes().isEmpty())
     }
 
     @Test
@@ -127,8 +128,8 @@ class DepotScreenshotImportUiTest {
         renderPortfolioDashboard(listOf(item), mapOf("meta" to sold))
 
         composeRule.onNodeWithTag("portfolioDashboardList").performScrollToIndex(5)
-        composeRule.onNodeWithText("Aktueller Marktpreis").assertIsDisplayed()
-        composeRule.onNodeWithText("Kurs nicht verfügbar").assertIsDisplayed()
+        composeRule.onNodeWithText("Aktueller Marktpreis").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("Kurs nicht verfügbar").performScrollTo().assertIsDisplayed()
     }
 
     @Test
@@ -143,14 +144,12 @@ class DepotScreenshotImportUiTest {
         renderPortfolioDashboard(listOf(item), mapOf("meta" to snapshot))
 
         composeRule.onNodeWithTag("portfolioDashboardList").performScrollToIndex(4)
-        composeRule.onNodeWithText("Letzter bestätigter Trade-Republic-Wert").assertIsDisplayed()
-        composeRule.onNodeWithText("1.675,88 €", substring = true).assertIsDisplayed()
-        composeRule.onNodeWithText("15.10.2026", substring = true).assertIsDisplayed()
-        composeRule.onNodeWithText("Aktueller Marktpreis").assertIsDisplayed()
-        composeRule.onNodeWithText("150,00 €").assertIsDisplayed()
-        composeRule.runOnIdle {
-            assertTrue(composeRule.onAllNodesWithText("Aktueller Wert").fetchSemanticsNodes().isEmpty())
-        }
+        composeRule.onNodeWithText("Letzter bestätigter Trade-Republic-Wert").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("1.675,88 €", substring = true).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("15.10.2026", substring = true).performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("Aktueller Marktpreis").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("150,00 €").performScrollTo().assertIsDisplayed()
+        assertTrue(composeRule.onAllNodesWithText("Aktueller Wert").fetchSemanticsNodes().isEmpty())
     }
 
     @Test
