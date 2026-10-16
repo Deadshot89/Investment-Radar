@@ -1,0 +1,103 @@
+name: Prepare Android 2.5.49 Release
+
+on:
+  push:
+    branches:
+      - feature/depot-screenshot-review-20261015
+    paths:
+      - '.github/workflows/prepare-2-5-49-release.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Update version and current documentation
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_exact(path, old, new, expected=1):
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              count = text.count(old)
+              if count != expected:
+                  raise SystemExit(f'{path}: expected {expected} occurrences of {old!r}, found {count}')
+              p.write_text(text.replace(old, new, expected), encoding='utf-8')
+
+          def insert_once(path, anchor, addition, marker):
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              if marker in text:
+                  return
+              if text.count(anchor) != 1:
+                  raise SystemExit(f'{path}: insertion anchor not unique: {anchor!r}')
+              p.write_text(text.replace(anchor, anchor + addition, 1), encoding='utf-8')
+
+          replace_exact('android/app/build.gradle.kts', 'versionCode = 118', 'versionCode = 119')
+          replace_exact('android/app/build.gradle.kts', 'versionName = "2.5.48"', 'versionName = "2.5.49"')
+          replace_exact('android/app/build.gradle.kts', '// Release candidate: Investment Radar 2.5.48', '// Release candidate: Investment Radar 2.5.49')
+
+          replace_exact('README.md', '**Aktueller Android-Stand:** 2.5.48 / versionCode 118  ', '**Aktueller Android-Stand:** 2.5.49 / versionCode 119  ')
+          insert_once(
+              'README.md',
+              '- Depot, Watchlist, Sparplan-Kontext und Exit-Strategien\n',
+              '- Trade-Republic-Depot per mehreren Screenshots lokal aktualisieren: OCR bleibt auf dem Gerät, erkannte Änderungen werden vor der Übernahme geprüft, und fehlende Positionen können beibehalten, als verkauft markiert oder gelöscht werden\n',
+              'Trade-Republic-Depot per mehreren Screenshots lokal aktualisieren:'
+          )
+
+          replace_exact('android/README.md', '**Version:** 2.5.48  ', '**Version:** 2.5.49  ')
+          replace_exact('android/README.md', '**versionCode:** 118', '**versionCode:** 119')
+          insert_once(
+              'android/README.md',
+              '## Empfehlungen und Dezimaleingaben\n',
+              '\n### Änderung in 2.5.49\n\nDer Depotabgleich kann jetzt mehrere Trade-Republic-Screenshots lokal auf dem Android-Gerät auswerten. Die gebündelte ML-Kit-OCR sendet weder Screenshots noch OCR-Rohtext an das Backend. Vor der Übernahme werden Zuordnung, Konflikte, neue und fehlende Positionen geprüft. Fehlende Positionen können beibehalten, ohne erfundenen Verkaufserlös als verkauft markiert oder ausdrücklich gelöscht werden. Verkaufte Positionen bleiben historisch nachvollziehbar, zählen aber nicht mehr zum aktiven Depot.\n\n',
+              '### Änderung in 2.5.49'
+          )
+
+          replace_exact('START_HIER.md', '# START HIER – Investment Radar 2.5.48', '# START HIER – Investment Radar 2.5.49')
+          replace_exact('START_HIER.md', '**Android:** 2.5.48 / versionCode 118  ', '**Android:** 2.5.49 / versionCode 119  ')
+
+          replace_exact('SETUP.md', '- `versionName = 2.5.48`', '- `versionName = 2.5.49`')
+          replace_exact('SETUP.md', '- `versionCode = 118`', '- `versionCode = 119`')
+          insert_once(
+              'SETUP.md',
+              '- Aktien und ETFs zeigen im Depot den aktuell für die Bewertung verwendeten EUR-Stückkurs zusätzlich zum Positionswert; fehlt der Kurs, bleibt die Datenlücke sichtbar.\n',
+              '- Der Trade-Republic-Screenshot-Abgleich läuft vollständig lokal auf dem Gerät; Screenshots und OCR-Rohtext werden weder hochgeladen noch im Backup gespeichert.\n- Screenshot-Snapshots erzeugen keine erfundenen Käufe, Verkäufe, Verkaufserlöse oder Budgetbewegungen; Änderungen werden vor der Übernahme bestätigt.\n',
+              'Der Trade-Republic-Screenshot-Abgleich läuft vollständig lokal auf dem Gerät;'
+          )
+
+          release_notes_old = 'RELEASE_NOTES="Investment Radar $VERSION_NAME: Release-Härtung für zuverlässige Aktualisierung, sichtbare Datenfehler, geschützte lokale Finanzdaten und strengere Backend-Kompatibilitätsprüfung. Keine automatischen Trades."'
+          release_notes_new = 'RELEASE_NOTES="Investment Radar $VERSION_NAME: Trade-Republic-Depot per lokalem Multi-Screenshot-OCR aktualisieren, Änderungen vor Übernahme prüfen und verkaufte Positionen ohne erfundene Verkaufserlöse verwalten. Screenshots und OCR-Rohtext bleiben auf dem Gerät. Keine automatischen Trades."'
+          replace_exact('.github/workflows/android-build.yml', release_notes_old, release_notes_new)
+          PY
+
+      - name: Verify release metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash android/tests/test-version-contract.sh
+          bash scripts/test-current-docs.sh
+          bash android/tests/test-screenshot-import-privacy.sh
+          bash android/tests/test-current-main-feature-integration.sh
+
+      - name: Commit release metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'Deadshot89'
+          git config user.email '86518220+Deadshot89@users.noreply.github.com'
+          git add android/app/build.gradle.kts android/tests/test-version-contract.sh README.md android/README.md START_HIER.md SETUP.md .github/workflows/android-build.yml
+          if git diff --cached --quiet; then
+            echo 'No release metadata changes needed.'
+            exit 0
+          fi
+          git commit -m 'release: prepare Android 2.5.49 screenshot import'
+          git push origin HEAD:feature/depot-screenshot-review-20261015
