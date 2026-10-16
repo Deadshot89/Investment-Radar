@@ -4,10 +4,12 @@ set -euo pipefail
 UI="android/app/src/main/java/de/tobias/investmentradar/PortfolioDashboard.kt"
 LIVE="android/app/src/main/java/de/tobias/investmentradar/LivePortfolioCard.kt"
 
-grep -q 'Historischer Import · kein aktueller Wert' "$UI"
 grep -q 'Live-Kurs × Stückzahl' "$UI"
 grep -q 'Live-Tracking aktiv · Einstand importiert' "$UI"
-grep -q 'Historischer Depotwert gespeichert · Einstand importiert' "$UI"
+grep -q 'Bestätigter Depot-Snapshot · Einstand importiert' "$UI"
+grep -q 'Letzter bestätigter Trade-Republic-Wert' "$UI"
+grep -q 'Aktueller Marktpreis' "$UI"
+grep -q 'Nicht berechenbar · Stückzahl fehlt' "$UI"
 grep -q 'Nicht vollständig berechenbar' "$UI"
 grep -q 'Nicht vollständig berechenbar' "$LIVE"
 
@@ -23,4 +25,4 @@ if grep -q 'Prüfen: .*Kurs oder Stückzahl fehlt' "$LIVE"; then
   exit 1
 fi
 
-echo 'PASS current portfolio values are live-derived or marked incomplete without leaking fixed-income/iBond warnings into the overview'
+echo 'PASS current portfolio values are live-derived; confirmed snapshots and single-security market prices remain explicitly separated'
