@@ -21,7 +21,18 @@ if grep -Fq "input.trim().replace(',', '.').toDoubleOrNull()" "$DASHBOARD"; then
   exit 1
 fi
 
+# A snapshot can already have a valid live EUR quote while its share count is still unknown.
+# In that case the UI must not falsely claim that the quote itself is missing.
+grep -q '"Stückzahl fehlt"' "$DASHBOARD" || {
+  echo "FAIL missing tracked shares are still not distinguished from a missing quote"
+  exit 1
+}
+grep -q 'row.hasUsablePrice' "$DASHBOARD" || {
+  echo "FAIL current-value fallback does not use quote availability to distinguish missing shares"
+  exit 1
+}
+
 # The UI must clearly label that cost basis is imported rather than transaction-derived.
 grep -q 'Einstand importiert' "$DASHBOARD"
 
-echo "PASS imported portfolio positions can use locale-safe live share tracking while retaining imported performance basis"
+echo "PASS imported portfolio positions distinguish missing shares from missing quotes and retain imported performance basis"
