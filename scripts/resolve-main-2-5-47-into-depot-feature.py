@@ -105,7 +105,6 @@ replace_once(
     '        return ids.associateWith { itemId ->\n',
     marker='val ids = storedIds.filterNot { it == LegacyPortfolioCleanup.RETIRED_IBOND_ID }.toSet()',
 )
-# If Git auto-merged main's cleanup, augment it with the feature-only metadata.
 insert_after(
     store,
     '                .remove(salesKey(retiredId))\n',
@@ -144,9 +143,13 @@ insert_after(
 # The feature has a richer snapshot-only block than main. Preserve it, but carry forward
 # current production semantics: quote availability and value calculability are different.
 dashboard = "android/app/src/main/java/de/tobias/investmentradar/PortfolioDashboard.kt"
+active_price_anchor = (
+    '            val liveTrackedValue = importedSnapshot && hasTrackedShares && row.hasUsablePrice\n'
+    '            val currentMarketPrice = canonicalItem?.priceEur?.takeIf { it.isFinite() && it > 0.0 }\n'
+)
 insert_after(
     dashboard,
-    '            val currentMarketPrice = canonicalItem?.priceEur?.takeIf { it.isFinite() && it > 0.0 }\n',
+    active_price_anchor,
     '            val currentValueMissingReason = when {\n'
     '                row.currentPriceEur != null -> "Stückzahl fehlt"\n'
     '                else -> "Kurs fehlt"\n'
