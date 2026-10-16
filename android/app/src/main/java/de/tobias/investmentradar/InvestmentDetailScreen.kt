@@ -463,7 +463,7 @@ private fun detailAdvisorActionLabel(action: PortfolioAdvisorAction): String = w
     PortfolioAdvisorAction.VERKAUFEN -> "Verkaufen"
     PortfolioAdvisorAction.NEU_AUFNEHMEN -> "Neu aufnehmen"
     PortfolioAdvisorAction.NICHT_AUFNEHMEN -> "Nicht aufnehmen"
-    PortfolioAdvisorAction.KEINE_BELASTBARE_BEWERTUNG -> "Halten · Daten prüfen"
+    PortfolioAdvisorAction.KEINE_BELASTBARE_BEWERTUNG -> "Keine belastbare Bewertung"
 }
 
 private fun detailAdvisorSignalLabel(signal: AdvisorSignal): String = when (signal) {
@@ -471,5 +471,5 @@ private fun detailAdvisorSignalLabel(signal: AdvisorSignal): String = when (sign
     AdvisorSignal.HALTEN -> "Halten"
     AdvisorSignal.REDUZIEREN -> "Verkaufen (Teilverkauf)"
     AdvisorSignal.VERKAUFEN -> "Verkaufen"
-    AdvisorSignal.KEINE_BELASTBARE_BEWERTUNG -> "Halten · Daten prüfen"
+    AdvisorSignal.KEINE_BELASTBARE_BEWERTUNG -> "Keine belastbare Bewertung"
 }
