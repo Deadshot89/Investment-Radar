@@ -61,7 +61,8 @@ object PortfolioMetrics {
             val marketPrice = itemById[id]?.priceEur?.takeIf { it.isFinite() && it > 0.0 }
             val manualPrice = custom?.manualPriceEur?.takeIf { it.isFinite() && it > 0.0 }
             val usablePrice = marketPrice ?: manualPrice
-            val active = fixedIncomePrincipal != null || position.isActiveHolding()
+            val active = position.lifecycleStatus != PortfolioLifecycleStatus.SOLD_MARKED &&
+                (fixedIncomePrincipal != null || position.isActiveHolding())
             val currentValue = when {
                 !active -> 0.0
                 fixedIncomePrincipal != null -> fixedIncomePrincipal
@@ -141,16 +142,16 @@ object PortfolioMetrics {
 
         val activeMetrics = metrics.filter { it.active }
         val investedCostBasis = activeMetrics.filter { it.costBasisKnown }.sumOf { it.investedCostBasis }
-        val performanceDenominator = metrics
+        val performanceDenominator = activeMetrics
             .filter { it.costBasisKnown && it.totalProfitLoss != null }
             .sumOf { performanceCostBasisById[it.itemId] ?: 0.0 }
         val performanceMetrics = activeMetrics.filter { it.currentValue != null && it.totalProfitLoss != null && it.costBasisKnown }
         val partialProfitLoss = performanceMetrics.takeIf { it.isNotEmpty() }?.sumOf { it.totalProfitLoss ?: 0.0 }
         val partialPerformanceCostBasis = performanceMetrics.sumOf { performanceCostBasisById[it.itemId] ?: 0.0 }
         val partialProfitLossPct = if (partialProfitLoss != null && partialPerformanceCostBasis > 0.0) partialProfitLoss / partialPerformanceCostBasis * 100.0 else null
-        val completeTotalProfitLoss = if (currentValueComplete && activeMetrics.all { it.totalProfitLoss != null }) metrics.sumOf { it.totalProfitLoss ?: 0.0 } else null
+        val completeTotalProfitLoss = if (currentValueComplete && activeMetrics.all { it.totalProfitLoss != null }) activeMetrics.sumOf { it.totalProfitLoss ?: 0.0 } else null
         val completeTotalProfitLossPct = if (completeTotalProfitLoss != null && performanceDenominator > 0.0) completeTotalProfitLoss / performanceDenominator * 100.0 else null
-        val largest = metrics.asSequence().filter { it.active && it.weightPct != null }.maxByOrNull { it.weightPct ?: Double.NEGATIVE_INFINITY }
+        val largest = activeMetrics.asSequence().filter { it.weightPct != null }.maxByOrNull { it.weightPct ?: Double.NEGATIVE_INFINITY }
 
         return PortfolioMetricsSummary(
             investedCostBasis = investedCostBasis,
