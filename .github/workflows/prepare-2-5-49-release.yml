@@ -64,6 +64,8 @@ jobs:
 
           replace_exact('START_HIER.md', '# START HIER – Investment Radar 2.5.48', '# START HIER – Investment Radar 2.5.49')
           replace_exact('START_HIER.md', '**Android:** 2.5.48 / versionCode 118  ', '**Android:** 2.5.49 / versionCode 119  ')
+          replace_exact('START_HIER.md', '- `versionName = 2.5.48`', '- `versionName = 2.5.49`')
+          replace_exact('START_HIER.md', '- `versionCode = 118`', '- `versionCode = 119`')
 
           replace_exact('SETUP.md', '- `versionName = 2.5.48`', '- `versionName = 2.5.49`')
           replace_exact('SETUP.md', '- `versionCode = 118`', '- `versionCode = 119`')
