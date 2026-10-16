@@ -47,6 +47,7 @@ jobs:
             android/tests/test-portfolio-snapshot-ui.sh \
             android/tests/test-portfolio-tracked-shares-ui.sh \
             android/tests/test-portfolio-value-source-ui.sh \
+            android/tests/test-portfolio-current-price-ui.sh \
             android/tests/test-portfolio-only-promotion-wiring.sh \
             android/tests/test-portfolio-only-filtering.sh \
             android/tests/test-alert-policy-wiring.sh \
@@ -59,6 +60,7 @@ jobs:
             android/tests/test-trade-republic-current-depot.sh \
             android/tests/test-fixed-income-custom-asset.sh \
             android/tests/test-savings-plans-ui.sh \
+            android/tests/test-legacy-ibond-cleanup.sh \
             android/tests/test-screenshot-import-privacy.sh \
             android/tests/test-screenshot-import-ui.sh \
             android/tests/test-main-2-5-47-feature-integration.sh \
