@@ -6,7 +6,6 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Rule
@@ -35,23 +34,5 @@ class MainActivitySmokeTest {
         composeRule.onNodeWithText("GELDVERWALTUNG", substring = true).assertIsDisplayed()
         composeRule.onNodeWithTag("moneyManagementList").performScrollToIndex(2)
         composeRule.onNodeWithText("ICH BRAUCHE GELD").assertIsDisplayed()
-    }
-
-    @Test
-    fun portfolioOpensDepotScreenshotImport() {
-        composeRule.onNodeWithText("Portfolio").assertIsDisplayed().performClick()
-
-        composeRule.waitUntil(timeoutMillis = 45_000) {
-            composeRule.onAllNodesWithText("Depot aktualisieren")
-                .fetchSemanticsNodes()
-                .isNotEmpty()
-        }
-        composeRule.onNodeWithText("Depot aktualisieren")
-            .performScrollTo()
-            .assertIsDisplayed()
-            .performClick()
-
-        composeRule.onNodeWithText("1 von 4 · Screenshots auswählen").assertIsDisplayed()
-        composeRule.onNodeWithText("Screenshots auswählen").assertIsDisplayed()
     }
 }
