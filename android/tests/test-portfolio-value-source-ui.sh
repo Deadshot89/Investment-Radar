@@ -9,7 +9,9 @@ grep -q 'Live-Tracking aktiv · Einstand importiert' "$UI"
 grep -q 'Bestätigter Depot-Snapshot · Einstand importiert' "$UI"
 grep -q 'Letzter bestätigter Trade-Republic-Wert' "$UI"
 grep -q 'Aktueller Marktpreis' "$UI"
-grep -q 'Nicht berechenbar · Stückzahl fehlt' "$UI"
+grep -Fq 'row.currentPriceEur != null -> "Stückzahl fehlt"' "$UI"
+grep -Fq 'else -> "Kurs fehlt"' "$UI"
+grep -Fq 'PortfolioDashboardValue("Aktueller Depotwert", "Nicht berechenbar · $currentValueMissingReason")' "$UI"
 grep -q 'Nicht vollständig berechenbar' "$UI"
 grep -q 'Nicht vollständig berechenbar' "$LIVE"
 
@@ -25,4 +27,4 @@ if grep -q 'Prüfen: .*Kurs oder Stückzahl fehlt' "$LIVE"; then
   exit 1
 fi
 
-echo 'PASS current portfolio values are live-derived; confirmed snapshots and single-security market prices remain explicitly separated'
+echo 'PASS current portfolio values are live-derived; snapshot value and missing-value reasons remain explicit'
