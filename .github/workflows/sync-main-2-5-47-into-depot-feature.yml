@@ -6,6 +6,7 @@ on:
       - feature/depot-screenshot-review-20261015
     paths:
       - '.github/workflows/sync-main-2-5-47-into-depot-feature.yml'
+      - 'scripts/resolve-main-2-5-47-into-depot-feature.py'
 
 permissions:
   contents: write
@@ -40,13 +41,7 @@ jobs:
           allowed_conflict() {
             case "$1" in
               .github/workflows/android-contract-tests.yml|\
-              android/app/build.gradle.kts|\
-              android/app/src/main/java/de/tobias/investmentradar/CustomInvestmentStore.kt|\
-              android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt|\
-              android/app/src/main/java/de/tobias/investmentradar/MainViewModel.kt|\
-              android/app/src/main/java/de/tobias/investmentradar/PortfolioDashboard.kt|\
-              android/app/src/main/java/de/tobias/investmentradar/PortfolioMetrics.kt|\
-              android/app/src/main/java/de/tobias/investmentradar/PortfolioStore.kt)
+              android/app/src/main/java/de/tobias/investmentradar/PortfolioDashboard.kt)
                 return 0 ;;
               *)
                 return 1 ;;
