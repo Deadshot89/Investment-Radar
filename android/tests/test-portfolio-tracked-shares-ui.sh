@@ -21,6 +21,7 @@ if grep -Fq "input.trim().replace(',', '.').toDoubleOrNull()" "$DASHBOARD"; then
   exit 1
 fi
 
+# Android 2.5.48 invariant: quote availability and current-value calculability are separate states.
 # A snapshot can already have a valid live EUR quote while its share count is still unknown.
 # In that case the UI must not falsely claim that the quote itself is missing.
 grep -q '"Stückzahl fehlt"' "$DASHBOARD" || {
