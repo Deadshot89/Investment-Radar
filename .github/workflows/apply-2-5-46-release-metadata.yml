@@ -1,0 +1,71 @@
+name: Apply Android 2.5.46 release metadata
+
+on:
+  push:
+    branches:
+      - fix/unreliable-advisor-ui-label
+    paths:
+      - '.github/workflows/apply-2-5-46-release-metadata.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply-release-metadata:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: fix/unreliable-advisor-ui-label
+      - name: Update version and current documentation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace(path, old, new, count=-1):
+              p = Path(path)
+              text = p.read_text()
+              if old not in text:
+                  raise SystemExit(f"missing expected text in {path}: {old}")
+              p.write_text(text.replace(old, new, count))
+
+          replace('android/app/build.gradle.kts', 'versionCode = 115', 'versionCode = 116', 1)
+          replace('android/app/build.gradle.kts', 'versionName = "2.5.45"', 'versionName = "2.5.46"', 1)
+          replace('android/app/build.gradle.kts', '// Release candidate: Investment Radar 2.5.45', '// Release candidate: Investment Radar 2.5.46', 1)
+
+          replace('README.md', '**Aktueller Android-Stand:** 2.5.45 / versionCode 115', '**Aktueller Android-Stand:** 2.5.46 / versionCode 116', 1)
+          replace('SETUP.md', '`versionName = 2.5.45`', '`versionName = 2.5.46`', 1)
+          replace('SETUP.md', '`versionCode = 115`', '`versionCode = 116`', 1)
+          replace('START_HIER.md', '# START HIER – Investment Radar 2.5.45', '# START HIER – Investment Radar 2.5.46', 1)
+          replace('START_HIER.md', '**Android:** 2.5.45 / versionCode 115', '**Android:** 2.5.46 / versionCode 116', 1)
+          replace('START_HIER.md', '`versionName = 2.5.45`', '`versionName = 2.5.46`', 1)
+          replace('START_HIER.md', '`versionCode = 115`', '`versionCode = 116`', 1)
+
+          p = Path('android/README.md')
+          text = p.read_text()
+          text = text.replace('**Version:** 2.5.45  ', '**Version:** 2.5.46  ', 1)
+          text = text.replace('**versionCode:** 115', '**versionCode:** 116', 1)
+          marker = '### Änderung in 2.5.45\n'
+          if marker not in text:
+              raise SystemExit('missing 2.5.45 release-note marker')
+          note = (
+              '### Änderung in 2.5.46\n\n'
+              'Unzuverlässige Advisor-Daten werden nun auch in Portfolio, Radar sowie Detail- und Historienansicht nicht mehr als „Halten · Daten prüfen“ ausgegeben. '
+              'Diese Flächen zeigen stattdessen ausdrücklich „Keine belastbare Bewertung“. Damit sind die sichtbare UI und die bereits in 2.5.45 korrigierte Benachrichtigungslogik fachlich konsistent.\n\n'
+          )
+          p.write_text(text.replace(marker, note + marker, 1))
+          PY
+          bash android/tests/test-portfolio-advisor-2-3-ui.sh
+          bash scripts/test-current-docs.sh
+      - name: Commit release metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add README.md SETUP.md START_HIER.md android/README.md android/app/build.gradle.kts
+          git diff --cached --quiet && exit 0
+          git commit -m 'release: bump Android to 2.5.46'
+          git push origin HEAD:fix/unreliable-advisor-ui-label
