@@ -179,7 +179,11 @@ fun PortfolioDashboard(
                 HorizontalDivider()
                 PortfolioDashboardValue(
                     if (isFixedIncome) "Anlagewert" else "Aktueller Wert",
-                    row.currentValue?.let(::portfolioMoney) ?: if (isFixedIncome) "Anlagebetrag fehlt" else "Kurs fehlt"
+                    row.currentValue?.let(::portfolioMoney) ?: when {
+              isFixedIncome -> "Anlagebetrag fehlt"
+              row.currentPriceEur != null -> "Stückzahl fehlt"
+              else -> "Kurs fehlt"
+          }
                 )
                 if (!isFixedIncome) {
                     PortfolioDashboardValue("Aktueller Kurs", row.currentPriceEur?.let(::portfolioMoney) ?: "Kurs fehlt")

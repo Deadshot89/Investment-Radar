@@ -54,6 +54,30 @@ class PortfolioMetricsTest {
     }
 
     @Test
+    fun importedSnapshotWithLivePriceButNoSharesIsNotReportedAsMissingPrice() {
+        val item = portfolioItem("snapshot", 25.0)
+        val position = PortfolioPosition(
+            itemId = "snapshot",
+            snapshotValueEur = 1_000.0,
+            snapshotCostBasisEur = 900.0,
+            trackedShares = null
+        )
+
+        val result = PortfolioMetrics.calculate(
+            items = listOf(item),
+            positions = mapOf("snapshot" to position),
+            customItems = emptyList()
+        )
+        val row = result.positions.single()
+
+        assertFalse(result.currentValueComplete)
+        assertEquals(0, result.missingPriceCount)
+        assertFalse(row.hasUsablePrice)
+        assertEquals(25.0, row.currentPriceEur!!, 0.001)
+        assertNull(row.currentValue)
+    }
+
+    @Test
     fun fixedIncomeUsesPrincipalWithoutMarketPriceOrShares() {
         val position = PortfolioPosition(itemId = "fixed")
         val custom = CustomInvestment(
