@@ -1,0 +1,48 @@
+name: Apply portfolio missing value reason fix
+
+on:
+  push:
+    branches:
+      - fix/portfolio-missing-value-reason
+    paths:
+      - '.github/workflows/apply-portfolio-missing-value-reason-fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply-fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: fix/portfolio-missing-value-reason
+      - name: Distinguish missing shares from missing quote in portfolio UI
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('android/app/src/main/java/de/tobias/investmentradar/PortfolioDashboard.kt')
+          text = p.read_text()
+          old = 'row.currentValue?.let(::portfolioMoney) ?: if (isFixedIncome) "Anlagebetrag fehlt" else "Kurs fehlt"'
+          new = '''row.currentValue?.let(::portfolioMoney) ?: when {
+                        isFixedIncome -> "Anlagebetrag fehlt"
+                        row.hasUsablePrice -> "Stückzahl fehlt"
+                        else -> "Kurs fehlt"
+                    }'''
+          if old not in text:
+              raise SystemExit('expected current-value fallback not found')
+          p.write_text(text.replace(old, new, 1))
+          PY
+          bash android/tests/test-portfolio-tracked-shares-ui.sh
+      - name: Commit UI fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add android/app/src/main/java/de/tobias/investmentradar/PortfolioDashboard.kt
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix: show missing share count instead of missing quote'
+          git push origin HEAD:fix/portfolio-missing-value-reason
