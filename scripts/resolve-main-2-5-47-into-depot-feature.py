@@ -112,6 +112,14 @@ replace_once(
     '        return ids.associateWith { itemId ->\n',
     marker='val ids = storedIds.filterNot { it == LegacyPortfolioCleanup.RETIRED_IBOND_ID }.toSet()',
 )
+# If Git auto-merged main's cleanup, augment it with the feature-only per-position metadata.
+insert_after(
+    store,
+    '                .remove(salesKey(retiredId))\n',
+    '                .remove(lifecycleStatusKey(retiredId))\n'
+    '                .remove(snapshotCapturedAtKey(retiredId))\n',
+    '.remove(lifecycleStatusKey(retiredId))',
+)
 insert_after(
     store,
     '    fun add(context: Context, itemId: String) {\n',
