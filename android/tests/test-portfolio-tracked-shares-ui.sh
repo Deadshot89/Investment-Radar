@@ -28,8 +28,8 @@ grep -q '"Stückzahl fehlt"' "$DASHBOARD" || {
   echo "FAIL missing tracked shares are still not distinguished from a missing quote"
   exit 1
 }
-grep -q 'row.hasUsablePrice' "$DASHBOARD" || {
-  echo "FAIL current-value fallback does not use quote availability to distinguish missing shares"
+grep -Fq 'row.currentPriceEur != null -> "Stückzahl fehlt"' "$DASHBOARD" || {
+  echo "FAIL current-value fallback does not use explicit quote availability to distinguish missing shares"
   exit 1
 }
 
