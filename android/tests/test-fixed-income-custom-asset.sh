@@ -12,14 +12,17 @@ grep -F 'FilterChip(selected = type == "Festzins"' "$MAIN" >/dev/null
 grep -F 'fixedPrincipalEur = if (isFixedIncome) fixedPrincipal else null' "$MAIN" >/dev/null
 grep -F 'fixedMaturityValueEur = if (isFixedIncome) fixedMaturityValue else null' "$MAIN" >/dev/null
 grep -F 'existing == null && !isFixedIncome' "$MAIN" >/dev/null
+grep -F 'position.lifecycleStatus != PortfolioLifecycleStatus.SOLD_MARKED' "$METRICS" >/dev/null
 grep -F 'fixedIncomePrincipal != null || position.isActiveHolding()' "$METRICS" >/dev/null
 grep -F 'fixedIncome -> 0.0' "$METRICS" >/dev/null
-grep -F 'if (isFixedIncome) "Anlagewert" else "Aktueller Wert"' "$DASHBOARD" >/dev/null
+grep -F 'isFixedIncome -> PortfolioDashboardValue(' "$DASHBOARD" >/dev/null
+grep -F '"Anlagewert"' "$DASHBOARD" >/dev/null
 grep -F '"festzins" -> "Festzins"' "$STORE" >/dev/null
 grep -F 'if (custom.type.equals("Festzins", ignoreCase = true))' "$VM" >/dev/null
 grep -F 'dashboard.items.filterNot { it.id in fixedIncomeIds }' "$VM" >/dev/null
 grep -F 'fixedIncomePrincipalById[position.itemId] ?: position.activeCostBasis' "$VM" >/dev/null
 grep -F '"Auszahlung bei Fälligkeit"' "$DASHBOARD" >/dev/null
+grep -F 'position.lifecycleStatus == PortfolioLifecycleStatus.SOLD_MARKED' "$ANALYSIS" >/dev/null
 grep -F 'fixedIncomePrincipal' "$ANALYSIS" >/dev/null
 grep -F 'if (!isFixedIncome)' "$DASHBOARD" >/dev/null
 
