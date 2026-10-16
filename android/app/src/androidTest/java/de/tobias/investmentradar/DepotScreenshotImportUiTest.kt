@@ -1,18 +1,61 @@
 package de.tobias.investmentradar
 
+import android.app.Application
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.test.core.app.ApplicationProvider
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
 class DepotScreenshotImportUiTest {
     @get:Rule
     val composeRule = createComposeRule()
+
+    @Test
+    fun portfolioDashboardExposesDepotUpdateEntry() {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        val vm = MainViewModel(app)
+        var opened = false
+        val advisorPlan = PortfolioAdvisorPlan(
+            budgetEur = 0,
+            allocations = emptyList(),
+            cashEur = 0,
+            reallocations = emptyList(),
+            savingsPlanConflicts = emptyList(),
+            candidates = emptyList()
+        )
+
+        composeRule.setContent {
+            MaterialTheme {
+                PortfolioDashboard(
+                    items = emptyList(),
+                    positions = emptyMap(),
+                    customItems = emptyList(),
+                    advisorPlan = advisorPlan,
+                    showSavingsPlans = false,
+                    onShowSavingsPlansChange = {},
+                    onOpenDetail = {},
+                    onEdit = {},
+                    onRemove = {},
+                    onUpdateDepot = { opened = true },
+                    onAddCustom = {},
+                    onEditCustom = {},
+                    onRemoveCustom = {},
+                    vm = vm
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Depot aktualisieren").assertIsDisplayed().performClick()
+        composeRule.runOnIdle { assertTrue(opened) }
+    }
 
     @Test
     fun selectingShowsSelectedScreenshotCount() {
@@ -57,7 +100,7 @@ class DepotScreenshotImportUiTest {
     }
 
     @Test
-    fun unresolvedReviewBlocksApplyAndShowsMissingActions() {
+    fun conflictReviewIsVisible() {
         val observation = TradeRepublicScreenshotObservation(
             name = "Meta Platforms",
             valueEur = 812.40,
@@ -67,68 +110,16 @@ class DepotScreenshotImportUiTest {
             shares = null,
             sourceIndex = 0
         )
-        val rows = listOf(
-            DepotScreenshotImportReviewRow(
-                key = "conflict",
-                itemId = "meta",
-                observation = observation,
-                status = ScreenshotReviewStatus.CONFLICT,
-                reason = "Widersprüchliche Werte",
-                kind = DepotScreenshotImportRowKind.UPDATE,
-                resolved = false
-            ),
-            DepotScreenshotImportReviewRow(
-                key = "missing",
-                itemId = "msft",
-                observation = null,
-                status = ScreenshotReviewStatus.NOT_FOUND,
-                reason = "Nicht gefunden",
-                kind = DepotScreenshotImportRowKind.MISSING,
-                resolved = false
-            )
-        )
-        composeRule.setContent {
-            MaterialTheme {
-                DepotScreenshotImportContent(
-                    state = DepotScreenshotImportState.Reviewing(
-                        images = listOf(ScreenshotImageRef("one", "content://one")),
-                        rows = rows,
-                        failedImages = emptyList(),
-                        summary = PortfolioImportSummary(),
-                        canApply = false
-                    ),
-                    itemNames = mapOf("meta" to "Meta Platforms", "msft" to "Microsoft"),
-                    actions = DepotScreenshotImportUiActions()
-                )
-            }
-        }
-
-        composeRule.onNodeWithText("3 von 4 · Prüfen & korrigieren").assertIsDisplayed()
-        composeRule.onNodeWithText("Konflikt · bitte prüfen").assertIsDisplayed()
-        composeRule.onNodeWithText("Behalten").performScrollTo().assertIsDisplayed()
-        composeRule.onNodeWithText("Als verkauft markieren").performScrollTo().assertIsDisplayed()
-        composeRule.onNodeWithText("Löschen").performScrollTo().assertIsDisplayed()
-        composeRule.onNodeWithText("Änderungen übernehmen").performScrollTo().assertIsNotEnabled()
-    }
-
-    @Test
-    fun resolvedReviewEnablesApply() {
         val row = DepotScreenshotImportReviewRow(
-            key = "ready",
+            key = "conflict",
             itemId = "meta",
-            observation = TradeRepublicScreenshotObservation(
-                name = "Meta Platforms",
-                valueEur = 812.40,
-                profitLossEur = null,
-                profitLossPct = null,
-                derivedCostBasisEur = 760.0,
-                shares = null,
-                sourceIndex = 0
-            ),
-            status = ScreenshotReviewStatus.READY,
+            observation = observation,
+            status = ScreenshotReviewStatus.CONFLICT,
+            reason = "Widersprüchliche Werte",
             kind = DepotScreenshotImportRowKind.UPDATE,
-            resolved = true
+            resolved = false
         )
+
         composeRule.setContent {
             MaterialTheme {
                 DepotScreenshotImportContent(
@@ -136,10 +127,86 @@ class DepotScreenshotImportUiTest {
                         images = listOf(ScreenshotImageRef("one", "content://one")),
                         rows = listOf(row),
                         failedImages = emptyList(),
+                        summary = PortfolioImportSummary(),
+                        canApply = false
+                    ),
+                    itemNames = mapOf("meta" to "Meta Platforms"),
+                    actions = DepotScreenshotImportUiActions()
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("3 von 4 · Prüfen & korrigieren").assertIsDisplayed()
+        composeRule.onNodeWithText("Konflikt · bitte prüfen").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun missingPositionShowsKeepSoldDeleteActions() {
+        val row = DepotScreenshotImportReviewRow(
+            key = "missing",
+            itemId = "msft",
+            observation = null,
+            status = ScreenshotReviewStatus.NOT_FOUND,
+            reason = "Nicht gefunden",
+            kind = DepotScreenshotImportRowKind.MISSING,
+            resolved = false
+        )
+
+        composeRule.setContent {
+            MaterialTheme {
+                DepotScreenshotImportContent(
+                    state = DepotScreenshotImportState.Reviewing(
+                        images = listOf(ScreenshotImageRef("one", "content://one")),
+                        rows = listOf(row),
+                        failedImages = emptyList(),
+                        summary = PortfolioImportSummary(),
+                        canApply = false
+                    ),
+                    itemNames = mapOf("msft" to "Microsoft"),
+                    actions = DepotScreenshotImportUiActions()
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Behalten").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("Als verkauft markieren").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("Löschen").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun unresolvedReviewBlocksApply() {
+        composeRule.setContent {
+            MaterialTheme {
+                DepotScreenshotImportContent(
+                    state = DepotScreenshotImportState.Reviewing(
+                        images = listOf(ScreenshotImageRef("one", "content://one")),
+                        rows = emptyList(),
+                        failedImages = emptyList(),
+                        summary = PortfolioImportSummary(),
+                        canApply = false
+                    ),
+                    itemNames = emptyMap(),
+                    actions = DepotScreenshotImportUiActions()
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Änderungen übernehmen").performScrollTo().assertIsNotEnabled()
+    }
+
+    @Test
+    fun resolvedReviewEnablesApply() {
+        composeRule.setContent {
+            MaterialTheme {
+                DepotScreenshotImportContent(
+                    state = DepotScreenshotImportState.Reviewing(
+                        images = listOf(ScreenshotImageRef("one", "content://one")),
+                        rows = emptyList(),
+                        failedImages = emptyList(),
                         summary = PortfolioImportSummary(updatedCount = 1),
                         canApply = true
                     ),
-                    itemNames = mapOf("meta" to "Meta Platforms"),
+                    itemNames = emptyMap(),
                     actions = DepotScreenshotImportUiActions()
                 )
             }
