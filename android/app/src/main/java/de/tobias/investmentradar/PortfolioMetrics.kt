@@ -68,13 +68,13 @@ object PortfolioMetrics {
                 fixedIncomePrincipal != null -> fixedIncomePrincipal
                 else -> position.currentValue(usablePrice)
             }
-            val hasUsablePrice = !active || currentValue != null
+            val hasUsablePrice = !active || fixedIncomePrincipal != null || usablePrice != null
             Draft(id, position, active, usablePrice, currentValue, hasUsablePrice, fixedIncomePrincipal)
         }
 
         val activeDrafts = drafts.filter { it.active }
-        val missingPriceCount = activeDrafts.count { !it.hasUsablePrice }
-        val currentValueComplete = missingPriceCount == 0
+        val missingPriceCount = activeDrafts.count { it.fixedIncomePrincipal == null && it.usablePrice == null }
+        val currentValueComplete = activeDrafts.all { it.currentValue != null }
         val calculableCurrentValue = activeDrafts.sumOf { it.currentValue ?: 0.0 }
         val calculablePositionCount = activeDrafts.count { it.currentValue != null }
         val weightDenominator = calculableCurrentValue.takeIf { it > 0.0 }
