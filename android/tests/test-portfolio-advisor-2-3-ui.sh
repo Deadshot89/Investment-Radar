@@ -14,15 +14,19 @@ for literal in \
   grep -q "$literal" "$PORTFOLIO"
 done
 
-for literal in 'Neu aufnehmen' 'Verkaufen (Teilverkauf)' 'Verkaufen' 'Halten · Daten prüfen'; do
+for literal in 'Neu aufnehmen' 'Verkaufen (Teilverkauf)' 'Verkaufen' 'Keine belastbare Bewertung'; do
   grep -q "$literal" "$RADAR"
 done
 
+# Unzuverlässige Daten dürfen auf keiner sichtbaren Advisor-Fläche als HALTEN erscheinen.
 for surface in "$PORTFOLIO" "$RADAR" "$DETAIL"; do
+  grep -Fq 'PortfolioAdvisorAction.KEINE_BELASTBARE_BEWERTUNG -> "Keine belastbare Bewertung"' "$surface"
+  ! grep -Fq 'Halten · Daten prüfen' "$surface"
   ! grep -Fq -- '-> "Reduzieren"' "$surface"
   ! grep -Fq -- '-> "Bewertung prüfen"' "$surface"
 done
 
+grep -Fq 'AdvisorSignal.KEINE_BELASTBARE_BEWERTUNG -> "Keine belastbare Bewertung"' "$DETAIL"
 grep -q 'Konfidenz' "$DETAIL"
 grep -q 'Änderungshistorie' "$DETAIL"
 for period in '1 Monat' '3 Monate' '6 Monate' '12 Monate'; do
