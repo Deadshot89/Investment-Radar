@@ -6,6 +6,7 @@ MAIN="android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt"
 fail() { echo "FAIL: $1" >&2; exit 1; }
 
 # Advisor 2.3 ersetzt nur die Zuteilungsquelle; die Live-Zeile muss weiterhin die echte Depotposition erhalten.
+# Fremdwährungs-Kurse dürfen dabei niemals als EUR-Depotwert interpretiert werden.
 grep -Fq 'private fun RecommendationRow(' "$MAIN" || fail "RecommendationRow is missing"
 grep -Fq 'position: PortfolioPosition?' "$MAIN" || fail "RecommendationRow does not accept the portfolio position"
 grep -Fq 'position = positions[item.id]' "$MAIN" || fail "Live purchase-plan rows do not receive the portfolio position"
