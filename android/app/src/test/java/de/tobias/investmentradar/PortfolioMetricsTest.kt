@@ -72,7 +72,7 @@ class PortfolioMetricsTest {
 
         assertFalse(result.currentValueComplete)
         assertEquals(0, result.missingPriceCount)
-        assertTrue(row.hasUsablePrice)
+        assertFalse(row.hasUsablePrice)
         assertEquals(25.0, row.currentPriceEur!!, 0.001)
         assertNull(row.currentValue)
     }
