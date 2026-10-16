@@ -14,7 +14,7 @@ fail() {
   exit 1
 }
 
-# Production 2.5.47 cleanup must survive the screenshot-import branch.
+# Current production cleanup must survive the screenshot-import branch.
 grep -Fq 'filterNot { it.id == LegacyPortfolioCleanup.RETIRED_IBOND_ID }' "$CUSTOM_STORE" || fail 'Custom asset loader lost the retired iBond cleanup.'
 grep -Fq 'if (item.id == LegacyPortfolioCleanup.RETIRED_IBOND_ID) return' "$CUSTOM_STORE" || fail 'Custom asset writes can re-add the retired iBond.'
 grep -Fq 'filterNot { it == LegacyPortfolioCleanup.RETIRED_IBOND_ID }' "$PORTFOLIO_STORE" || fail 'Portfolio loader lost the retired iBond cleanup.'
@@ -22,14 +22,19 @@ grep -Fq 'if (position.itemId == LegacyPortfolioCleanup.RETIRED_IBOND_ID) return
 grep -Fq '.remove(lifecycleStatusKey(retiredId))' "$PORTFOLIO_STORE" || fail 'Retired iBond cleanup leaves lifecycle metadata behind.'
 grep -Fq '.remove(snapshotCapturedAtKey(retiredId))' "$PORTFOLIO_STORE" || fail 'Retired iBond cleanup leaves screenshot timestamp metadata behind.'
 
-# Production 2.5.47 current-EUR-price visibility must be retained without weakening SOLD_MARKED.
+# 2.5.47 current-EUR-price visibility must be retained without weakening SOLD_MARKED.
 grep -Fq 'val currentPriceEur: Double?' "$METRICS" || fail 'Portfolio metrics lost the current EUR unit price.'
 grep -Fq 'currentPriceEur = draft.usablePrice' "$METRICS" || fail 'Portfolio metrics do not propagate the current EUR unit price.'
 grep -Fq 'position.lifecycleStatus != PortfolioLifecycleStatus.SOLD_MARKED' "$METRICS" || fail 'SOLD_MARKED lifecycle override was lost during integration.'
 grep -Fq 'PortfolioDashboardValue("Aktueller Kurs", row.currentPriceEur?.let(::portfolioMoney) ?: "Kurs fehlt")' "$DASHBOARD" || fail 'Portfolio dashboard lost the current EUR unit price display.'
 
-# Production 2.5.47 advisor concentration context must remain wired in both interactive and persisted plans.
+# 2.5.48 separates quote availability from whether a current position value is calculable.
+grep -Fq 'val missingPriceCount = activeDrafts.count { it.fixedIncomePrincipal == null && it.usablePrice == null }' "$METRICS" || fail 'Missing-price count again treats missing shares as a missing quote.'
+grep -Fq 'val currentValueComplete = activeDrafts.all { it.currentValue != null }' "$METRICS" || fail 'Current-value completeness no longer tracks actual calculability.'
+grep -Fq 'row.currentPriceEur != null -> "Stückzahl fehlt"' "$DASHBOARD" || fail 'Snapshot with a valid quote still does not distinguish missing shares from a missing quote.'
+
+# Full-portfolio concentration context must remain wired in both interactive and persisted plans.
 grep -Fq 'concentrationContext = PortfolioConcentrationContext(' "$MAIN" || fail 'Main UI advisor allocation lost portfolio concentration context.'
 grep -Fq 'concentrationContext = PortfolioConcentrationContext(' "$VM" || fail 'Persisted advisor allocation lost portfolio concentration context.'
 
-echo 'PASS: 2.5.47 production portfolio invariants coexist with screenshot-import lifecycle semantics.'
+echo 'PASS: current production portfolio invariants coexist with screenshot-import lifecycle semantics.'
