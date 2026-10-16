@@ -14,6 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -48,8 +49,15 @@ fun PortfolioDashboard(
         itemById[id]?.name ?: customById[id]?.name ?: id
     }
     val costBasisComplete = metrics.positions.filter { it.active }.all { it.costBasisKnown }
-    val missingValueNames = metrics.positions.filter { it.active && !it.hasUsablePrice }.map { row ->
-        itemById[row.itemId]?.name ?: customById[row.itemId]?.name ?: row.itemId
+    val soldMarkedRows = remember(metrics.positions, positions) {
+        metrics.positions.filter { row ->
+            positions[row.itemId]?.lifecycleStatus == PortfolioLifecycleStatus.SOLD_MARKED
+        }
+    }
+    val regularRows = remember(metrics.positions, positions) {
+        metrics.positions.filterNot { row ->
+            positions[row.itemId]?.lifecycleStatus == PortfolioLifecycleStatus.SOLD_MARKED
+        }
     }
     var trackedSharesDialogItemId by remember { mutableStateOf<String?>(null) }
 
@@ -63,7 +71,10 @@ fun PortfolioDashboard(
     }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 14.dp)
+            .testTag("portfolioDashboardList"),
         contentPadding = PaddingValues(bottom = 28.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
@@ -147,9 +158,6 @@ fun PortfolioDashboard(
                 if (!costBasisComplete) {
                     Text("Für einzelne Depotwerte fehlen Einstandsdaten. Depotwert und Gewichtung bleiben korrekt; fehlende Performance wird nicht erfunden.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                // Fehlende Kurse werden direkt an der betroffenen Position angezeigt.
-                // Keine große technische Warnmeldung im Depot-Cockpit: insbesondere
-                // benutzerdefinierte Festzins-/iBond-Werte sollen die Übersicht nicht dominieren.
             }
         }
 
@@ -162,17 +170,18 @@ fun PortfolioDashboard(
             }
         }
 
-        items(metrics.positions, key = { it.itemId }) { row ->
-            val item = itemById[row.itemId] ?: customById[row.itemId]?.fallbackItem()
+        items(regularRows, key = { it.itemId }) { row ->
+            val canonicalItem = itemById[row.itemId]
+            val item = canonicalItem ?: customById[row.itemId]?.fallbackItem()
             val custom = customById[row.itemId]
             val isFixedIncome = custom?.type.equals("Festzins", ignoreCase = true)
             val advisor = advisorById[row.itemId]
             val allocation = allocationById[row.itemId]
             val position = positions[row.itemId]
             val importedSnapshot = position?.snapshotValueEur != null && position.purchases.isEmpty() && position.sales.isEmpty()
-            val liveTrackedValue = importedSnapshot &&
-                position?.trackedShares != null &&
-                row.hasUsablePrice
+            val hasTrackedShares = position?.trackedShares?.let { it.isFinite() && it > 0.0 } == true
+            val liveTrackedValue = importedSnapshot && hasTrackedShares && row.hasUsablePrice
+            val currentMarketPrice = canonicalItem?.priceEur?.takeIf { it.isFinite() && it > 0.0 }
 
             PortfolioDashboardCard {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -184,10 +193,29 @@ fun PortfolioDashboard(
                 }
 
                 HorizontalDivider()
-                PortfolioDashboardValue(
-                    if (isFixedIncome) "Anlagewert" else "Aktueller Wert",
-                    row.currentValue?.let(::portfolioMoney) ?: if (isFixedIncome) "Anlagebetrag fehlt" else "Kurs fehlt"
-                )
+                when {
+                    isFixedIncome -> PortfolioDashboardValue(
+                        "Anlagewert",
+                        row.currentValue?.let(::portfolioMoney) ?: "Anlagebetrag fehlt"
+                    )
+                    importedSnapshot && !hasTrackedShares -> {
+                        PortfolioDashboardValue("Aktueller Depotwert", "Nicht berechenbar · Stückzahl fehlt")
+                        position?.snapshotValueEur?.takeIf { it.isFinite() && it >= 0.0 }?.let { snapshotValue ->
+                            PortfolioDashboardValue(
+                                "Letzter bestätigter Trade-Republic-Wert",
+                                portfolioSnapshotValue(snapshotValue, position.snapshotCapturedAt)
+                            )
+                        }
+                        PortfolioDashboardValue(
+                            "Aktueller Marktpreis",
+                            currentMarketPrice?.let(::portfolioMoney) ?: "Kurs nicht verfügbar"
+                        )
+                    }
+                    else -> PortfolioDashboardValue(
+                        "Aktueller Wert",
+                        row.currentValue?.let(::portfolioMoney) ?: "Kurs fehlt"
+                    )
+                }
                 if (isFixedIncome) {
                     custom?.fixedMaturityValueEur?.let { maturityValue ->
                         PortfolioDashboardValue("Auszahlung bei Fälligkeit", portfolioMoney(maturityValue))
@@ -204,11 +232,8 @@ fun PortfolioDashboard(
                         PortfolioDashboardValue("Fälligkeit", it)
                     }
                 }
-                if (importedSnapshot && !isFixedIncome) {
-                    PortfolioDashboardValue(
-                        "Wertbasis",
-                        if (liveTrackedValue) "Live-Kurs × Stückzahl" else "Historischer Import · kein aktueller Wert"
-                    )
+                if (importedSnapshot && !isFixedIncome && hasTrackedShares) {
+                    PortfolioDashboardValue("Wertbasis", if (liveTrackedValue) "Live-Kurs × Stückzahl" else "Stückzahl vorhanden · Kurs fehlt")
                 }
                 PortfolioDashboardValue("Einstand", if (row.costBasisKnown) portfolioMoney(row.investedCostBasis) else "Nicht erfasst")
                 PortfolioDashboardValue("Realisierter G/V", if (row.costBasisKnown) portfolioSignedMoney(row.realizedProfitLoss) else "Nicht erfasst")
@@ -223,10 +248,7 @@ fun PortfolioDashboard(
                 )
                 PortfolioDashboardValue("Gewichtung", row.weightPct?.let(::portfolioPercent) ?: if (row.active) "Unvollständig" else "–")
                 if (importedSnapshot && !isFixedIncome) {
-                    PortfolioDashboardValue(
-                        "Stückzahl",
-                        position?.trackedShares?.let(::portfolioShares) ?: "Nicht erfasst"
-                    )
+                    PortfolioDashboardValue("Stückzahl", position?.trackedShares?.let(::portfolioShares) ?: "Nicht erfasst")
                 }
 
                 if (item != null && !isFixedIncome) {
@@ -238,7 +260,9 @@ fun PortfolioDashboard(
                     PortfolioDashboardValue("Berater", portfolioAdvisorActionLabel(it.action))
                     PortfolioDashboardValue("Zusatz diesen Monat", "${allocation?.amountEur ?: 0} €")
                     PortfolioDashboardValue("Konfidenz", "${it.advisor.confidencePct} %")
-                    it.advisor.reasons.take(2).forEach { reason -> Text("• $reason", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
+                    it.advisor.reasons.take(2).forEach { reason ->
+                        Text("• $reason", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                    }
                 }
 
                 if (importedSnapshot && !isFixedIncome) {
@@ -247,7 +271,7 @@ fun PortfolioDashboard(
                     }
                     if (position?.trackedShares == null) {
                         Text(
-                            "Nach Eingabe der Stückzahl folgt der Depotwert dem aktuellen Kurs. Der importierte Einstand bleibt für Gewinn/Verlust erhalten.",
+                            "Nach Eingabe der Stückzahl folgt der Depotwert dem aktuellen Kurs. Der bestätigte Trade-Republic-Wert bleibt als Snapshot nachvollziehbar.",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             style = MaterialTheme.typography.bodySmall
                         )
@@ -268,7 +292,7 @@ fun PortfolioDashboard(
                     TextButton(onClick = { onRemove(row.itemId) }, modifier = Modifier.fillMaxWidth()) { Text("Aus Portfolio entfernen", color = MaterialTheme.colorScheme.error) }
                 }
 
-                if (row.active && !row.hasUsablePrice) {
+                if (row.active && !row.hasUsablePrice && !(importedSnapshot && !hasTrackedShares)) {
                     Text("Aktueller Wert fehlt – historische Snapshotwerte werden nicht als heutiger Depotwert verwendet.", color = MaterialTheme.colorScheme.error)
                 }
                 if (!isFixedIncome) position?.let {
@@ -276,13 +300,76 @@ fun PortfolioDashboard(
                         when {
                             importedSnapshot && liveTrackedValue && row.costBasisKnown -> "Live-Tracking aktiv · Einstand importiert"
                             importedSnapshot && liveTrackedValue -> "Live-Tracking aktiv · Einstand fehlt"
-                            importedSnapshot && row.costBasisKnown -> "Historischer Depotwert gespeichert · Einstand importiert"
-                            importedSnapshot -> "Historischer Depotwert gespeichert · Einstand fehlt"
+                            importedSnapshot && row.costBasisKnown -> "Bestätigter Depot-Snapshot · Einstand importiert"
+                            importedSnapshot -> "Bestätigter Depot-Snapshot · Einstand fehlt"
                             else -> "${it.purchases.size} Käufe · ${it.sales.size} Verkäufe"
                         },
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodySmall
                     )
+                }
+            }
+        }
+
+        if (soldMarkedRows.isNotEmpty()) {
+            item(key = "sold-section") {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Verkaufte Positionen", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+                    Text(
+                        "Diese Werte zählen nicht zum aktiven Depot. Angezeigte Kurse sind nur heutige Marktpreise.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+
+            items(soldMarkedRows, key = { "sold-${it.itemId}" }) { row ->
+                val canonicalItem = itemById[row.itemId]
+                val item = canonicalItem ?: customById[row.itemId]?.fallbackItem()
+                val custom = customById[row.itemId]
+                val position = positions[row.itemId]
+                val currentMarketPrice = canonicalItem?.priceEur?.takeIf { it.isFinite() && it > 0.0 }
+
+                PortfolioDashboardCard {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Column(Modifier.weight(1f)) {
+                            Text(item?.name ?: row.itemId, fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
+                            Text(listOfNotNull(item?.ticker?.takeIf { it.isNotBlank() }, item?.type?.takeIf { it.isNotBlank() }).joinToString(" · "), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Text("VERKAUFT", color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Black)
+                    }
+                    HorizontalDivider()
+                    PortfolioDashboardValue(
+                        "Aktueller Marktpreis",
+                        currentMarketPrice?.let(::portfolioMoney) ?: "Kurs nicht verfügbar"
+                    )
+                    Text(
+                        "Der heutige Marktpreis ist nur eine Referenz. Ein tatsächlicher Verkaufskurs oder Erlös wird durch den Screenshot-Abgleich nicht erfunden.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    position?.snapshotValueEur?.takeIf { it.isFinite() && it >= 0.0 }?.let { snapshotValue ->
+                        PortfolioDashboardValue(
+                            "Letzter bestätigter Trade-Republic-Wert",
+                            portfolioSnapshotValue(snapshotValue, position.snapshotCapturedAt)
+                        )
+                    }
+                    position?.let {
+                        PortfolioDashboardValue("Historie", "${it.purchases.size} Käufe · ${it.sales.size} Verkäufe")
+                        if (it.sales.isNotEmpty()) {
+                            PortfolioDashboardValue("Realisierter G/V aus erfassten Verkäufen", portfolioSignedMoney(row.realizedProfitLoss))
+                        }
+                    }
+                    if (item != null && custom == null) {
+                        Button(onClick = { onOpenDetail(row.itemId) }, modifier = Modifier.fillMaxWidth()) { Text("Details") }
+                        OutlinedButton(onClick = { onEdit(item) }, modifier = Modifier.fillMaxWidth()) { Text("Transaktionen verwalten") }
+                    }
+                    if (custom != null) {
+                        OutlinedButton(onClick = { onEditCustom(custom) }, modifier = Modifier.fillMaxWidth()) { Text("Stammdaten bearbeiten") }
+                        TextButton(onClick = { onRemoveCustom(row.itemId) }, modifier = Modifier.fillMaxWidth()) { Text("Eigenen Wert löschen", color = MaterialTheme.colorScheme.error) }
+                    } else {
+                        TextButton(onClick = { onRemove(row.itemId) }, modifier = Modifier.fillMaxWidth()) { Text("Aus Portfolio entfernen", color = MaterialTheme.colorScheme.error) }
+                    }
                 }
             }
         }
@@ -347,7 +434,15 @@ private fun portfolioSignedMoney(value: Double): String = String.format(Locale.G
 private fun portfolioPercent(value: Double): String = String.format(Locale.GERMANY, "%.1f %%", value)
 private fun portfolioSignedPercent(value: Double): String = String.format(Locale.GERMANY, "%+.1f %%", value)
 private fun portfolioShares(value: Double): String = String.format(Locale.GERMANY, "%.6f", value).trimEnd('0').trimEnd(',')
-
+private fun portfolioSnapshotValue(value: Double, capturedAt: String?): String {
+    val timestamp = capturedAt?.let(::portfolioSnapshotTimestamp)?.takeIf { it.isNotBlank() }
+    return listOfNotNull(portfolioMoney(value), timestamp).joinToString(" · ")
+}
+private fun portfolioSnapshotTimestamp(value: String): String {
+    val match = Regex("^(\\d{4})-(\\d{2})-(\\d{2})T(\\d{2}):(\\d{2})").find(value.trim()) ?: return value
+    val (year, month, day, hour, minute) = match.destructured
+    return "$day.$month.$year · $hour:$minute"
+}
 
 private fun portfolioAdvisorActionLabel(action: PortfolioAdvisorAction): String = when (action) {
     PortfolioAdvisorAction.NACHKAUFEN -> "Nachkaufen"
