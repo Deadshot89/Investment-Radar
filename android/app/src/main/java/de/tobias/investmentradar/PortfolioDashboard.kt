@@ -2,182 +2,113 @@ package de.tobias.investmentradar
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import java.util.Locale
 
 @Composable
 fun PortfolioDashboard(
-    items: List<InvestmentItem>,
+    vm: MainViewModel,
     positions: Map<String, PortfolioPosition>,
     customItems: List<CustomInvestment>,
+    allItems: List<InvestmentItem>,
     advisorPlan: PortfolioAdvisorPlan,
-    showSavingsPlans: Boolean,
-    onShowSavingsPlansChange: (Boolean) -> Unit,
     onOpenDetail: (String) -> Unit,
     onEdit: (InvestmentItem) -> Unit,
     onRemove: (String) -> Unit,
-    onUpdateDepot: () -> Unit,
-    onAddCustom: () -> Unit,
     onEditCustom: (CustomInvestment) -> Unit,
     onRemoveCustom: (String) -> Unit,
-    vm: MainViewModel = viewModel()
+    onAddCustom: () -> Unit,
+    onOpenSavingsPlans: () -> Unit,
+    onUpdateDepotFromScreenshots: () -> Unit
 ) {
-    val context = LocalContext.current
-    val metrics = remember(items, positions, customItems) {
-        PortfolioMetrics.calculate(items, positions, customItems)
+    val rows = PortfolioMetrics.rows(
+        positions = positions,
+        items = allItems,
+        customItems = customItems
+    )
+    val activeRows = rows.filter { it.active }
+    val soldMarkedRows = rows.filter { row ->
+        positions[row.itemId]?.lifecycleStatus == PortfolioLifecycleStatus.SOLD_MARKED
     }
-    val itemById = remember(items) { items.associateBy { it.id } }
-    val advisorById = remember(advisorPlan) { advisorPlan.candidates.associateBy { it.itemId } }
-    val allocationById = remember(advisorPlan) { advisorPlan.allocations.associateBy { it.itemId } }
-    val customById = remember(customItems) { customItems.associateBy { it.id } }
-    val largestName = metrics.largestPositionId?.let { id ->
-        itemById[id]?.name ?: customById[id]?.name ?: id
-    }
-    val costBasisComplete = metrics.positions.filter { it.active }.all { it.costBasisKnown }
-    val soldMarkedRows = remember(metrics.positions, positions) {
-        metrics.positions.filter { row ->
-            positions[row.itemId]?.lifecycleStatus == PortfolioLifecycleStatus.SOLD_MARKED
-        }
-    }
-    val regularRows = remember(metrics.positions, positions) {
-        metrics.positions.filterNot { row ->
-            positions[row.itemId]?.lifecycleStatus == PortfolioLifecycleStatus.SOLD_MARKED
-        }
-    }
+    val activePortfolio = PortfolioMetrics.summary(activeRows)
+    val itemById = allItems.associateBy { it.id }
+    val customById = customItems.associateBy { it.id }
+    val advisorById = advisorPlan.byItemId
     var trackedSharesDialogItemId by remember { mutableStateOf<String?>(null) }
 
-    if (showSavingsPlans) {
-        SavingsPlansScreen(
-            items = items,
-            onBack = { onShowSavingsPlansChange(false) },
-            vm = vm
-        )
-        return
-    }
-
     LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 14.dp)
-            .testTag("portfolioDashboardList"),
-        contentPadding = PaddingValues(bottom = 28.dp),
+        modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Column(Modifier.weight(1f)) {
-                    Text("PORTFOLIO", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                    Text("Mein Depot", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
-                }
-                OutlinedButton(onClick = { onShowSavingsPlansChange(true) }) { Text("Sparpläne") }
-                Button(onClick = onAddCustom) { Text("Wert hinzufügen") }
-            }
-        }
-
-        item {
-            OutlinedButton(onClick = onUpdateDepot, modifier = Modifier.fillMaxWidth()) {
-                Text("Depot aktualisieren", fontWeight = FontWeight.Bold)
-            }
-        }
-
-        item {
-            PortfolioDashboardCard {
-                Text("Was soll ich jetzt tun?", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
-                val invested = advisorPlan.allocations.sumOf { it.amountEur }
-                val shifted = advisorPlan.reallocations.sumOf { it.amountEur }
-                Text("$invested € investieren · $shifted € Umschichten · ${advisorPlan.cashEur} € Cash halten", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                advisorPlan.allocations.take(4).forEach { allocation ->
-                    val name = itemById[allocation.itemId]?.name ?: customById[allocation.itemId]?.name ?: allocation.itemId
-                    PortfolioDashboardValue(name, "+${allocation.amountEur} € · ${portfolioAdvisorActionLabel(allocation.action)}")
-                }
-                advisorPlan.reallocations.take(3).forEach { suggestion ->
-                    val from = itemById[suggestion.fromItemId]?.name ?: customById[suggestion.fromItemId]?.name ?: suggestion.fromItemId
-                    val to = itemById[suggestion.toItemId]?.name ?: customById[suggestion.toItemId]?.name ?: suggestion.toItemId
-                    Text("Umschichten: ${suggestion.amountEur} € · $from → $to", style = MaterialTheme.typography.bodySmall)
-                }
-                advisorPlan.savingsPlanConflicts.take(3).forEach { conflict ->
-                    val name = itemById[conflict.itemId]?.name ?: customById[conflict.itemId]?.name ?: conflict.itemId
-                    Text("Sparplan prüfen: $name · ${conflict.monthlySavingsEur} € · ${portfolioAdvisorActionLabel(conflict.action)}", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                }
-                if (advisorPlan.allocations.isEmpty()) Text("Für neues Kapital ist aktuell Cash halten die belastbarere Entscheidung.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-
-        item {
-            PortfolioDashboardCard {
+        item(key = "portfolio-header") {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Mein Depot", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
                 Text(
-                    if (metrics.currentValueComplete) "Depotwert" else "Teilwert",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold
+                    "Live-Werte basieren nur auf belastbaren aktuellen Kursen und erfassten Stückzahlen. Bestätigte Trade-Republic-Snapshots bleiben separat nachvollziehbar.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Text(
-                    if (metrics.currentValueComplete) portfolioMoney(metrics.calculableCurrentValue) else "Nicht vollständig berechenbar",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Black
-                )
-                if (!metrics.currentValueComplete && metrics.calculableCurrentValue > 0.0) {
-                    PortfolioDashboardValue(
-                        "Berechenbarer Teil",
-                        "${portfolioMoney(metrics.calculableCurrentValue)} · ${metrics.calculablePositionCount} von ${metrics.heldPositionCount} Positionen"
-                    )
+                Button(onClick = onUpdateDepotFromScreenshots, modifier = Modifier.fillMaxWidth()) {
+                    Text("Depot aktualisieren")
                 }
-                PortfolioDashboardValue("Einstand", if (costBasisComplete) portfolioMoney(metrics.investedCostBasis) else "Nicht vollständig erfasst")
-                PortfolioDashboardValue("Positionen", metrics.heldPositionCount.toString())
-                PortfolioDashboardValue(
-                    "Größte Position",
-                    if (largestName != null && metrics.largestWeightPct != null) "$largestName · ${portfolioPercent(metrics.largestWeightPct)}" else "Noch keine aktive Position"
-                )
-                HorizontalDivider()
-                val profit = metrics.totalProfitLoss
-                val profitPct = metrics.totalProfitLossPct
-                PortfolioDashboardValue(
-                    "Gewinn / Verlust",
-                    when {
-                        profit != null && profitPct != null -> "${portfolioSignedMoney(profit)} · ${portfolioSignedPercent(profitPct)}"
-                        metrics.partialProfitLoss != null && metrics.partialProfitLossPct != null ->
-                            "${portfolioSignedMoney(metrics.partialProfitLoss)} · ${portfolioSignedPercent(metrics.partialProfitLossPct)} · ${metrics.performancePositionCount} von ${metrics.heldPositionCount}"
-                        else -> "Nicht vollständig berechenbar"
-                    }
-                )
-                if (!costBasisComplete) {
-                    Text("Für einzelne Depotwerte fehlen Einstandsdaten. Depotwert und Gewichtung bleiben korrekt; fehlende Performance wird nicht erfunden.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                OutlinedButton(onClick = onOpenSavingsPlans, modifier = Modifier.fillMaxWidth()) {
+                    Text("Sparpläne")
+                }
+                OutlinedButton(onClick = onAddCustom, modifier = Modifier.fillMaxWidth()) {
+                    Text("Eigenen Wert hinzufügen")
                 }
             }
         }
 
-        if (metrics.positions.isEmpty()) {
-            item {
+        item(key = "portfolio-summary") {
+            PortfolioDashboardCard {
+                Text("Depotübersicht", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
+                PortfolioDashboardValue("Depotwert", activePortfolio.currentValue?.let(::portfolioMoney) ?: "Nicht vollständig berechenbar")
+                PortfolioDashboardValue("Einstand", activePortfolio.investedCostBasis.takeIf { activePortfolio.costBasisKnown }?.let(::portfolioMoney) ?: "Nicht vollständig erfasst")
+                PortfolioDashboardValue("Gewinn / Verlust", activePortfolio.unrealizedProfitLoss?.let(::portfolioSignedMoney) ?: "Nicht vollständig berechenbar")
+                PortfolioDashboardValue("Größte Position", activePortfolio.largestPositionWeightPct?.let(::portfolioPercent) ?: "Nicht berechenbar")
+            }
+        }
+
+        if (advisorPlan.cashHoldAmount > 0 || advisorPlan.reallocationReserve > 0 || advisorPlan.savingsPlanReviewAmount > 0) {
+            item(key = "advisor-summary") {
                 PortfolioDashboardCard {
-                    Text("Noch keine Positionen", fontWeight = FontWeight.Black)
-                    Text("Füge eine Aktie, einen ETF oder einen Festzins-Wert hinzu oder erfasse einen Kauf im Radar.")
+                    Text("Was soll ich jetzt tun?", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
+                    if (advisorPlan.cashHoldAmount > 0) PortfolioDashboardValue("Cash halten", portfolioMoney(advisorPlan.cashHoldAmount))
+                    if (advisorPlan.reallocationReserve > 0) PortfolioDashboardValue("Umschichten", portfolioMoney(advisorPlan.reallocationReserve))
+                    if (advisorPlan.savingsPlanReviewAmount > 0) PortfolioDashboardValue("Sparplan prüfen", portfolioMoney(advisorPlan.savingsPlanReviewAmount))
                 }
             }
         }
 
-        items(regularRows, key = { it.itemId }) { row ->
+        items(activeRows, key = { it.itemId }) { row ->
             val canonicalItem = itemById[row.itemId]
             val item = canonicalItem ?: customById[row.itemId]?.fallbackItem()
             val custom = customById[row.itemId]
-            val isFixedIncome = custom?.type.equals("Festzins", ignoreCase = true)
-            val advisor = advisorById[row.itemId]
-            val allocation = allocationById[row.itemId]
             val position = positions[row.itemId]
+            val advisor = advisorById[row.itemId]
+            val isFixedIncome = custom?.type == "Festzins"
             val importedSnapshot = position?.snapshotValueEur != null && position.purchases.isEmpty() && position.sales.isEmpty()
             val hasTrackedShares = position?.trackedShares?.let { it.isFinite() && it > 0.0 } == true
             val liveTrackedValue = importedSnapshot && hasTrackedShares && row.hasUsablePrice
@@ -193,104 +124,68 @@ fun PortfolioDashboard(
                         Text(item?.name ?: row.itemId, fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
                         Text(listOfNotNull(item?.ticker?.takeIf { it.isNotBlank() }, item?.type?.takeIf { it.isNotBlank() }).joinToString(" · "), color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    Text(if (row.active) "AKTIV" else "GESCHLOSSEN", color = if (row.active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Black)
+                    if (advisor != null) {
+                        Text(portfolioAdvisorActionLabel(advisor.action), fontWeight = FontWeight.Black)
+                    }
                 }
-
                 HorizontalDivider()
-                when {
-                    isFixedIncome -> PortfolioDashboardValue(
-                        "Anlagewert",
-                        row.currentValue?.let(::portfolioMoney) ?: "Anlagebetrag fehlt"
-                    )
-                    importedSnapshot && !hasTrackedShares -> {
-                        PortfolioDashboardValue("Aktueller Depotwert", "Nicht berechenbar · $currentValueMissingReason")
-                        position?.snapshotValueEur?.takeIf { it.isFinite() && it >= 0.0 }?.let { snapshotValue ->
-                            PortfolioDashboardValue(
-                                "Letzter bestätigter Trade-Republic-Wert",
-                                portfolioSnapshotValue(snapshotValue, position.snapshotCapturedAt)
-                            )
-                        }
+
+                if (importedSnapshot && !isFixedIncome) {
+                    position?.snapshotValueEur?.takeIf { it.isFinite() && it >= 0.0 }?.let { snapshotValue ->
                         PortfolioDashboardValue(
-                            "Aktueller Marktpreis",
-                            currentMarketPrice?.let(::portfolioMoney) ?: "Kurs nicht verfügbar"
+                            "Letzter bestätigter Trade-Republic-Wert",
+                            portfolioSnapshotValue(snapshotValue, position.snapshotCapturedAt)
                         )
                     }
-                    else -> PortfolioDashboardValue(
-                        "Aktueller Wert",
-                        row.currentValue?.let(::portfolioMoney) ?: currentValueMissingReason
+                    if (hasTrackedShares) {
+                        PortfolioDashboardValue(
+                            "Aktueller Depotwert",
+                            row.currentValue?.let(::portfolioMoney) ?: currentValueMissingReason
+                        )
+                    } else {
+                        PortfolioDashboardValue("Aktueller Depotwert", "Nicht berechenbar · $currentValueMissingReason")
+                    }
+                    PortfolioDashboardValue(
+                        "Aktueller Marktpreis",
+                        currentMarketPrice?.let(::portfolioMoney) ?: "Kurs nicht verfügbar"
                     )
+                    if (!hasTrackedShares) {
+                        OutlinedButton(
+                            onClick = { trackedSharesDialogItemId = row.itemId },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("Stückzahl ergänzen") }
+                    }
+                } else {
+                    PortfolioDashboardValue(
+                        if (isFixedIncome) "Anlagewert" else "Aktueller Wert",
+                        row.currentValue?.let(::portfolioMoney) ?: if (isFixedIncome) "Anlagebetrag fehlt" else currentValueMissingReason
+                    )
+                    if (!isFixedIncome && !(importedSnapshot && !hasTrackedShares)) {
+                        PortfolioDashboardValue("Aktueller Kurs", row.currentPriceEur?.let(::portfolioMoney) ?: "Kurs fehlt")
+                    }
                 }
+
                 if (isFixedIncome) {
-                if (!isFixedIncome && !(importedSnapshot && !hasTrackedShares)) {
-                    PortfolioDashboardValue("Aktueller Kurs", row.currentPriceEur?.let(::portfolioMoney) ?: "Kurs fehlt")
-                }
-                    custom?.fixedMaturityValueEur?.let { maturityValue ->
-                        PortfolioDashboardValue("Auszahlung bei Fälligkeit", portfolioMoney(maturityValue))
-                        custom.fixedPrincipalEur?.takeIf { it > 0.0 }?.let { principal ->
-                            val expectedReturn = maturityValue - principal
-                            val expectedReturnPct = expectedReturn / principal * 100.0
-                            PortfolioDashboardValue(
-                                "Erwarteter Ertrag",
-                                "${portfolioSignedMoney(expectedReturn)} · ${portfolioSignedPercent(expectedReturnPct)}"
-                            )
-                        }
+                    custom?.fixedMaturityValueEur?.let { PortfolioDashboardValue("Fälligkeit", portfolioMoney(it)) }
+                    custom?.maturityLabel?.takeIf { it.isNotBlank() }?.let { PortfolioDashboardValue("Laufzeit", it) }
+                } else {
+                    PortfolioDashboardValue("Einstand", if (row.costBasisKnown) portfolioMoney(row.investedCostBasis) else "Nicht erfasst")
+                    PortfolioDashboardValue("Gewinn / Verlust", row.unrealizedProfitLoss?.let(::portfolioSignedMoney) ?: "Nicht berechenbar")
+                    row.unrealizedProfitLossPct?.let { PortfolioDashboardValue("Performance", portfolioSignedPercent(it)) }
+                    if (liveTrackedValue) {
+                        Text("Live-Kurs × Stückzahl", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                     }
-                    custom?.maturityLabel?.takeIf { it.isNotBlank() }?.let {
-                        PortfolioDashboardValue("Fälligkeit", it)
-                    }
-                }
-                if (importedSnapshot && !isFixedIncome && hasTrackedShares) {
-                    PortfolioDashboardValue("Wertbasis", if (liveTrackedValue) "Live-Kurs × Stückzahl" else "Stückzahl vorhanden · Kurs fehlt")
-                }
-                PortfolioDashboardValue("Einstand", if (row.costBasisKnown) portfolioMoney(row.investedCostBasis) else "Nicht erfasst")
-                PortfolioDashboardValue("Realisierter G/V", if (row.costBasisKnown) portfolioSignedMoney(row.realizedProfitLoss) else "Nicht erfasst")
-                PortfolioDashboardValue(
-                    "Gesamt G/V",
-                    when {
-                        !row.costBasisKnown -> "Nicht erfasst"
-                        row.totalProfitLoss != null && row.totalProfitLossPct != null -> "${portfolioSignedMoney(row.totalProfitLoss)} · ${portfolioSignedPercent(row.totalProfitLossPct)}"
-                        !row.active -> portfolioSignedMoney(row.realizedProfitLoss)
-                        else -> "Nicht berechenbar"
-                    }
-                )
-                PortfolioDashboardValue("Gewichtung", row.weightPct?.let(::portfolioPercent) ?: if (row.active) "Unvollständig" else "–")
-                if (importedSnapshot && !isFixedIncome) {
-                    PortfolioDashboardValue("Stückzahl", position?.trackedShares?.let(::portfolioShares) ?: "Nicht erfasst")
                 }
 
-                if (item != null && !isFixedIncome) {
+                if (advisor != null) {
                     HorizontalDivider()
-                    PortfolioDashboardValue("Empfehlung", RecommendationPresentation.label(item))
-                    PortfolioDashboardValue("Score", RecommendationPresentation.scoreText(item.scoreTotal))
-                }
-                if (!isFixedIncome) advisor?.let {
-                    PortfolioDashboardValue("Berater", portfolioAdvisorActionLabel(it.action))
-                    PortfolioDashboardValue("Zusatz diesen Monat", "${allocation?.amountEur ?: 0} €")
-                    PortfolioDashboardValue("Konfidenz", "${it.advisor.confidencePct} %")
-                    it.advisor.reasons.take(2).forEach { reason ->
-                        Text("• $reason", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
-                    }
+                    PortfolioDashboardValue("Empfehlung", portfolioAdvisorActionLabel(advisor.action))
+                    advisor.suggestedAmountEur?.let { PortfolioDashboardValue("Betrag", portfolioMoney(it)) }
                 }
 
-                if (importedSnapshot && !isFixedIncome) {
-                    OutlinedButton(onClick = { trackedSharesDialogItemId = row.itemId }, modifier = Modifier.fillMaxWidth()) {
-                        Text(if (position?.trackedShares == null) "Stückzahl ergänzen" else "Stückzahl ändern")
-                    }
-                    if (position?.trackedShares == null) {
-                        Text(
-                            "Nach Eingabe der Stückzahl folgt der Depotwert dem aktuellen Kurs. Der bestätigte Trade-Republic-Wert bleibt als Snapshot nachvollziehbar.",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-                }
-
-                if (!isFixedIncome) {
+                if (item != null && custom == null) {
                     Button(onClick = { onOpenDetail(row.itemId) }, modifier = Modifier.fillMaxWidth()) { Text("Details") }
-                    if (item != null) {
-                        OutlinedButton(onClick = { onEdit(item) }, modifier = Modifier.fillMaxWidth()) { Text("Transaktionen verwalten") }
-                        OutlinedButton(onClick = { TradeRepublicNavigator.open(context, item) }, modifier = Modifier.fillMaxWidth()) { Text("Trade Republic öffnen") }
-                    }
+                    OutlinedButton(onClick = { onEdit(item) }, modifier = Modifier.fillMaxWidth()) { Text("Transaktionen verwalten") }
                 }
                 if (custom != null) {
                     OutlinedButton(onClick = { onEditCustom(custom) }, modifier = Modifier.fillMaxWidth()) { Text("Stammdaten bearbeiten") }
@@ -458,5 +353,5 @@ private fun portfolioAdvisorActionLabel(action: PortfolioAdvisorAction): String 
     PortfolioAdvisorAction.VERKAUFEN -> "Verkaufen"
     PortfolioAdvisorAction.NEU_AUFNEHMEN -> "Neu aufnehmen"
     PortfolioAdvisorAction.NICHT_AUFNEHMEN -> "Nicht aufnehmen"
-    PortfolioAdvisorAction.KEINE_BELASTBARE_BEWERTUNG -> "Halten · Daten prüfen"
+    PortfolioAdvisorAction.KEINE_BELASTBARE_BEWERTUNG -> "Keine belastbare Bewertung"
 }
