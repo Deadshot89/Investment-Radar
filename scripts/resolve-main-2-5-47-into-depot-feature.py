@@ -32,18 +32,10 @@ def insert_after(path: str, anchor: str, addition: str, marker: str) -> None:
     write(path, content.replace(anchor, anchor + addition, 1))
 
 
-# Keep feature-local ML Kit while aligning the pre-release branch with production 2.5.47.
-build = "android/app/build.gradle.kts"
-replace_once(build, 'versionCode = 111', 'versionCode = 117', marker='versionCode = 117')
-replace_once(build, 'versionName = "2.5.41"', 'versionName = "2.5.47"', marker='versionName = "2.5.47"')
-replace_once(
-    build,
-    '// Release candidate: Investment Radar 2.5.41',
-    '// Release candidate: Investment Radar 2.5.47',
-    marker='// Release candidate: Investment Radar 2.5.47',
-)
+# Version metadata is intentionally NOT rewritten here. build.gradle.kts auto-merges from
+# current main; the final release bump is a separate Task-10 step after the full regression.
 
-# Keep both screenshot-import contracts and the production 2.5.47 contracts.
+# Keep both screenshot-import contracts and current production contracts.
 workflow = ".github/workflows/android-contract-tests.yml"
 insert_after(
     workflow,
@@ -79,7 +71,8 @@ insert_after(
     'if (item.id == LegacyPortfolioCleanup.RETIRED_IBOND_ID) return',
 )
 
-# Merge the cleanup into the lifecycle-aware portfolio store and remove all new per-position metadata too.
+# Merge the cleanup into the lifecycle-aware portfolio store and remove all feature-only
+# per-position metadata as well.
 store = "android/app/src/main/java/de/tobias/investmentradar/PortfolioStore.kt"
 replace_once(
     store,
@@ -112,7 +105,7 @@ replace_once(
     '        return ids.associateWith { itemId ->\n',
     marker='val ids = storedIds.filterNot { it == LegacyPortfolioCleanup.RETIRED_IBOND_ID }.toSet()',
 )
-# If Git auto-merged main's cleanup, augment it with the feature-only per-position metadata.
+# If Git auto-merged main's cleanup, augment it with the feature-only metadata.
 insert_after(
     store,
     '                .remove(salesKey(retiredId))\n',
@@ -133,7 +126,7 @@ insert_after(
     'if (position.itemId == LegacyPortfolioCleanup.RETIRED_IBOND_ID) return',
 )
 
-# Preserve SOLD_MARKED as authoritative while exposing the same EUR unit price as production.
+# Preserve SOLD_MARKED as authoritative while exposing the current EUR unit price.
 metrics = "android/app/src/main/java/de/tobias/investmentradar/PortfolioMetrics.kt"
 insert_after(
     metrics,
@@ -148,8 +141,30 @@ insert_after(
     'currentPriceEur = draft.usablePrice',
 )
 
-# Show the unit price for live/trackable rows without duplicating the explicit snapshot-only market-price row.
+# The feature has a richer snapshot-only block than main. Preserve it, but carry forward
+# current production semantics: quote availability and value calculability are different.
 dashboard = "android/app/src/main/java/de/tobias/investmentradar/PortfolioDashboard.kt"
+insert_after(
+    dashboard,
+    '            val currentMarketPrice = canonicalItem?.priceEur?.takeIf { it.isFinite() && it > 0.0 }\n',
+    '            val currentValueMissingReason = when {\n'
+    '                row.currentPriceEur != null -> "Stückzahl fehlt"\n'
+    '                else -> "Kurs fehlt"\n'
+    '            }\n',
+    'row.currentPriceEur != null -> "Stückzahl fehlt"',
+)
+replace_once(
+    dashboard,
+    '                        PortfolioDashboardValue("Aktueller Depotwert", "Nicht berechenbar · Stückzahl fehlt")\n',
+    '                        PortfolioDashboardValue("Aktueller Depotwert", "Nicht berechenbar · $currentValueMissingReason")\n',
+    marker='PortfolioDashboardValue("Aktueller Depotwert", "Nicht berechenbar · $currentValueMissingReason")',
+)
+replace_once(
+    dashboard,
+    '                        row.currentValue?.let(::portfolioMoney) ?: "Kurs fehlt"\n',
+    '                        row.currentValue?.let(::portfolioMoney) ?: currentValueMissingReason\n',
+    marker='row.currentValue?.let(::portfolioMoney) ?: currentValueMissingReason',
+)
 insert_after(
     dashboard,
     '                }\n                if (isFixedIncome) {\n',
@@ -191,4 +206,4 @@ replace_once(
     marker='                holdingIds = _holdingIds.value,\n                valuesEur = portfolioValues',
 )
 
-print("Applied deterministic 2.5.47 production hunks while preserving screenshot-import lifecycle changes.")
+print("Applied current-production hunks while preserving screenshot-import lifecycle changes.")
