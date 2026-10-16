@@ -63,7 +63,7 @@ jobs:
             android/tests/test-legacy-ibond-cleanup.sh \
             android/tests/test-screenshot-import-privacy.sh \
             android/tests/test-screenshot-import-ui.sh \
-            android/tests/test-main-2-5-47-feature-integration.sh \
+            android/tests/test-current-main-feature-integration.sh \
             android/tests/test-release-backend-gate.sh \
             android/tests/test-release-app-code-guard.sh \
             android/tests/test-release-hardening.sh \
