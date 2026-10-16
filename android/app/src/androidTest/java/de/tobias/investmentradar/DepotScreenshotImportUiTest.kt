@@ -2,13 +2,16 @@ package de.tobias.investmentradar
 
 import android.app.Application
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -18,33 +21,63 @@ class DepotScreenshotImportUiTest {
     @get:Rule
     val composeRule = createComposeRule()
 
-    @Test
-    fun portfolioDashboardExposesDepotUpdateEntry() {
+    private fun dashboardItem(
+        id: String,
+        name: String,
+        priceEur: Double?
+    ) = InvestmentItem(
+        id = id,
+        type = "Aktie",
+        name = name,
+        ticker = id.uppercase(),
+        isin = "",
+        tradeRepublicName = name,
+        status = "OK",
+        allocation = 0,
+        risk = 3,
+        price = priceEur,
+        priceEur = priceEur,
+        currency = "EUR",
+        fxRateToEur = 1.0,
+        fxSource = "test",
+        fxDelayed = false,
+        fxAsOf = null,
+        percentChange = null,
+        marketOpen = true,
+        dataSource = "test",
+        dataDelayed = false,
+        dataError = null
+    )
+
+    private fun emptyAdvisorPlan() = PortfolioAdvisorPlan(
+        budgetEur = 0,
+        allocations = emptyList(),
+        cashEur = 0,
+        reallocations = emptyList(),
+        savingsPlanConflicts = emptyList(),
+        candidates = emptyList()
+    )
+
+    private fun renderPortfolioDashboard(
+        items: List<InvestmentItem>,
+        positions: Map<String, PortfolioPosition>,
+        onUpdateDepot: () -> Unit = {}
+    ) {
         val app = ApplicationProvider.getApplicationContext<Application>()
         val vm = MainViewModel(app)
-        var opened = false
-        val advisorPlan = PortfolioAdvisorPlan(
-            budgetEur = 0,
-            allocations = emptyList(),
-            cashEur = 0,
-            reallocations = emptyList(),
-            savingsPlanConflicts = emptyList(),
-            candidates = emptyList()
-        )
-
         composeRule.setContent {
             MaterialTheme {
                 PortfolioDashboard(
-                    items = emptyList(),
-                    positions = emptyMap(),
+                    items = items,
+                    positions = positions,
                     customItems = emptyList(),
-                    advisorPlan = advisorPlan,
+                    advisorPlan = emptyAdvisorPlan(),
                     showSavingsPlans = false,
                     onShowSavingsPlansChange = {},
                     onOpenDetail = {},
                     onEdit = {},
                     onRemove = {},
-                    onUpdateDepot = { opened = true },
+                    onUpdateDepot = onUpdateDepot,
                     onAddCustom = {},
                     onEditCustom = {},
                     onRemoveCustom = {},
@@ -52,9 +85,68 @@ class DepotScreenshotImportUiTest {
                 )
             }
         }
+    }
+
+    @Test
+    fun portfolioDashboardExposesDepotUpdateEntry() {
+        var opened = false
+        renderPortfolioDashboard(emptyList(), emptyMap()) { opened = true }
 
         composeRule.onNodeWithText("Depot aktualisieren").assertIsDisplayed().performClick()
         composeRule.runOnIdle { assertTrue(opened) }
+    }
+
+    @Test
+    fun soldMarkedPositionIsSeparatedAndShowsMarketPriceNotSalePrice() {
+        val item = dashboardItem("meta", "Meta Platforms", 123.45)
+        val sold = PortfolioPosition(
+            itemId = "meta",
+            trackedShares = 2.0,
+            snapshotValueEur = 240.0,
+            snapshotCostBasisEur = 200.0,
+            lifecycleStatus = PortfolioLifecycleStatus.SOLD_MARKED
+        )
+        renderPortfolioDashboard(listOf(item), mapOf("meta" to sold))
+
+        composeRule.onNodeWithTag("portfolioDashboardList").performScrollToIndex(5)
+        composeRule.onNodeWithText("Verkaufte Positionen").assertIsDisplayed()
+        composeRule.onNodeWithText("Aktueller Marktpreis").assertIsDisplayed()
+        composeRule.onNodeWithText("123,45 €").assertIsDisplayed()
+        composeRule.onNodeWithText("Verkaufspreis", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun soldMarkedPositionWithoutQuoteShowsUnavailableMarketPrice() {
+        val item = dashboardItem("meta", "Meta Platforms", null)
+        val sold = PortfolioPosition(
+            itemId = "meta",
+            lifecycleStatus = PortfolioLifecycleStatus.SOLD_MARKED
+        )
+        renderPortfolioDashboard(listOf(item), mapOf("meta" to sold))
+
+        composeRule.onNodeWithTag("portfolioDashboardList").performScrollToIndex(5)
+        composeRule.onNodeWithText("Aktueller Marktpreis").assertIsDisplayed()
+        composeRule.onNodeWithText("Kurs nicht verfügbar").assertIsDisplayed()
+    }
+
+    @Test
+    fun snapshotWithoutSharesShowsConfirmedTradeRepublicValueAndSeparateMarketPrice() {
+        val item = dashboardItem("meta", "Meta Platforms", 150.0)
+        val snapshot = PortfolioPosition(
+            itemId = "meta",
+            snapshotValueEur = 1_675.88,
+            snapshotCostBasisEur = 1_500.0,
+            snapshotCapturedAt = "2026-10-15T10:00:00Z"
+        )
+        renderPortfolioDashboard(listOf(item), mapOf("meta" to snapshot))
+
+        composeRule.onNodeWithTag("portfolioDashboardList").performScrollToIndex(4)
+        composeRule.onNodeWithText("Letzter bestätigter Trade-Republic-Wert").assertIsDisplayed()
+        composeRule.onNodeWithText("1.675,88 €", substring = true).assertIsDisplayed()
+        composeRule.onNodeWithText("15.10.2026", substring = true).assertIsDisplayed()
+        composeRule.onNodeWithText("Aktueller Marktpreis").assertIsDisplayed()
+        composeRule.onNodeWithText("150,00 €").assertIsDisplayed()
+        composeRule.onNodeWithText("Aktueller Wert").assertDoesNotExist()
     }
 
     @Test
