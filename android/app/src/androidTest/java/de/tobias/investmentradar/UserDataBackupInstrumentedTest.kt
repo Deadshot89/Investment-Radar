@@ -124,7 +124,12 @@ class UserDataBackupInstrumentedTest {
                     sold.itemId to sold,
                     importedCustom.itemId to importedCustom
                 ),
-                customAssets = listOf(custom)
+                customAssets = listOf(custom),
+                summary = PortfolioImportSummary(
+                    updatedCount = 1,
+                    addedCount = 1,
+                    soldCount = 1
+                )
             )
             assertTrue(
                 PortfolioStore.commitImport(
