@@ -19,9 +19,10 @@ object AdvisorNotificationCopy {
         if (event.kind == AdvisorNotificationEventKind.RELIABILITY_LOST ||
             event.newSignal == AdvisorSignal.KEINE_BELASTBARE_BEWERTUNG
         ) {
+            val label = "KEINE BELASTBARE BEWERTUNG"
             return AdvisorNotificationText(
-                title = "🟡 HALTEN – $name",
-                body = body("HALTEN", "Datenwarnung: " + reason.ifBlank { "Die Datenbasis reicht aktuell nicht für eine belastbare Entscheidung." }),
+                title = "⚠️ $label – $name",
+                body = body(label, "Datenwarnung: " + reason.ifBlank { "Die Datenbasis reicht aktuell nicht für eine belastbare Entscheidung." }),
                 level = "WATCH"
             )
         }
@@ -62,7 +63,7 @@ object AdvisorNotificationCopy {
             AdvisorSignal.HALTEN -> Action("🟡", "HALTEN", "WATCH")
             AdvisorSignal.REDUZIEREN -> Action("🔴", "VERKAUFEN", "SELL")
             AdvisorSignal.VERKAUFEN -> Action("🔴", "VERKAUFEN", "SELL")
-            AdvisorSignal.KEINE_BELASTBARE_BEWERTUNG -> Action("🟡", "HALTEN", "WATCH")
+            AdvisorSignal.KEINE_BELASTBARE_BEWERTUNG -> Action("⚠️", "KEINE BELASTBARE BEWERTUNG", "WATCH")
         }
 
         val detail = when (event.kind) {

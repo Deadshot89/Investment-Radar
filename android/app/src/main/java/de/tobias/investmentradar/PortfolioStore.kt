@@ -16,9 +16,26 @@ object PortfolioStore {
 
     fun readPositions(context: Context): Map<String, PortfolioPosition> {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val ids = buildSet {
+        val storedIds = buildSet {
             addAll(prefs.getStringSet(LEGACY_KEY, emptySet()).orEmpty())
             addAll(prefs.getStringSet(POSITION_IDS_KEY, emptySet()).orEmpty())
+        }
+        val ids = storedIds.filterNot { it == LegacyPortfolioCleanup.RETIRED_IBOND_ID }.toSet()
+        if (ids.size != storedIds.size) {
+            val retiredId = LegacyPortfolioCleanup.RETIRED_IBOND_ID
+            prefs.edit()
+                .putStringSet(LEGACY_KEY, ids)
+                .putStringSet(POSITION_IDS_KEY, ids)
+                .remove(investedKey(retiredId))
+                .remove(sharesKey(retiredId))
+                .remove(snapshotKey(retiredId))
+                .remove(snapshotCostBasisKey(retiredId))
+                .remove(trackedSharesKey(retiredId))
+                .remove(purchasesKey(retiredId))
+                .remove(salesKey(retiredId))
+                .remove(lifecycleStatusKey(retiredId))
+                .remove(snapshotCapturedAtKey(retiredId))
+                .apply()
         }
         return ids.associateWith { itemId ->
             val snapshotValue = prefs.getString(snapshotKey(itemId), null)
@@ -82,11 +99,13 @@ object PortfolioStore {
     }
 
     fun add(context: Context, itemId: String) {
+        if (itemId == LegacyPortfolioCleanup.RETIRED_IBOND_ID) return
         val existing = readPositions(context)[itemId] ?: PortfolioPosition(itemId)
         save(context, existing)
     }
 
     fun save(context: Context, position: PortfolioPosition) {
+        if (position.itemId == LegacyPortfolioCleanup.RETIRED_IBOND_ID) return
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val ids = readPositions(context).keys.toMutableSet().apply { add(position.itemId) }
         val editor = prefs.edit()

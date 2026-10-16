@@ -402,7 +402,14 @@ fun InvestmentRadarUi(
                                 freshness = DataFreshness.summarize(item)
                             )
                         }
-                        val advisorPlan = PortfolioAdvisorEngine.allocate(advisorCandidates, budgetState.advisorBudgetEur)
+                        val advisorPlan = PortfolioAdvisorEngine.allocate(
+                            candidates = advisorCandidates,
+                            budgetEur = budgetState.advisorBudgetEur,
+                            concentrationContext = PortfolioConcentrationContext(
+                                holdingIds = holdingIds,
+                                valuesEur = portfolioValues
+                            )
+                        )
                         val advisorById = advisorPlan.candidates.associateBy { it.itemId }
                         val itemsById = s.data.items.associateBy { it.id }
                         val liquidityItemsById = buildMap {
@@ -1039,7 +1046,7 @@ private fun DashboardScreen(
             val amount = allocations[top.id] ?: 0
             val topPosition = positions[top.id]
             val topInDepot = topPosition?.isActiveHolding() == true
-            val topDepotValue = topPosition?.takeIf { it.isActiveHolding() }?.currentValue(top.price)
+            val topDepotValue = topPosition?.takeIf { it.isActiveHolding() }?.currentValue(euroComparablePrice(top))
             Text("HEUTIGE EMPFEHLUNG", style = MaterialTheme.typography.labelLarge, color = RadarMuted, fontWeight = FontWeight.Bold)
             NeonPanel(accent = recommendationColor(label)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -1705,7 +1712,7 @@ private fun RecommendationRow(
     val label = RecommendationPresentation.label(item)
     val amount = personal?.allocationEur ?: 0
     val isHolding = position?.isActiveHolding() == true
-    val depotValue = position?.takeIf { it.isActiveHolding() }?.currentValue(item.price)
+    val depotValue = position?.takeIf { it.isActiveHolding() }?.currentValue(euroComparablePrice(item))
     NeonPanel(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen),
         accent = recommendationColor(label)

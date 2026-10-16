@@ -5,6 +5,7 @@ data class PortfolioPositionMetrics(
     val active: Boolean,
     val investedCostBasis: Double,
     val costBasisKnown: Boolean,
+    val currentPriceEur: Double?,
     val currentValue: Double?,
     val unrealizedProfitLoss: Double?,
     val unrealizedProfitLossPct: Double?,
@@ -73,8 +74,8 @@ object PortfolioMetrics {
         }
 
         val activeDrafts = drafts.filter { it.active }
-        val missingPriceCount = activeDrafts.count { !it.hasUsablePrice }
-        val currentValueComplete = missingPriceCount == 0
+        val missingPriceCount = activeDrafts.count { it.fixedIncomePrincipal == null && it.usablePrice == null }
+        val currentValueComplete = activeDrafts.all { it.currentValue != null }
         val calculableCurrentValue = activeDrafts.sumOf { it.currentValue ?: 0.0 }
         val calculablePositionCount = activeDrafts.count { it.currentValue != null }
         val weightDenominator = calculableCurrentValue.takeIf { it > 0.0 }
@@ -129,6 +130,7 @@ object PortfolioMetrics {
                 active = draft.active,
                 investedCostBasis = rowCostBasis,
                 costBasisKnown = costBasisKnown,
+                currentPriceEur = draft.usablePrice,
                 currentValue = draft.currentValue,
                 unrealizedProfitLoss = unrealized,
                 unrealizedProfitLossPct = unrealizedPct,

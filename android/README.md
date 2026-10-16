@@ -1,7 +1,7 @@
 # Investment Radar Android App
 
-**Version:** 2.5.41  
-**versionCode:** 111
+**Version:** 2.5.48  
+**versionCode:** 118
 
 Die verbindlichen Android-Versionsmetadaten werden in `android/app/build.gradle.kts` gepflegt. Für jede produktiv auszuliefernde App-Änderung müssen `versionName` und `versionCode` erhöht werden, damit bestehende Installationen das In-App-Update eindeutig als neuer erkennen.
 
@@ -27,6 +27,7 @@ Die verbindlichen Android-Versionsmetadaten werden in `android/app/build.gradle.
 - Parallele Refreshes werden verhindert.
 - Schlägt ein Refresh fehl und sind bereits Daten geladen, bleiben die vorhandenen Daten sichtbar und es erscheint ein Aktualisierungshinweis.
 - Depotdaten werden ausschließlich aus den gespeicherten Nutzerdaten geladen; es werden keine fest eingebauten Altbestände automatisch erzeugt.
+- Der zurückgezogene Legacy-iBond `custom-ibonds-dec-2026-usd` wird beim Laden aus Custom-Instrumenten, Depot und Watchlist entfernt; alte lokale Daten oder wiederhergestellte Backups können ihn dadurch nicht erneut in die aktive Depotbewertung bringen.
 
 ## Budget und Geldverwaltung
 
@@ -71,6 +72,34 @@ Der Portfolio-Advisor berücksichtigt jetzt die bestehende Depotkonzentration be
 ### Änderung in 2.5.41
 
 Die kompakte Depotkarte auf dem Dashboard zeigt bei einem unvollständig bewertbaren Depot keine technischen Custom-/iBond-IDs und keine globale rote „Prüfen“-Warnung mehr. Der Gesamtwert bleibt korrekt als unvollständig gekennzeichnet und ein berechenbarer Teil bleibt sichtbar; die konkrete Datenlücke wird weiterhin direkt bei der betroffenen Depotposition angezeigt.
+
+### Änderung in 2.5.42
+
+Die Konzentrationsberechnung verwendet für vollständig bewertbare Depots den vollständigen Depotwert als Nenner, damit einzelne Positionsgewichte nicht durch einen zu kleinen Teilwert künstlich aufgebläht werden.
+
+### Änderung in 2.5.43
+
+Der alte iBond-Datensatz `custom-ibonds-dec-2026-usd` wird nicht mehr nur im Dashboard verborgen, sondern beim Laden physisch aus den persistenten Custom-Instrumenten, Depot-IDs und Watchlist-Daten entfernt. Speichern bzw. erneutes Hinzufügen dieser zurückgezogenen ID wird blockiert. Damit greift die Bereinigung auch bei bestehenden Installationen und nach einer Wiederherstellung alter Backups.
+
+### Änderung in 2.5.44
+
+Aktien- und ETF-Positionen zeigen den aktuell für die Depotbewertung verwendeten EUR-Stückkurs jetzt direkt im Portfolio-Dashboard und in der kompakten Depotkarte. Der Kurs wird aus derselben belastbaren Quelle übernommen, die bereits für die Positionsbewertung verwendet wird; Festzins-Werte bleiben unverändert als Anlagewert dargestellt und bei fehlendem Kurs wird kein Wert erfunden.
+
+### Änderung in 2.5.48
+
+Importierte Depot-Snapshots unterscheiden jetzt sauber zwischen fehlendem aktuellem Kurs und fehlender Stückzahl. Ist ein belastbarer EUR-Kurs vorhanden, aber noch keine Stückzahl erfasst, zeigt das Depot ausdrücklich „Stückzahl fehlt“ statt fälschlich „Kurs fehlt“. Die Kennzahl für fehlende Kurse zählt nur noch tatsächlich fehlende Kurse; die Vollständigkeit des Depotwerts bleibt separat davon abhängig, ob ein aktueller Wert berechenbar ist. Historische Snapshotwerte werden weiterhin nicht als heutiger Depotwert verwendet.
+
+### Änderung in 2.5.47
+
+Live-Dashboard und heutige Empfehlung bewerten Depotpositionen jetzt mit demselben EUR-vergleichbaren Kurs wie die Portfolio-Berechnung. Bei Fremdwährungswerten wird der native USD-/sonstige Kurs nicht mehr fälschlich als Euro verwendet; fehlt eine belastbare EUR-Umrechnung, wird kein EUR-Depotwert erfunden.
+
+### Änderung in 2.5.46
+
+Unzuverlässige Advisor-Daten werden nun auch in Portfolio, Radar sowie Detail- und Historienansicht nicht mehr als „Halten · Daten prüfen“ ausgegeben. Diese Flächen zeigen stattdessen ausdrücklich „Keine belastbare Bewertung“. Damit sind die sichtbare UI und die bereits in 2.5.45 korrigierte Benachrichtigungslogik fachlich konsistent.
+
+### Änderung in 2.5.45
+
+Benachrichtigungen des Advisors geben bei fehlender oder unzuverlässiger Datenbasis nicht mehr fälschlich „HALTEN“ als Entscheidung aus. Stattdessen erscheint ausdrücklich „KEINE BELASTBARE BEWERTUNG“ mit Datenwarnung. Echte, belastbare HALTEN-, NACHKAUFEN- und VERKAUFEN-Signale bleiben unverändert.
 
 ## Push
 

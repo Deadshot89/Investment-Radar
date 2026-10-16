@@ -182,6 +182,10 @@ fun PortfolioDashboard(
             val hasTrackedShares = position?.trackedShares?.let { it.isFinite() && it > 0.0 } == true
             val liveTrackedValue = importedSnapshot && hasTrackedShares && row.hasUsablePrice
             val currentMarketPrice = canonicalItem?.priceEur?.takeIf { it.isFinite() && it > 0.0 }
+            val currentValueMissingReason = when {
+                row.currentPriceEur != null -> "Stückzahl fehlt"
+                else -> "Kurs fehlt"
+            }
 
             PortfolioDashboardCard {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -199,7 +203,7 @@ fun PortfolioDashboard(
                         row.currentValue?.let(::portfolioMoney) ?: "Anlagebetrag fehlt"
                     )
                     importedSnapshot && !hasTrackedShares -> {
-                        PortfolioDashboardValue("Aktueller Depotwert", "Nicht berechenbar · Stückzahl fehlt")
+                        PortfolioDashboardValue("Aktueller Depotwert", "Nicht berechenbar · $currentValueMissingReason")
                         position?.snapshotValueEur?.takeIf { it.isFinite() && it >= 0.0 }?.let { snapshotValue ->
                             PortfolioDashboardValue(
                                 "Letzter bestätigter Trade-Republic-Wert",
@@ -213,10 +217,13 @@ fun PortfolioDashboard(
                     }
                     else -> PortfolioDashboardValue(
                         "Aktueller Wert",
-                        row.currentValue?.let(::portfolioMoney) ?: "Kurs fehlt"
+                        row.currentValue?.let(::portfolioMoney) ?: currentValueMissingReason
                     )
                 }
                 if (isFixedIncome) {
+                if (!isFixedIncome && !(importedSnapshot && !hasTrackedShares)) {
+                    PortfolioDashboardValue("Aktueller Kurs", row.currentPriceEur?.let(::portfolioMoney) ?: "Kurs fehlt")
+                }
                     custom?.fixedMaturityValueEur?.let { maturityValue ->
                         PortfolioDashboardValue("Auszahlung bei Fälligkeit", portfolioMoney(maturityValue))
                         custom.fixedPrincipalEur?.takeIf { it > 0.0 }?.let { principal ->
