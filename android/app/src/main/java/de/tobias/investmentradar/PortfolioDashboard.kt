@@ -457,5 +457,5 @@ private fun portfolioAdvisorActionLabel(action: PortfolioAdvisorAction): String 
     PortfolioAdvisorAction.VERKAUFEN -> "Verkaufen"
     PortfolioAdvisorAction.NEU_AUFNEHMEN -> "Neu aufnehmen"
     PortfolioAdvisorAction.NICHT_AUFNEHMEN -> "Nicht aufnehmen"
-    PortfolioAdvisorAction.KEINE_BELASTBARE_BEWERTUNG -> "Halten · Daten prüfen"
+    PortfolioAdvisorAction.KEINE_BELASTBARE_BEWERTUNG -> "Keine belastbare Bewertung"
 }
