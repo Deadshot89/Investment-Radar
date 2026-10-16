@@ -85,6 +85,37 @@ class PortfolioMetricsTest {
     }
 
     @Test
+    fun soldMarkedFixedIncomeCannotBeReactivatedByPrincipal() {
+        val position = PortfolioPosition(
+            itemId = "fixed",
+            lifecycleStatus = PortfolioLifecycleStatus.SOLD_MARKED
+        )
+        val custom = CustomInvestment(
+            id = "fixed",
+            name = "Festzins Dez. 2026",
+            ticker = "FIXED2026",
+            isin = "",
+            type = "Festzins",
+            fixedPrincipalEur = 2_000.0,
+            fixedMaturityValueEur = 2_007.0,
+            maturityLabel = "Dez. 2026"
+        )
+
+        val result = PortfolioMetrics.calculate(
+            items = emptyList(),
+            positions = mapOf("fixed" to position),
+            customItems = listOf(custom)
+        )
+
+        assertEquals(0, result.heldPositionCount)
+        assertEquals(0, result.calculablePositionCount)
+        assertEquals(0.0, result.calculableCurrentValue, 0.001)
+        assertEquals(0.0, result.investedCostBasis, 0.001)
+        assertFalse(result.positions.single().active)
+        assertNull(result.positions.single().weightPct)
+    }
+
+    @Test
     fun partialSaleUsesTotalPurchaseBasisForAggregatePerformancePercent() {
         val item = portfolioItem("a", 10.0)
         val position = PortfolioPosition(
@@ -102,6 +133,35 @@ class PortfolioMetricsTest {
         assertEquals(10.0, result.totalProfitLoss!!, 0.001)
         assertEquals(10.0, result.positions.single().totalProfitLossPct!!, 0.001)
         assertEquals(10.0, result.totalProfitLossPct!!, 0.001)
+    }
+
+    @Test
+    fun soldMarkedHistoricalProfitDoesNotLeakIntoActivePortfolioPerformance() {
+        val active = PortfolioPosition(
+            itemId = "active",
+            purchases = listOf(PortfolioPurchase("active-buy", "01.01.2026", 100.0, 10.0))
+        )
+        val soldMarked = PortfolioPosition(
+            itemId = "sold",
+            purchases = listOf(PortfolioPurchase("sold-buy", "01.01.2026", 100.0, 10.0)),
+            sales = listOf(PortfolioSale("sold-partial", "02.01.2026", 70.0, 5.0)),
+            lifecycleStatus = PortfolioLifecycleStatus.SOLD_MARKED
+        )
+
+        val result = PortfolioMetrics.calculate(
+            items = listOf(
+                portfolioItem("active", 11.0),
+                portfolioItem("sold", 30.0)
+            ),
+            positions = mapOf("active" to active, "sold" to soldMarked),
+            customItems = emptyList()
+        )
+
+        assertEquals(1, result.heldPositionCount)
+        assertEquals(110.0, result.calculableCurrentValue, 0.001)
+        assertEquals(10.0, result.totalProfitLoss!!, 0.001)
+        assertEquals(10.0, result.totalProfitLossPct!!, 0.001)
+        assertEquals(1, result.performancePositionCount)
     }
 
     @Test
