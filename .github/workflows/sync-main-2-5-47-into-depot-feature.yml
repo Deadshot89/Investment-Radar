@@ -1,4 +1,4 @@
-name: Sync main 2.5.47 into depot feature
+name: Sync current main into depot feature
 
 on:
   push:
@@ -84,6 +84,7 @@ jobs:
           bash android/tests/test-portfolio-current-price-ui.sh
           bash android/tests/test-legacy-ibond-cleanup.sh
           bash android/tests/test-portfolio-allocation-ui.sh
+          bash android/tests/test-portfolio-tracked-shares-ui.sh
           bash android/tests/test-screenshot-import-privacy.sh
           bash android/tests/test-screenshot-import-ui.sh
           bash scripts/test-current-docs.sh
@@ -92,9 +93,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          rm -f .github/workflows/sync-main-2-5-47-into-depot-feature.yml
+          # The Actions token used here cannot update workflow files. They were reconciled
+          # beforehand through the GitHub connection, so the merge commit must leave them unchanged.
           rm -f scripts/resolve-main-2-5-47-into-depot-feature.py
           git add -A
+
+          workflow_changes="$(git diff --cached --name-only HEAD -- .github/workflows || true)"
+          if [ -n "$workflow_changes" ]; then
+            echo "Refusing merge push because workflow files would change:" >&2
+            printf '%s\n' "$workflow_changes" >&2
+            exit 1
+          fi
+
           git status --short
-          git commit -m "merge: sync main 2.5.47 into depot screenshot import"
+          git commit -m "merge: sync current main into depot screenshot import"
           git push origin HEAD:feature/depot-screenshot-review-20261015
