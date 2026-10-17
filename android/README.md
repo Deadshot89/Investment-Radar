@@ -134,3 +134,5 @@ GitHub Secrets:
 - `ANDROID_KEY_PASSWORD`
 
 Der Produktions-Keystore darf nicht ersetzt werden, wenn bestehende Installationen updatefähig bleiben sollen.
+
+<!-- required-gate test, branch will be deleted -->
