@@ -141,6 +141,7 @@ fun InvestmentRadarUi(
     var selectedDetailId by remember { mutableStateOf(initialDetailId?.takeIf { it.isNotBlank() }) }
     var detailReturnTab by remember { mutableIntStateOf(if (initialDetailId.isNullOrBlank()) initialTab.coerceIn(0, 4) else 3) }
     var showSavingsPlans by remember { mutableStateOf(initialOpenSavingsPlans) }
+    var showDepotScreenshotImport by rememberSaveable { mutableStateOf(false) }
     var missingAlertItemMessage by rememberSaveable { mutableStateOf<String?>(null) }
     var budgetDialog by remember { mutableStateOf(false) }
     var moneyActionCenter by remember {
@@ -165,6 +166,32 @@ fun InvestmentRadarUi(
     var updateDialogVisible by remember { mutableStateOf(false) }
     var updateStatusMessage by remember { mutableStateOf<String?>(null) }
     var updateCheckRequested by remember { mutableIntStateOf(0) }
+    val latestImportPositions = rememberUpdatedState(positions)
+    val latestImportItems = rememberUpdatedState((state as? UiState.Ready)?.data?.items.orEmpty())
+    val latestImportCustomItems = rememberUpdatedState(customItems)
+    val screenshotImportCoordinator = remember(context, vm) {
+        val recognizer = MlKitLocalScreenshotTextRecognizer(context)
+        DepotScreenshotImportViewModel(
+            batchLoader = ScreenshotImportBatchLoader { images, onProgress ->
+                TradeRepublicScreenshotImporter.import(images, recognizer, onProgress)
+            },
+            sourceProvider = {
+                DepotImportSourceSnapshot(
+                    positions = latestImportPositions.value,
+                    builtInItems = latestImportItems.value,
+                    customItems = latestImportCustomItems.value
+                )
+            },
+            persistImport = { result, metadata ->
+                DepotImportPersistence.commit(context, result, metadata)
+            },
+            capturedAtProvider = {
+                SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US).format(Date())
+            },
+            importIdProvider = { UUID.randomUUID().toString() },
+            onCommitted = vm::reloadPortfolioAfterImport
+        )
+    }
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     val exportBackupLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
@@ -224,7 +251,11 @@ fun InvestmentRadarUi(
         rootTab = tab,
         detailId = selectedDetailId,
         detailReturnTab = detailReturnTab,
-        child = if (showSavingsPlans) AppChildScreen.SAVINGS_PLANS else AppChildScreen.NONE,
+        child = when {
+            showDepotScreenshotImport -> AppChildScreen.DEPOT_SCREENSHOT_IMPORT
+            showSavingsPlans -> AppChildScreen.SAVINGS_PLANS
+            else -> AppChildScreen.NONE
+        },
         overlay = activeOverlay
     )
 
@@ -255,6 +286,7 @@ fun InvestmentRadarUi(
                 selectedDetailId = next.detailId
                 detailReturnTab = next.detailReturnTab
                 showSavingsPlans = next.child == AppChildScreen.SAVINGS_PLANS
+                showDepotScreenshotImport = next.child == AppChildScreen.DEPOT_SCREENSHOT_IMPORT
             }
             BackResult.ExitActivity -> Unit
         }
@@ -266,6 +298,7 @@ fun InvestmentRadarUi(
             detailReturnTab = if (initialDetailId.isNullOrBlank()) initialTab.coerceIn(0, 4) else 3
             selectedDetailId = initialDetailId?.takeIf { it.isNotBlank() }
             showSavingsPlans = initialOpenSavingsPlans
+            showDepotScreenshotImport = false
             initialAlertId?.takeIf { it.isNotBlank() }?.let { vm.markAlertRead(it) }
         }
     }
@@ -323,7 +356,7 @@ fun InvestmentRadarUi(
                         }
                     },
                     actions = {
-                        IconButton(onClick = { selectedDetailId = null; showSavingsPlans = false; tab = 4 }) { Icon(Icons.Default.AccountBalanceWallet, contentDescription = "Geldverwaltung öffnen") }
+                        IconButton(onClick = { selectedDetailId = null; showSavingsPlans = false; showDepotScreenshotImport = false; tab = 4 }) { Icon(Icons.Default.AccountBalanceWallet, contentDescription = "Geldverwaltung öffnen") }
                         TextButton(onClick = {
                             if (availableUpdate != null) updateDialogVisible = true else updateCheckRequested++
                         }) {
@@ -340,11 +373,11 @@ fun InvestmentRadarUi(
             },
             bottomBar = {
                 NavigationBar(containerColor = RadarSurface) {
-                    NavigationBarItem(selected = tab == 0, onClick = { selectedDetailId = null; showSavingsPlans = false; tab = 0 }, icon = { Icon(Icons.AutoMirrored.Filled.ShowChart, null) }, label = { Text("Live") })
-                    NavigationBarItem(selected = tab == 1, onClick = { selectedDetailId = null; showSavingsPlans = false; tab = 1 }, icon = { Icon(Icons.Default.Search, null) }, label = { Text("Radar") })
-                    NavigationBarItem(selected = tab == 2, onClick = { selectedDetailId = null; showSavingsPlans = false; tab = 2 }, icon = { Icon(Icons.Default.Favorite, null) }, label = { Text("Portfolio") })
-                    NavigationBarItem(selected = tab == 3, onClick = { selectedDetailId = null; showSavingsPlans = false; tab = 3 }, icon = { Icon(Icons.Default.Notifications, null) }, label = { Text("Alarme") })
-                    NavigationBarItem(selected = tab == 4, onClick = { selectedDetailId = null; showSavingsPlans = false; tab = 4 }, icon = { Icon(Icons.Default.AccountBalanceWallet, null) }, label = { Text("Geld") })
+                    NavigationBarItem(selected = tab == 0, onClick = { selectedDetailId = null; showSavingsPlans = false; showDepotScreenshotImport = false; tab = 0 }, icon = { Icon(Icons.AutoMirrored.Filled.ShowChart, null) }, label = { Text("Live") })
+                    NavigationBarItem(selected = tab == 1, onClick = { selectedDetailId = null; showSavingsPlans = false; showDepotScreenshotImport = false; tab = 1 }, icon = { Icon(Icons.Default.Search, null) }, label = { Text("Radar") })
+                    NavigationBarItem(selected = tab == 2, onClick = { selectedDetailId = null; showSavingsPlans = false; showDepotScreenshotImport = false; tab = 2 }, icon = { Icon(Icons.Default.Favorite, null) }, label = { Text("Portfolio") })
+                    NavigationBarItem(selected = tab == 3, onClick = { selectedDetailId = null; showSavingsPlans = false; showDepotScreenshotImport = false; tab = 3 }, icon = { Icon(Icons.Default.Notifications, null) }, label = { Text("Alarme") })
+                    NavigationBarItem(selected = tab == 4, onClick = { selectedDetailId = null; showSavingsPlans = false; showDepotScreenshotImport = false; tab = 4 }, icon = { Icon(Icons.Default.AccountBalanceWallet, null) }, label = { Text("Geld") })
                 }
             }
         ) { padding ->
@@ -500,23 +533,38 @@ fun InvestmentRadarUi(
                                     selectedDetailId = id
                                 }
                             )
-                            2 -> PortfolioDashboard(
-                                items = s.data.items,
-                                positions = positions,
-                                customItems = customItems,
-                                advisorPlan = advisorPlan,
-                                showSavingsPlans = showSavingsPlans,
-                                onShowSavingsPlansChange = { showSavingsPlans = it },
-                                onOpenDetail = { id ->
-                                    detailReturnTab = 2
-                                    selectedDetailId = id
-                                },
-                                onEdit = { investmentDialogItem = it },
-                                onRemove = vm::removeHolding,
-                                onAddCustom = { customAssetDialog = true },
-                                onEditCustom = { editingCustomAsset = it },
-                                onRemoveCustom = vm::removeCustomInvestment
-                            )
+                            2 -> if (showDepotScreenshotImport) {
+                                DepotScreenshotImportScreen(
+                                    coordinator = screenshotImportCoordinator,
+                                    items = s.data.items,
+                                    customItems = customItems,
+                                    onClose = { showDepotScreenshotImport = false }
+                                )
+                            } else {
+                                PortfolioDashboard(
+                                    items = s.data.items,
+                                    positions = positions,
+                                    customItems = customItems,
+                                    advisorPlan = advisorPlan,
+                                    showSavingsPlans = showSavingsPlans,
+                                    onShowSavingsPlansChange = { showSavingsPlans = it },
+                                    onOpenDetail = { id ->
+                                        detailReturnTab = 2
+                                        selectedDetailId = id
+                                    },
+                                    onEdit = { investmentDialogItem = it },
+                                    onRemove = vm::removeHolding,
+                                    onUpdateDepot = {
+                                        selectedDetailId = null
+                                        showSavingsPlans = false
+                                        screenshotImportCoordinator.cancel()
+                                        showDepotScreenshotImport = true
+                                    },
+                                    onAddCustom = { customAssetDialog = true },
+                                    onEditCustom = { editingCustomAsset = it },
+                                    onRemoveCustom = vm::removeCustomInvestment
+                                )
+                            }
                             3 -> AlertsScreen(
                                 alerts = alerts,
                                 preferences = alertPreferences,

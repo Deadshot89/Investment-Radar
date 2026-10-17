@@ -4,7 +4,9 @@ set -euo pipefail
 VM="android/app/src/main/java/de/tobias/investmentradar/MainViewModel.kt"
 MAIN="android/app/src/main/java/de/tobias/investmentradar/MainActivity.kt"
 BACKUP="android/app/src/main/java/de/tobias/investmentradar/UserDataBackup.kt"
+PORTFOLIO="android/app/src/main/java/de/tobias/investmentradar/PortfolioStore.kt"
 MANIFEST="android/app/src/main/AndroidManifest.xml"
+MAIN_SRC="android/app/src/main/java/de/tobias/investmentradar"
 HEALTH="backend/src/functions/health.mjs"
 BUILD_INFO="backend/src/lib/buildInfo.mjs"
 ANDROID_WF=".github/workflows/android-build.yml"
@@ -30,6 +32,15 @@ grep -Fq 'MAX_BACKUP_BYTES = 5 * 1024 * 1024' "$BACKUP" || fail 'Backup-Import h
 grep -Fq '"investment_radar_portfolio"' "$BACKUP" || fail 'Depotdaten fehlen im Backup.'
 grep -Fq '"investment_radar_budget"' "$BACKUP" || fail 'Budgetdaten fehlen im Backup.'
 grep -Fq '"investment_radar_savings_plans"' "$BACKUP" || fail 'Sparplandaten fehlen im Backup.'
+grep -Fq '"investment_radar_custom_assets"' "$BACKUP" || fail 'Importierte Custom-Werte fehlen im Backup.'
+grep -Fq 'IMPORT_HISTORY_KEY = "import_history_v1"' "$PORTFOLIO" || fail 'Bestätigte Import-Metadaten sind nicht versioniert gespeichert.'
+! grep -Eiq '"investment_radar_(screenshot|ocr|bitmap)' "$BACKUP" || fail 'Screenshot-/OCR-Dateien dürfen kein eigener Backup-Datenbereich sein.'
+! grep -Fq 'ScreenshotImageRef' "$BACKUP" || fail 'Screenshot-Referenzen dürfen nicht in der Backup-Schicht gespeichert werden.'
+! grep -Fq 'content://' "$BACKUP" || fail 'Content-URIs dürfen nicht in der Backup-Schicht fest verdrahtet sein.'
+if grep -R -E 'getSharedPreferences\([^)]*(screenshot|ocr|bitmap)' "$MAIN_SRC" >/dev/null; then
+  fail 'Screenshot-, OCR- oder Bitmap-Daten dürfen nicht in SharedPreferences persistiert werden.'
+fi
+
 grep -Fq 'sourceRevision: buildInfo.sourceRevision' "$HEALTH" || fail 'Healthcheck liefert keine Quellrevision.'
 grep -Fq 'deployId: buildInfo.deployId' "$HEALTH" || fail 'Healthcheck liefert keine Deploy-ID.'
 grep -Fq 'apiSchemaVersion: buildInfo.apiSchemaVersion' "$HEALTH" || fail 'Healthcheck liefert keine API-Schemaversion.'
@@ -48,4 +59,4 @@ companion_line=$(grep -n 'Verify companion release gates' "$ANDROID_WF" | head -
 publish_line=$(grep -n 'Publish APK for in-app updates' "$ANDROID_WF" | head -1 | cut -d: -f1)
 [ -n "$companion_line" ] && [ -n "$publish_line" ] && [ "$companion_line" -lt "$publish_line" ] || fail 'Companion-Gates müssen vor dem APK-Publish laufen.'
 
-echo "PASS: Lifecycle-Refresh, Backup, Deployment-Provenienz und gekoppelte Release-Gates sind verdrahtet."
+echo "PASS: Lifecycle-Refresh, Backup/Import-Privacy, Deployment-Provenienz und gekoppelte Release-Gates sind verdrahtet."

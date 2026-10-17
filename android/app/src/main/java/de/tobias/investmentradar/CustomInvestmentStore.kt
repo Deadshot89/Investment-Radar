@@ -1,6 +1,7 @@
 package de.tobias.investmentradar
 
 import android.content.Context
+import android.content.SharedPreferences
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -138,6 +139,18 @@ object CustomInvestmentStore {
         write(context, read(context).filterNot { it.id == itemId })
     }
 
+    fun replaceAllForImport(
+        context: Context,
+        items: List<CustomInvestment>,
+        commitEditor: (SharedPreferences.Editor) -> Boolean = { it.commit() }
+    ): Boolean {
+        val editor = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .clear()
+            .putString(KEY, encode(items))
+        return runCatching { commitEditor(editor) }.getOrDefault(false)
+    }
+
     fun createId(ticker: String, isin: String): String {
         val key = isin.ifBlank { ticker }.trim().lowercase().replace(Regex("[^a-z0-9._-]+"), "-").trim('-').take(80)
         return "custom-$key"
@@ -146,6 +159,13 @@ object CustomInvestmentStore {
     private fun normalizeIdentity(value: String): String = value.trim().uppercase()
 
     private fun write(context: Context, items: List<CustomInvestment>) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY, encode(items))
+            .apply()
+    }
+
+    private fun encode(items: List<CustomInvestment>): String {
         val array = JSONArray()
         items.forEach { item ->
             array.put(JSONObject()
@@ -163,6 +183,6 @@ object CustomInvestmentStore {
                     if (item.maturityLabel.isNotBlank()) put("maturityLabel", item.maturityLabel)
                 })
         }
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY, array.toString()).apply()
+        return array.toString()
     }
 }

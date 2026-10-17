@@ -24,6 +24,12 @@ class AppNavigationStateTest {
         assertEquals(AppNavigationState(rootTab = 2), result.next)
     }
 
+    @Test fun closesDepotScreenshotImportBeforeLeavingPortfolio() {
+        val state = AppNavigationState(rootTab = 2, child = AppChildScreen.DEPOT_SCREENSHOT_IMPORT)
+        val result = state.onBack() as BackResult.Consume
+        assertEquals(AppNavigationState(rootTab = 2), result.next)
+    }
+
     @Test fun returnsNonRootTabsToLiveBeforeExit() {
         val state = AppNavigationState(rootTab = 3)
         val result = state.onBack() as BackResult.Consume

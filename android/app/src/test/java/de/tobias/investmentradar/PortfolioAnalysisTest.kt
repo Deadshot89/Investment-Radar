@@ -30,6 +30,31 @@ class PortfolioAnalysisTest {
     }
 
     @Test
+    fun soldMarkedFixedIncomeIsExcludedFromCurrentPortfolioValues() {
+        val custom = CustomInvestment(
+            id = "fixed",
+            name = "Festzins Dez. 2026",
+            ticker = "FIXED2026",
+            isin = "",
+            type = "Festzins",
+            fixedPrincipalEur = 2_000.0,
+            fixedMaturityValueEur = 2_007.0
+        )
+        val sold = PortfolioPosition(
+            itemId = "fixed",
+            lifecycleStatus = PortfolioLifecycleStatus.SOLD_MARKED
+        )
+
+        val values = PortfolioAnalysis.values(
+            items = emptyList(),
+            positions = mapOf("fixed" to sold),
+            customItems = listOf(custom)
+        )
+
+        assertTrue(values.isEmpty())
+    }
+
+    @Test
     fun usesMarketValueWhenQuoteExistsAndOmitsHoldingWithoutCurrentValue() {
         val values = PortfolioAnalysis.values(
             items = listOf(
@@ -45,6 +70,28 @@ class PortfolioAnalysisTest {
 
         assertEquals(200.0, values.getValue("a"), 0.001)
         assertFalse(values.containsKey("b"))
+    }
+
+    @Test
+    fun soldMarkedQuotedHoldingIsExcludedFromConcentrationInputs() {
+        val values = PortfolioAnalysis.values(
+            items = listOf(
+                testInvestmentItem("active", priceEur = 10.0),
+                testInvestmentItem("sold", priceEur = 500.0)
+            ),
+            positions = mapOf(
+                "active" to PortfolioPosition("active", investedAmount = 50.0, shares = 10.0),
+                "sold" to PortfolioPosition(
+                    itemId = "sold",
+                    trackedShares = 10.0,
+                    lifecycleStatus = PortfolioLifecycleStatus.SOLD_MARKED
+                )
+            ),
+            customItems = emptyList()
+        )
+
+        assertEquals(setOf("active"), values.keys)
+        assertNull(PortfolioAnalysis.leadingConcentration(values, thresholdPct = 101.0))
     }
 
     @Test
