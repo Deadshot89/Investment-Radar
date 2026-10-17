@@ -1,0 +1,118 @@
+name: Required Gate
+
+# Single required status check for main.
+# - No Android-relevant change against main: reports green immediately.
+# - Android-relevant change: waits for the four Android workflows on this exact
+#   commit (contracts, unit-tests, build, instrumented-ui) and mirrors their result.
+#   If a workflow was not triggered by the push path filter, it is dispatched here.
+# Never runs on main: dispatching android-build.yml on main would publish a release.
+
+concurrency:
+  group: required-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  push:
+    branches-ignore:
+      - main
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  required-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Detect Android-relevant changes
+        id: scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          base="$(git merge-base origin/main HEAD)"
+          changed="$(git diff --name-only "$base" HEAD)"
+          echo "Merge-Base: $base"
+          echo "Geänderte Dateien:"
+          echo "${changed:-<keine>}"
+          relevant=false
+          while IFS= read -r path; do
+            case "$path" in
+              android/*|\
+              scripts/assert-android-app-production-unchanged.sh|\
+              .github/workflows/android-build.yml|\
+              .github/workflows/android-contract-tests.yml|\
+              .github/workflows/android-ui-tests.yml|\
+              .github/workflows/android-unit-tests.yml)
+                relevant=true ;;
+            esac
+          done <<< "$changed"
+          echo "android=$relevant" >> "$GITHUB_OUTPUT"
+          if [ "$relevant" = "true" ]; then
+            echo "Android-relevante Änderung: warte auf die vier Android-Gates." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "✅ Keine Android-relevante Änderung gegenüber main: Gate sofort grün." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Wait for Android gates on this commit
+        if: steps.scope.outputs.android == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          declare -A FILES=(
+            ["Android Contract Tests"]="android-contract-tests.yml"
+            ["Android JVM Tests"]="android-unit-tests.yml"
+            ["Build Android APK"]="android-build.yml"
+            ["Android Instrumented UI Tests"]="android-ui-tests.yml"
+          )
+          latest() {
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$GITHUB_SHA&per_page=100" \
+              --jq ".workflow_runs | map(select(.name == \"$1\")) | sort_by(.created_at) | last | if . == null then \"missing|\" else \"\(.status)|\(.conclusion // \"\")\" end"
+          }
+
+          # Give push-triggered runs time to register before dispatching anything.
+          sleep 60
+          for name in "${!FILES[@]}"; do
+            if [ "$(latest "$name")" = "missing|" ]; then
+              head="$(gh api "repos/$GITHUB_REPOSITORY/commits/$BRANCH" --jq .sha)"
+              if [ "$head" != "$GITHUB_SHA" ]; then
+                echo "❌ Branch ist inzwischen weiter ($head); ein neuerer Gate-Lauf übernimmt." >> "$GITHUB_STEP_SUMMARY"
+                exit 1
+              fi
+              echo "$name wurde für $GITHUB_SHA nicht gestartet: starte ${FILES[$name]} auf $BRANCH."
+              gh workflow run "${FILES[$name]}" --ref "$BRANCH"
+            fi
+          done
+
+          for attempt in $(seq 1 160); do
+            pending=0
+            failed=""
+            for name in "${!FILES[@]}"; do
+              state="$(latest "$name")"
+              echo "$name: $state"
+              case "$state" in
+                completed\|success) ;;
+                completed\|*) failed="$failed $name(${state#completed|})" ;;
+                *) pending=$((pending + 1)) ;;
+              esac
+            done
+            if [ -n "$failed" ]; then
+              echo "❌ Android-Gates nicht grün:$failed. Nach einem Rerun diesen Gate-Lauf ebenfalls neu starten." >> "$GITHUB_STEP_SUMMARY"
+              exit 1
+            fi
+            if [ "$pending" -eq 0 ]; then
+              echo "✅ Alle vier Android-Gates grün auf $GITHUB_SHA." >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            sleep 30
+          done
+          echo "❌ Android-Gates nicht rechtzeitig abgeschlossen." >> "$GITHUB_STEP_SUMMARY"
+          exit 1
