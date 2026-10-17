@@ -13,7 +13,8 @@ enum class AppOverlay {
 
 enum class AppChildScreen {
     NONE,
-    SAVINGS_PLANS
+    SAVINGS_PLANS,
+    DEPOT_SCREENSHOT_IMPORT
 }
 
 data class AppNavigationState(

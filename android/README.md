@@ -1,7 +1,7 @@
 # Investment Radar Android App
 
-**Version:** 2.5.48  
-**versionCode:** 118
+**Version:** 2.5.49  
+**versionCode:** 119
 
 Die verbindlichen Android-Versionsmetadaten werden in `android/app/build.gradle.kts` gepflegt. Für jede produktiv auszuliefernde App-Änderung müssen `versionName` und `versionCode` erhöht werden, damit bestehende Installationen das In-App-Update eindeutig als neuer erkennen.
 
@@ -43,6 +43,11 @@ Die verbindlichen Android-Versionsmetadaten werden in `android/app/build.gradle.
 - Geldaktions-Karten stapeln auf kompakten Displays Instrument/Begründung und Cash-Wirkung, damit lange Werte die Inhalte nicht zusammendrücken.
 
 ## Empfehlungen und Dezimaleingaben
+
+### Änderung in 2.5.49
+
+Der Depotabgleich kann jetzt mehrere Trade-Republic-Screenshots lokal auf dem Android-Gerät auswerten. Die gebündelte ML-Kit-OCR sendet weder Screenshots noch OCR-Rohtext an das Backend. Vor der Übernahme werden Zuordnung, Konflikte, neue und fehlende Positionen geprüft. Fehlende Positionen können beibehalten, ohne erfundenen Verkaufserlös als verkauft markiert oder ausdrücklich gelöscht werden. Verkaufte Positionen bleiben historisch nachvollziehbar, zählen aber nicht mehr zum aktiven Depot.
+
 
 Empfehlungszeilen zeigen Instrument, Signal und Betrag getrennt. Über **Bearbeiten** wird die bestehende Transaktionsmaske geöffnet:
 

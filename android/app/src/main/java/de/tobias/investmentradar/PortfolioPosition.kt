@@ -31,13 +31,20 @@ data class PortfolioLedgerSummary(
     val valid: Boolean
 )
 
+enum class PortfolioLifecycleStatus {
+    ACTIVE,
+    SOLD_MARKED
+}
+
 data class PortfolioPosition(
     val itemId: String,
     val snapshotValueEur: Double? = null,
     val snapshotCostBasisEur: Double? = null,
     val trackedShares: Double? = null,
     val purchases: List<PortfolioPurchase> = emptyList(),
-    val sales: List<PortfolioSale> = emptyList()
+    val sales: List<PortfolioSale> = emptyList(),
+    val lifecycleStatus: PortfolioLifecycleStatus = PortfolioLifecycleStatus.ACTIVE,
+    val snapshotCapturedAt: String? = null
 ) {
     constructor(itemId: String, investedAmount: Double, shares: Double) : this(
         itemId = itemId,
@@ -143,9 +150,14 @@ data class PortfolioPosition(
 
     fun averageBuyPrice(): Double? = if (shares > EPSILON && investedAmount >= 0.0) investedAmount / shares else null
     fun realizedProfitLoss(): Double = ledgerSummary().realizedProfitLoss
-    fun isActiveHolding(): Boolean = shares > EPSILON || trackedShares?.let { it.isFinite() && it > EPSILON } == true || snapshotValueEur?.let { it.isFinite() && it > 0.0 } == true
+    fun isActiveHolding(): Boolean = lifecycleStatus == PortfolioLifecycleStatus.ACTIVE && (
+        shares > EPSILON ||
+            trackedShares?.let { it.isFinite() && it > EPSILON } == true ||
+            snapshotValueEur?.let { it.isFinite() && it > 0.0 } == true
+        )
 
     fun currentValue(currentPrice: Double?): Double? {
+        if (lifecycleStatus == PortfolioLifecycleStatus.SOLD_MARKED) return null
         val tracked = trackedShares?.takeIf { it.isFinite() && it > EPSILON }
         val price = currentPrice?.takeIf { it.isFinite() && it >= 0.0 }
         return when {
@@ -157,6 +169,7 @@ data class PortfolioPosition(
     }
 
     fun unrealizedProfitLoss(currentPrice: Double?): Double? {
+        if (lifecycleStatus == PortfolioLifecycleStatus.SOLD_MARKED) return null
         val imported = importedCostBasis()
         return when {
             snapshotValueEur != null && purchases.isEmpty() && imported == null -> null
@@ -166,17 +179,20 @@ data class PortfolioPosition(
     }
 
     fun unrealizedProfitLossPercent(currentPrice: Double?): Double? {
+        if (lifecycleStatus == PortfolioLifecycleStatus.SOLD_MARKED) return null
         val basis = importedCostBasis() ?: investedAmount
         if (snapshotValueEur != null && purchases.isEmpty() && importedCostBasis() == null) return null
         return if (basis > EPSILON) unrealizedProfitLoss(currentPrice)?.div(basis)?.times(100.0) else null
     }
 
     fun totalProfitLoss(currentPrice: Double?): Double? {
+        if (lifecycleStatus == PortfolioLifecycleStatus.SOLD_MARKED) return null
         if (snapshotValueEur != null && purchases.isEmpty() && importedCostBasis() == null) return null
         return unrealizedProfitLoss(currentPrice)?.plus(realizedProfitLoss())
     }
 
     fun totalProfitLossPercent(currentPrice: Double?): Double? {
+        if (lifecycleStatus == PortfolioLifecycleStatus.SOLD_MARKED) return null
         val denominator = importedCostBasis() ?: totalPurchasedAmount
         return if (denominator > EPSILON) totalProfitLoss(currentPrice)?.div(denominator)?.times(100.0) else null
     }

@@ -11,6 +11,9 @@ object PortfolioAnalysis {
         val itemById = items.associateBy { it.id }
         val customById = customItems.associateBy { it.id }
         return positions.mapNotNull { (itemId, position) ->
+            if (position.lifecycleStatus == PortfolioLifecycleStatus.SOLD_MARKED) {
+                return@mapNotNull null
+            }
             val item = itemById[itemId]
             val custom = customById[itemId]
             val fixedIncomePrincipal = custom
