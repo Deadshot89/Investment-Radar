@@ -17,6 +17,11 @@ class TradeRepublicScreenshotParserTest {
         assertEquals(-3.71, TradeRepublicScreenshotParser.parseLocalizedNumber("-3,71 €")!!, 0.000001)
         assertEquals(4.53, TradeRepublicScreenshotParser.parseLocalizedNumber("+4,53 %")!!, 0.000001)
         assertEquals(-2.17, TradeRepublicScreenshotParser.parseLocalizedNumber("−2,17 %")!!, 0.000001)
+        assertEquals(1234.0, TradeRepublicScreenshotParser.parseLocalizedNumber("1.234 €")!!, 0.000001)
+        assertEquals(12345678.0, TradeRepublicScreenshotParser.parseLocalizedNumber("12.345.678 €")!!, 0.000001)
+        assertEquals(-1500.0, TradeRepublicScreenshotParser.parseLocalizedNumber("-1.500 €")!!, 0.000001)
+        assertEquals(0.125, TradeRepublicScreenshotParser.parseLocalizedNumber("0.125")!!, 0.000001)
+        assertEquals(12.5, TradeRepublicScreenshotParser.parseLocalizedNumber("12.5")!!, 0.000001)
         assertNull(TradeRepublicScreenshotParser.parseLocalizedNumber("-- €"))
         assertNull(TradeRepublicScreenshotParser.parseLocalizedNumber("nicht lesbar"))
     }

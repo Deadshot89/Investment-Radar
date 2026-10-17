@@ -36,6 +36,8 @@ object TradeRepublicScreenshotParser {
         "depotwert"
     )
 
+    private val germanThousandsOnly = Regex("^[1-9]\\d{0,2}(\\.\\d{3})+$")
+
     fun parseLocalizedNumber(text: String): Double? {
         var raw = text
             .replace('−', '-')
@@ -69,6 +71,8 @@ object TradeRepublicScreenshotParser {
                 if (integer.isBlank() || fraction.isBlank()) return null
                 "$integer.$fraction"
             }
+            // German grouping without cents, e.g. "1.234 €", must not shrink by a factor of 1000.
+            germanThousandsOnly.matches(unsigned) -> unsigned.filter(Char::isDigit)
             lastDot >= 0 -> {
                 val integer = unsigned.substring(0, lastDot).filter(Char::isDigit)
                 val fraction = unsigned.substring(lastDot + 1).filter(Char::isDigit)

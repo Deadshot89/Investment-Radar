@@ -298,6 +298,14 @@ class DepotScreenshotImportViewModel(
         val reviewing = _state.value as? DepotScreenshotImportState.Reviewing ?: return
         if (!reviewing.canApply) return
         val source = sourceSnapshot ?: return
+        val latest = runCatching { sourceProvider() }.getOrNull()
+        if (latest == null || latest.positions != source.positions || latest.customItems != source.customItems) {
+            _state.value = DepotScreenshotImportState.Failed(
+                "Das Depot wurde seit der Auswertung geändert. Bitte die Screenshots erneut auswerten, " +
+                    "damit keine neueren Änderungen überschrieben werden."
+            )
+            return
+        }
         val capturedAt = capturedAtProvider()
 
         val result: PortfolioImportResult

@@ -218,6 +218,42 @@ class DepotScreenshotImportViewModelTest {
     }
 
     @Test
+    fun depotChangedAfterAnalysisBlocksApplyWithoutPersistence() = runBlocking {
+        val images = listOf(image("one"))
+        val items = listOf(item("meta", "Meta Platforms"))
+        val analyzed = source(items, mapOf("meta" to position("meta", 100.0)))
+        var current = analyzed
+        var persistenceCalls = 0
+        var postCommitCalls = 0
+        val viewModel = DepotScreenshotImportViewModel(
+            batchLoader = ScreenshotImportBatchLoader { _, onProgress ->
+                onProgress(1, 1)
+                ScreenshotImportBatch(listOf(success(images[0], observation("Meta Platforms", 110.0, 0))))
+            },
+            sourceProvider = { current },
+            persistImport = { _, _ -> persistenceCalls++; true },
+            capturedAtProvider = { "2026-10-15T10:00:00Z" },
+            importIdProvider = { "import-test" },
+            onCommitted = { postCommitCalls++ }
+        )
+        viewModel.selectImages(images)
+        viewModel.analyze()
+        assertTrue((viewModel.state.value as DepotScreenshotImportState.Reviewing).canApply)
+
+        val purchase = PortfolioPurchase(id = "buy-1", date = "2026-10-15", investedAmount = 50.0, shares = 0.5)
+        current = analyzed.copy(
+            positions = mapOf("meta" to position("meta", 100.0).copy(purchases = listOf(purchase)))
+        )
+        viewModel.apply()
+
+        val failed = viewModel.state.value as DepotScreenshotImportState.Failed
+        assertTrue(failed.message.contains("erneut auswerten"))
+        assertEquals(null, failed.previousReview)
+        assertEquals(0, persistenceCalls)
+        assertEquals(0, postCommitCalls)
+    }
+
+    @Test
     fun soldPositionReappearingRequiresExplicitReactivation() = runBlocking {
         val images = listOf(image("one"))
         val source = source(
