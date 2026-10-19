@@ -386,6 +386,20 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun markHoldingSold(itemId: String): Boolean {
+        val current = _positions.value[itemId] ?: return false
+        val sold = current.markSoldWithoutTransaction() ?: return false
+        savePosition(sold)
+        return true
+    }
+
+    fun reactivateHolding(itemId: String): Boolean {
+        val current = _positions.value[itemId] ?: return false
+        val active = current.reactivateWithoutTransaction() ?: return false
+        savePosition(active)
+        return true
+    }
+
     fun setTrackedShares(itemId: String, shares: Double): Boolean {
         val current = _positions.value[itemId] ?: return false
         val next = current.withTrackedShares(shares) ?: return false
