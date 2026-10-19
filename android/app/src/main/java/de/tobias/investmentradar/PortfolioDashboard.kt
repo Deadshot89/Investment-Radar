@@ -1,6 +1,7 @@
 package de.tobias.investmentradar
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -17,6 +18,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.viewmodel.compose.viewModel
 import java.util.Locale
 
@@ -31,6 +33,8 @@ fun PortfolioDashboard(
     onOpenDetail: (String) -> Unit,
     onEdit: (InvestmentItem) -> Unit,
     onRemove: (String) -> Unit,
+    onMarkSold: (String) -> Unit,
+    onReactivate: (String) -> Unit,
     onUpdateDepot: () -> Unit,
     onAddCustom: () -> Unit,
     onEditCustom: (CustomInvestment) -> Unit,
@@ -60,6 +64,8 @@ fun PortfolioDashboard(
         }
     }
     var trackedSharesDialogItemId by remember { mutableStateOf<String?>(null) }
+    var pendingSoldItemId by remember { mutableStateOf<String?>(null) }
+    var pendingDeleteItemId by remember { mutableStateOf<String?>(null) }
 
     if (showSavingsPlans) {
         SavingsPlansScreen(
@@ -79,13 +85,33 @@ fun PortfolioDashboard(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Column(Modifier.weight(1f)) {
-                    Text("PORTFOLIO", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                    Text("Mein Depot", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                if (maxWidth < 600.dp) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("PORTFOLIO", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                        Text("Mein Depot", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
+                        OutlinedButton(
+                            onClick = { onShowSavingsPlansChange(true) },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("Sparpläne", maxLines = 1, softWrap = false) }
+                        Button(onClick = onAddCustom, modifier = Modifier.fillMaxWidth()) {
+                            Text("Wert hinzufügen", maxLines = 1, softWrap = false)
+                        }
+                    }
+                } else {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Column(Modifier.weight(1f)) {
+                            Text("PORTFOLIO", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                            Text("Mein Depot", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
+                        }
+                        OutlinedButton(onClick = { onShowSavingsPlansChange(true) }) {
+                            Text("Sparpläne", maxLines = 1, softWrap = false)
+                        }
+                        Button(onClick = onAddCustom) {
+                            Text("Wert hinzufügen", maxLines = 1, softWrap = false)
+                        }
+                    }
                 }
-                OutlinedButton(onClick = { onShowSavingsPlansChange(true) }) { Text("Sparpläne") }
-                Button(onClick = onAddCustom) { Text("Wert hinzufügen") }
             }
         }
 
@@ -188,13 +214,12 @@ fun PortfolioDashboard(
             }
 
             PortfolioDashboardCard {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Column(Modifier.weight(1f)) {
-                        Text(item?.name ?: row.itemId, fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
-                        Text(listOfNotNull(item?.ticker?.takeIf { it.isNotBlank() }, item?.type?.takeIf { it.isNotBlank() }).joinToString(" · "), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    Text(if (row.active) "AKTIV" else "GESCHLOSSEN", color = if (row.active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Black)
-                }
+                PortfolioPositionHeader(
+                    name = item?.name ?: row.itemId,
+                    description = listOfNotNull(item?.ticker?.takeIf { it.isNotBlank() }, item?.type?.takeIf { it.isNotBlank() }).joinToString(" · "),
+                    status = if (row.active) "AKTIV" else "GESCHLOSSEN",
+                    statusColor = if (row.active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                )
 
                 HorizontalDivider()
                 when {
@@ -291,12 +316,18 @@ fun PortfolioDashboard(
                         OutlinedButton(onClick = { onEdit(item) }, modifier = Modifier.fillMaxWidth()) { Text("Transaktionen verwalten") }
                         OutlinedButton(onClick = { TradeRepublicNavigator.open(context, item) }, modifier = Modifier.fillMaxWidth()) { Text("Trade Republic öffnen") }
                     }
+                    if (row.active) {
+                        OutlinedButton(
+                            onClick = { pendingSoldItemId = row.itemId },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("Als verkauft markieren") }
+                    }
                 }
                 if (custom != null) {
                     OutlinedButton(onClick = { onEditCustom(custom) }, modifier = Modifier.fillMaxWidth()) { Text("Stammdaten bearbeiten") }
-                    TextButton(onClick = { onRemoveCustom(row.itemId) }, modifier = Modifier.fillMaxWidth()) { Text("Eigenen Wert löschen", color = MaterialTheme.colorScheme.error) }
+                    TextButton(onClick = { pendingDeleteItemId = row.itemId }, modifier = Modifier.fillMaxWidth()) { Text("Eigenen Wert löschen", color = MaterialTheme.colorScheme.error) }
                 } else {
-                    TextButton(onClick = { onRemove(row.itemId) }, modifier = Modifier.fillMaxWidth()) { Text("Aus Portfolio entfernen", color = MaterialTheme.colorScheme.error) }
+                    TextButton(onClick = { pendingDeleteItemId = row.itemId }, modifier = Modifier.fillMaxWidth()) { Text("Aus Portfolio entfernen", color = MaterialTheme.colorScheme.error) }
                 }
 
                 if (row.active && !row.hasUsablePrice && !(importedSnapshot && !hasTrackedShares)) {
@@ -337,13 +368,12 @@ fun PortfolioDashboard(
                 val currentMarketPrice = row.currentPriceEur
 
                 PortfolioDashboardCard {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Column(Modifier.weight(1f)) {
-                            Text(item?.name ?: row.itemId, fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
-                            Text(listOfNotNull(item?.ticker?.takeIf { it.isNotBlank() }, item?.type?.takeIf { it.isNotBlank() }).joinToString(" · "), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        Text("VERKAUFT", color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Black)
-                    }
+                    PortfolioPositionHeader(
+                        name = item?.name ?: row.itemId,
+                        description = listOfNotNull(item?.ticker?.takeIf { it.isNotBlank() }, item?.type?.takeIf { it.isNotBlank() }).joinToString(" · "),
+                        status = "VERKAUFT",
+                        statusColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                     HorizontalDivider()
                     PortfolioDashboardValue(
                         "Aktueller Marktpreis",
@@ -370,15 +400,56 @@ fun PortfolioDashboard(
                         Button(onClick = { onOpenDetail(row.itemId) }, modifier = Modifier.fillMaxWidth()) { Text("Details") }
                         OutlinedButton(onClick = { onEdit(item) }, modifier = Modifier.fillMaxWidth()) { Text("Transaktionen verwalten") }
                     }
+                    OutlinedButton(
+                        onClick = { onReactivate(row.itemId) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Wieder aktiv setzen") }
                     if (custom != null) {
                         OutlinedButton(onClick = { onEditCustom(custom) }, modifier = Modifier.fillMaxWidth()) { Text("Stammdaten bearbeiten") }
-                        TextButton(onClick = { onRemoveCustom(row.itemId) }, modifier = Modifier.fillMaxWidth()) { Text("Eigenen Wert löschen", color = MaterialTheme.colorScheme.error) }
+                        TextButton(onClick = { pendingDeleteItemId = row.itemId }, modifier = Modifier.fillMaxWidth()) { Text("Eigenen Wert löschen", color = MaterialTheme.colorScheme.error) }
                     } else {
-                        TextButton(onClick = { onRemove(row.itemId) }, modifier = Modifier.fillMaxWidth()) { Text("Aus Portfolio entfernen", color = MaterialTheme.colorScheme.error) }
+                        TextButton(onClick = { pendingDeleteItemId = row.itemId }, modifier = Modifier.fillMaxWidth()) { Text("Aus Portfolio entfernen", color = MaterialTheme.colorScheme.error) }
                     }
                 }
             }
         }
+    }
+
+    pendingSoldItemId?.let { itemId ->
+        val name = itemById[itemId]?.name ?: customById[itemId]?.name ?: itemId
+        AlertDialog(
+            onDismissRequest = { pendingSoldItemId = null },
+            title = { Text("Position als verkauft markieren?") },
+            text = {
+                Text("$name wird aus dem aktiven Depot entfernt und unter 'Verkaufte Positionen' angezeigt. Es wird kein Verkauf, Erlös oder Cash gebucht. Die bisherige Historie bleibt erhalten.")
+            },
+            confirmButton = {
+                Button(onClick = {
+                    onMarkSold(itemId)
+                    pendingSoldItemId = null
+                }) { Text("Markierung übernehmen") }
+            },
+            dismissButton = { TextButton(onClick = { pendingSoldItemId = null }) { Text("Abbrechen") } }
+        )
+    }
+
+    pendingDeleteItemId?.let { itemId ->
+        val name = itemById[itemId]?.name ?: customById[itemId]?.name ?: itemId
+        val isCustom = customById.containsKey(itemId)
+        AlertDialog(
+            onDismissRequest = { pendingDeleteItemId = null },
+            title = { Text(if (isCustom) "Eigenen Wert endgültig löschen?" else "Depotposition endgültig entfernen?") },
+            text = {
+                Text("$name wird aus dem Depot entfernt. Dabei werden die lokal gespeicherten Käufe, Verkäufe und Depot-Snapshots dieser Position gelöscht. Es werden keine Verkaufserlöse erzeugt. Dieser Schritt ist nicht rückgängig zu machen.")
+            },
+            confirmButton = {
+                Button(onClick = {
+                    if (isCustom) onRemoveCustom(itemId) else onRemove(itemId)
+                    pendingDeleteItemId = null
+                }) { Text("Endgültig löschen") }
+            },
+            dismissButton = { TextButton(onClick = { pendingDeleteItemId = null }) { Text("Abbrechen") } }
+        )
     }
 
     trackedSharesDialogItemId?.let { itemId ->
@@ -428,11 +499,34 @@ private fun PortfolioDashboardCard(content: @Composable androidx.compose.foundat
 }
 
 @Composable
-private fun PortfolioDashboardValue(label: String, value: String) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
-        Text(value, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+private fun PortfolioPositionHeader(
+    name: String,
+    description: String,
+    status: String,
+    statusColor: androidx.compose.ui.graphics.Color
+) {
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        if (maxWidth < 560.dp) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(name, fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+                Text(description, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+                Text(status, color = statusColor, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+            }
+        } else {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(Modifier.weight(1f)) {
+                    Text(name, fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+                    Text(description, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+                }
+                Text(status, color = statusColor, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+            }
+        }
     }
+}
+
+@Composable
+private fun PortfolioDashboardValue(label: String, value: String) {
+    ResponsiveFinanceValueRow(label = label, value = value)
 }
 
 private fun portfolioMoney(value: Double): String = String.format(Locale.GERMANY, "%.2f €", value)

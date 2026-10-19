@@ -1,5 +1,7 @@
 package de.tobias.investmentradar
 
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -33,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import java.util.Locale
@@ -96,15 +99,23 @@ fun InvestmentDetailScreen(
         item {
             TextButton(onClick = onBack) { Text("← Zurück") }
             DetailCard {
-                Text(effectiveItem.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
+                Text(effectiveItem.name, style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Black, maxLines = 1, softWrap = false,
+                    overflow = TextOverflow.Ellipsis)
                 Text(
                     listOf(effectiveItem.ticker, effectiveItem.isin.takeIf { it.isNotBlank() }, effectiveItem.type)
                         .filterNotNull()
                         .joinToString(" · "),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(detailPrice(effectiveItem), fontWeight = FontWeight.Bold)
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        detailPrice(effectiveItem),
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false,
+                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+                    )
                     Text(
                         effectiveItem.percentChange?.let { detailSignedPercent(it) } ?: "Tag: keine aktuellen Daten",
                         color = when {
@@ -112,7 +123,9 @@ fun InvestmentDetailScreen(
                             effectiveItem.percentChange >= 0.0 -> MaterialTheme.colorScheme.primary
                             else -> MaterialTheme.colorScheme.error
                         },
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false
                     )
                 }
                 HorizontalDivider()
@@ -388,10 +401,7 @@ private fun DetailCard(content: @Composable ColumnScope.() -> Unit) {
 
 @Composable
 private fun DetailValueRow(label: String, value: String) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
-        Text(value, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-    }
+    ResponsiveFinanceValueRow(label = label, value = value)
 }
 
 private fun detailItem(item: InvestmentItem?, customItem: CustomInvestment?): InvestmentItem? = when {

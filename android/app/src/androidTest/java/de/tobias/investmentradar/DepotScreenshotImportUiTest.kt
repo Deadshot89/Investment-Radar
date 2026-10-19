@@ -1,8 +1,11 @@
 package de.tobias.investmentradar
 
 import android.app.Application
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -13,7 +16,10 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.test.core.app.ApplicationProvider
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import org.junit.Rule
 import org.junit.Test
 
@@ -61,6 +67,9 @@ class DepotScreenshotImportUiTest {
     private fun renderPortfolioDashboard(
         items: List<InvestmentItem>,
         positions: Map<String, PortfolioPosition>,
+        onMarkSold: (String) -> Unit = {},
+        onReactivate: (String) -> Unit = {},
+        onRemove: (String) -> Unit = {},
         onUpdateDepot: () -> Unit = {}
     ) {
         val app = ApplicationProvider.getApplicationContext<Application>()
@@ -76,7 +85,9 @@ class DepotScreenshotImportUiTest {
                     onShowSavingsPlansChange = {},
                     onOpenDetail = {},
                     onEdit = {},
-                    onRemove = {},
+                    onRemove = onRemove,
+                    onMarkSold = onMarkSold,
+                    onReactivate = onReactivate,
                     onUpdateDepot = onUpdateDepot,
                     onAddCustom = {},
                     onEditCustom = {},
@@ -85,6 +96,24 @@ class DepotScreenshotImportUiTest {
                 )
             }
         }
+    }
+
+    @Test
+    fun narrowFinanceFieldsShowUnbrokenLabelAndAmountOnSeparateLines() {
+        val fieldLabel = "Realisierter G/V aus erfassten Verkäufen"
+        val fieldValue = "+123.456,78 € · +12,3 %"
+        composeRule.setContent {
+            MaterialTheme {
+                Box(modifier = Modifier.width(320.dp)) {
+                    ResponsiveFinanceValueRow(label = fieldLabel, value = fieldValue)
+                }
+            }
+        }
+        val labelBounds = composeRule.onNodeWithText(fieldLabel).getUnclippedBoundsInRoot()
+        val valueBounds = composeRule.onNodeWithText(fieldValue).getUnclippedBoundsInRoot()
+        assertTrue("On compact screens the value must be below its own label", valueBounds.top > labelBounds.top)
+        assertTrue("The label must stay one line", labelBounds.bottom - labelBounds.top < 36.dp)
+        assertTrue("The finance value must stay one line", valueBounds.bottom - valueBounds.top < 36.dp)
     }
 
     @Test
@@ -150,6 +179,68 @@ class DepotScreenshotImportUiTest {
         composeRule.onNodeWithText("Aktueller Marktpreis").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("150,00 €").performScrollTo().assertIsDisplayed()
         assertTrue(composeRule.onAllNodesWithText("Aktueller Wert").fetchSemanticsNodes().isEmpty())
+    }
+
+    @Test
+    fun directSoldMarkingNeedsConfirmationAndCanBeCancelled() {
+        val item = dashboardItem("meta", "Meta Platforms", 125.0)
+        val original = PortfolioPosition(itemId = "meta", snapshotValueEur = 250.0, trackedShares = 2.0)
+        var confirmed = 0
+        renderPortfolioDashboard(
+            listOf(item),
+            mapOf("meta" to original),
+            onMarkSold = { confirmed++ }
+        )
+
+        val list = composeRule.onNodeWithTag("portfolioDashboardList")
+        list.performScrollToIndex(4)
+        composeRule.onNodeWithText("Als verkauft markieren").performScrollTo().performClick()
+        composeRule.onNodeWithText("Position als verkauft markieren?").assertIsDisplayed()
+        composeRule.runOnIdle { assertEquals(0, confirmed) }
+
+        composeRule.onNodeWithText("Abbrechen").performClick()
+        composeRule.runOnIdle { assertEquals(0, confirmed) }
+        composeRule.onNodeWithText("Als verkauft markieren").performScrollTo().performClick()
+        composeRule.onNodeWithText("Markierung übernehmen").performClick()
+        composeRule.runOnIdle { assertEquals(1, confirmed) }
+    }
+
+    @Test
+    fun removingPortfolioHoldingRequiresExplicitConfirmation() {
+        val item = dashboardItem("meta", "Meta Platforms", 125.0)
+        val original = PortfolioPosition(itemId = "meta", snapshotValueEur = 250.0)
+        var deleted = 0
+        renderPortfolioDashboard(
+            listOf(item),
+            mapOf("meta" to original),
+            onRemove = { deleted++ }
+        )
+
+        composeRule.onNodeWithTag("portfolioDashboardList").performScrollToIndex(4)
+        composeRule.onNodeWithText("Aus Portfolio entfernen").performScrollTo().performClick()
+        composeRule.onNodeWithText("Depotposition endgültig entfernen?").assertIsDisplayed()
+        composeRule.runOnIdle { assertEquals(0, deleted) }
+
+        composeRule.onNodeWithText("Abbrechen").performClick()
+        composeRule.runOnIdle { assertEquals(0, deleted) }
+        composeRule.onNodeWithText("Aus Portfolio entfernen").performScrollTo().performClick()
+        composeRule.onNodeWithText("Endgültig löschen").performClick()
+        composeRule.runOnIdle { assertEquals(1, deleted) }
+    }
+
+    @Test
+    fun soldPositionCanBeReactivatedDirectly() {
+        val item = dashboardItem("meta", "Meta Platforms", 125.0)
+        val sold = PortfolioPosition(itemId = "meta", snapshotValueEur = 250.0, lifecycleStatus = PortfolioLifecycleStatus.SOLD_MARKED)
+        var reactivated = 0
+        renderPortfolioDashboard(
+            listOf(item),
+            mapOf("meta" to sold),
+            onReactivate = { reactivated++ }
+        )
+        composeRule.onNodeWithTag("portfolioDashboardList").performScrollToIndex(5)
+        composeRule.onNodeWithText("Wieder aktiv setzen").performScrollTo().performClick()
+        composeRule.runOnIdle { assertEquals(1, reactivated) }
     }
 
     @Test

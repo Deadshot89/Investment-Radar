@@ -150,6 +150,15 @@ data class PortfolioPosition(
 
     fun averageBuyPrice(): Double? = if (shares > EPSILON && investedAmount >= 0.0) investedAmount / shares else null
     fun realizedProfitLoss(): Double = ledgerSummary().realizedProfitLoss
+    /** Only changes the portfolio lifecycle; no trade, proceeds or budget event is created. */
+    fun markSoldWithoutTransaction(): PortfolioPosition? =
+        takeIf { it.isActiveHolding() }?.copy(lifecycleStatus = PortfolioLifecycleStatus.SOLD_MARKED)
+
+    /** Restores the holding display without inventing a new buy or changing historical trades. */
+    fun reactivateWithoutTransaction(): PortfolioPosition? =
+        takeIf { it.lifecycleStatus == PortfolioLifecycleStatus.SOLD_MARKED }
+            ?.copy(lifecycleStatus = PortfolioLifecycleStatus.ACTIVE)
+
     fun isActiveHolding(): Boolean = lifecycleStatus == PortfolioLifecycleStatus.ACTIVE && (
         shares > EPSILON ||
             trackedShares?.let { it.isFinite() && it > EPSILON } == true ||

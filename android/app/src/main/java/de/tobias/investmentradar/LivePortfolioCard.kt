@@ -2,7 +2,10 @@ package de.tobias.investmentradar
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -20,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import java.util.Locale
 
@@ -48,23 +52,55 @@ fun LivePortfolioCard(
             .border(1.dp, accent.copy(alpha = 0.34f), RoundedCornerShape(22.dp))
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("MEIN DEPOT", color = accent, fontWeight = FontWeight.Black, style = MaterialTheme.typography.labelLarge)
-                    Text(
-                        if (summary.currentValueComplete) formatLiveMoney(summary.currentValue) else "Nicht vollständig berechenbar",
-                        fontWeight = FontWeight.Black,
-                        style = MaterialTheme.typography.headlineMedium
-                    )
-                    if (!summary.currentValueComplete && summary.currentValue > 0.0) {
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                val compact = maxWidth < 560.dp
+                if (compact) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("MEIN DEPOT", color = accent, fontWeight = FontWeight.Black, style = MaterialTheme.typography.labelLarge)
                         Text(
-                            "Berechenbarer Teil: ${formatLiveMoney(summary.currentValue)} · ${summary.calculablePositionCount} von ${summary.positionCount} Positionen",
-                            color = muted,
-                            style = MaterialTheme.typography.bodySmall
+                            if (summary.currentValueComplete) formatLiveMoney(summary.currentValue) else "Nicht vollständig berechenbar",
+                            fontWeight = FontWeight.Black,
+                            style = MaterialTheme.typography.headlineMedium,
+                            maxLines = 1,
+                            softWrap = false,
+                            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
                         )
+                        if (!summary.currentValueComplete && summary.currentValue > 0.0) {
+                            Text(
+                                "Berechenbarer Teil: ${formatLiveMoney(summary.currentValue)} · ${summary.calculablePositionCount} von ${summary.positionCount} Positionen",
+                                color = muted,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                        Button(onClick = onOpenPortfolio, modifier = Modifier.fillMaxWidth()) {
+                            Text("Öffnen", maxLines = 1, softWrap = false)
+                        }
+                    }
+                } else {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("MEIN DEPOT", color = accent, fontWeight = FontWeight.Black, style = MaterialTheme.typography.labelLarge)
+                            Text(
+                                if (summary.currentValueComplete) formatLiveMoney(summary.currentValue) else "Nicht vollständig berechenbar",
+                                fontWeight = FontWeight.Black,
+                                style = MaterialTheme.typography.headlineMedium,
+                                maxLines = 1,
+                                softWrap = false,
+                                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+                            )
+                            if (!summary.currentValueComplete && summary.currentValue > 0.0) {
+                                Text(
+                                    "Berechenbarer Teil: ${formatLiveMoney(summary.currentValue)} · ${summary.calculablePositionCount} von ${summary.positionCount} Positionen",
+                                    color = muted,
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                        }
+                        Button(onClick = onOpenPortfolio) {
+                            Text("Öffnen", maxLines = 1, softWrap = false)
+                        }
                     }
                 }
-                Button(onClick = onOpenPortfolio) { Text("Öffnen") }
             }
 
             LivePortfolioValue("Einstand", if (summary.performanceComplete) formatLiveMoney(summary.costBasis) else "Nicht vollständig erfasst", muted)
@@ -89,21 +125,43 @@ fun LivePortfolioCard(
             summary.positions.forEach { row ->
                 val name = itemById[row.itemId]?.name ?: customById[row.itemId]?.name ?: row.itemId
                 val isFixedIncome = customById[row.itemId]?.type.equals("Festzins", ignoreCase = true)
-                Row(
-                    Modifier
+                BoxWithConstraints(
+                    modifier = Modifier
                         .fillMaxWidth()
                         .background(Color(0x0DFFFFFF), RoundedCornerShape(12.dp))
-                        .padding(horizontal = 10.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(horizontal = 10.dp, vertical = 8.dp)
                 ) {
-                    Text(name, modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall)
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text(formatLiveMoney(row.currentValue), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall)
-                        if (!isFixedIncome && row.currentPriceEur != null) {
-                            Text("Kurs: ${formatLiveMoney(row.currentPriceEur)}", color = muted, style = MaterialTheme.typography.labelSmall)
+                    if (maxWidth < 560.dp) {
+                        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text(name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall,
+                                maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+                            Text(formatLiveMoney(row.currentValue), fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.bodySmall, maxLines = 1, softWrap = false,
+                                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()))
+                            if (!isFixedIncome && row.currentPriceEur != null) {
+                                Text("Kurs: ${formatLiveMoney(row.currentPriceEur)}", color = muted,
+                                    style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false)
+                            }
+                            Text(formatLivePercent(row.weightPct), color = muted,
+                                style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false)
                         }
-                        Text(formatLivePercent(row.weightPct), color = muted, style = MaterialTheme.typography.labelSmall)
+                    } else {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically) {
+                            Text(name, modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.bodySmall, maxLines = 1,
+                                softWrap = false, overflow = TextOverflow.Ellipsis)
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text(formatLiveMoney(row.currentValue), fontWeight = FontWeight.Bold,
+                                    style = MaterialTheme.typography.bodySmall, maxLines = 1, softWrap = false)
+                                if (!isFixedIncome && row.currentPriceEur != null) {
+                                    Text("Kurs: ${formatLiveMoney(row.currentPriceEur)}", color = muted,
+                                        style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false)
+                                }
+                                Text(formatLivePercent(row.weightPct), color = muted,
+                                    style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false)
+                            }
+                        }
                     }
                 }
             }
@@ -113,10 +171,12 @@ fun LivePortfolioCard(
 
 @Composable
 private fun LivePortfolioValue(label: String, value: String, valueColor: Color) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-        Text(label, color = Color(0xFF91A1B7))
-        Text(value, color = valueColor, fontWeight = FontWeight.Bold)
-    }
+    ResponsiveFinanceValueRow(
+        label = label,
+        value = value,
+        valueColor = valueColor,
+        labelColor = Color(0xFF91A1B7)
+    )
 }
 
 private fun formatLiveMoney(value: Double): String = String.format(Locale.GERMANY, "%.2f €", value)

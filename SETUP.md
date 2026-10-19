@@ -94,8 +94,8 @@ Der Workflow bricht bewusst ab, wenn die dauerhafte Signierung nicht vollständi
 
 Aktueller App-Stand:
 
-- `versionName = 2.5.50`
-- `versionCode = 120`
+- `versionName = 2.5.51`
+- `versionCode = 121`
 
 Workflow **Build Android APK** starten.
 
