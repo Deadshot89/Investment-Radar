@@ -112,8 +112,8 @@ class DepotScreenshotImportUiTest {
         val labelBounds = composeRule.onNodeWithText(fieldLabel).getUnclippedBoundsInRoot()
         val valueBounds = composeRule.onNodeWithText(fieldValue).getUnclippedBoundsInRoot()
         assertTrue("On compact screens the value must be below its own label", valueBounds.top > labelBounds.top)
-        assertTrue("The label must stay one line", labelBounds.height < 36.dp)
-        assertTrue("The finance value must stay one line", valueBounds.height < 36.dp)
+        assertTrue("The label must stay one line", labelBounds.bottom - labelBounds.top < 36.dp)
+        assertTrue("The finance value must stay one line", valueBounds.bottom - valueBounds.top < 36.dp)
     }
 
     @Test
