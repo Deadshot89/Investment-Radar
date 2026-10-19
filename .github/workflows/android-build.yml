@@ -10,6 +10,8 @@ permissions:
 
 on:
   workflow_dispatch:
+  # Required PR checks must be created even when only docs or backend files change.
+  pull_request:
   push:
     paths:
       - 'android/**'
