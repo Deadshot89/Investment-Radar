@@ -31,6 +31,8 @@ fun PortfolioDashboard(
     onOpenDetail: (String) -> Unit,
     onEdit: (InvestmentItem) -> Unit,
     onRemove: (String) -> Unit,
+    onMarkSold: (String) -> Unit,
+    onReactivate: (String) -> Unit,
     onUpdateDepot: () -> Unit,
     onAddCustom: () -> Unit,
     onEditCustom: (CustomInvestment) -> Unit,
@@ -60,6 +62,8 @@ fun PortfolioDashboard(
         }
     }
     var trackedSharesDialogItemId by remember { mutableStateOf<String?>(null) }
+    var pendingSoldItemId by remember { mutableStateOf<String?>(null) }
+    var pendingDeleteItemId by remember { mutableStateOf<String?>(null) }
 
     if (showSavingsPlans) {
         SavingsPlansScreen(
@@ -291,12 +295,18 @@ fun PortfolioDashboard(
                         OutlinedButton(onClick = { onEdit(item) }, modifier = Modifier.fillMaxWidth()) { Text("Transaktionen verwalten") }
                         OutlinedButton(onClick = { TradeRepublicNavigator.open(context, item) }, modifier = Modifier.fillMaxWidth()) { Text("Trade Republic öffnen") }
                     }
+                    if (row.active) {
+                        OutlinedButton(
+                            onClick = { pendingSoldItemId = row.itemId },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("Als verkauft markieren") }
+                    }
                 }
                 if (custom != null) {
                     OutlinedButton(onClick = { onEditCustom(custom) }, modifier = Modifier.fillMaxWidth()) { Text("Stammdaten bearbeiten") }
-                    TextButton(onClick = { onRemoveCustom(row.itemId) }, modifier = Modifier.fillMaxWidth()) { Text("Eigenen Wert löschen", color = MaterialTheme.colorScheme.error) }
+                    TextButton(onClick = { pendingDeleteItemId = row.itemId }, modifier = Modifier.fillMaxWidth()) { Text("Eigenen Wert löschen", color = MaterialTheme.colorScheme.error) }
                 } else {
-                    TextButton(onClick = { onRemove(row.itemId) }, modifier = Modifier.fillMaxWidth()) { Text("Aus Portfolio entfernen", color = MaterialTheme.colorScheme.error) }
+                    TextButton(onClick = { pendingDeleteItemId = row.itemId }, modifier = Modifier.fillMaxWidth()) { Text("Aus Portfolio entfernen", color = MaterialTheme.colorScheme.error) }
                 }
 
                 if (row.active && !row.hasUsablePrice && !(importedSnapshot && !hasTrackedShares)) {
@@ -370,15 +380,56 @@ fun PortfolioDashboard(
                         Button(onClick = { onOpenDetail(row.itemId) }, modifier = Modifier.fillMaxWidth()) { Text("Details") }
                         OutlinedButton(onClick = { onEdit(item) }, modifier = Modifier.fillMaxWidth()) { Text("Transaktionen verwalten") }
                     }
+                    OutlinedButton(
+                        onClick = { onReactivate(row.itemId) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Wieder aktiv setzen") }
                     if (custom != null) {
                         OutlinedButton(onClick = { onEditCustom(custom) }, modifier = Modifier.fillMaxWidth()) { Text("Stammdaten bearbeiten") }
-                        TextButton(onClick = { onRemoveCustom(row.itemId) }, modifier = Modifier.fillMaxWidth()) { Text("Eigenen Wert löschen", color = MaterialTheme.colorScheme.error) }
+                        TextButton(onClick = { pendingDeleteItemId = row.itemId }, modifier = Modifier.fillMaxWidth()) { Text("Eigenen Wert löschen", color = MaterialTheme.colorScheme.error) }
                     } else {
-                        TextButton(onClick = { onRemove(row.itemId) }, modifier = Modifier.fillMaxWidth()) { Text("Aus Portfolio entfernen", color = MaterialTheme.colorScheme.error) }
+                        TextButton(onClick = { pendingDeleteItemId = row.itemId }, modifier = Modifier.fillMaxWidth()) { Text("Aus Portfolio entfernen", color = MaterialTheme.colorScheme.error) }
                     }
                 }
             }
         }
+    }
+
+    pendingSoldItemId?.let { itemId ->
+        val name = itemById[itemId]?.name ?: customById[itemId]?.name ?: itemId
+        AlertDialog(
+            onDismissRequest = { pendingSoldItemId = null },
+            title = { Text("Position als verkauft markieren?") },
+            text = {
+                Text("$name wird aus dem aktiven Depot entfernt und unter 'Verkaufte Positionen' angezeigt. Es wird kein Verkauf, Erlös oder Cash gebucht. Die bisherige Historie bleibt erhalten.")
+            },
+            confirmButton = {
+                Button(onClick = {
+                    onMarkSold(itemId)
+                    pendingSoldItemId = null
+                }) { Text("Als verkauft markieren") }
+            },
+            dismissButton = { TextButton(onClick = { pendingSoldItemId = null }) { Text("Abbrechen") } }
+        )
+    }
+
+    pendingDeleteItemId?.let { itemId ->
+        val name = itemById[itemId]?.name ?: customById[itemId]?.name ?: itemId
+        val isCustom = customById.containsKey(itemId)
+        AlertDialog(
+            onDismissRequest = { pendingDeleteItemId = null },
+            title = { Text(if (isCustom) "Eigenen Wert endgültig löschen?" else "Depotposition endgültig entfernen?") },
+            text = {
+                Text("$name wird aus dem Depot entfernt. Dabei werden die lokal gespeicherten Käufe, Verkäufe und Depot-Snapshots dieser Position gelöscht. Es werden keine Verkaufserlöse erzeugt. Dieser Schritt ist nicht rückgängig zu machen.")
+            },
+            confirmButton = {
+                Button(onClick = {
+                    if (isCustom) onRemoveCustom(itemId) else onRemove(itemId)
+                    pendingDeleteItemId = null
+                }) { Text("Endgültig löschen") }
+            },
+            dismissButton = { TextButton(onClick = { pendingDeleteItemId = null }) { Text("Abbrechen") } }
+        )
     }
 
     trackedSharesDialogItemId?.let { itemId ->
