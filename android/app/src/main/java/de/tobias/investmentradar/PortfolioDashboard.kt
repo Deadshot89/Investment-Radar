@@ -407,7 +407,7 @@ fun PortfolioDashboard(
                 Button(onClick = {
                     onMarkSold(itemId)
                     pendingSoldItemId = null
-                }) { Text("Als verkauft markieren") }
+                }) { Text("Markierung übernehmen") }
             },
             dismissButton = { TextButton(onClick = { pendingSoldItemId = null }) { Text("Abbrechen") } }
         )
