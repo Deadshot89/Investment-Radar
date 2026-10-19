@@ -480,10 +480,7 @@ private fun PortfolioDashboardCard(content: @Composable androidx.compose.foundat
 
 @Composable
 private fun PortfolioDashboardValue(label: String, value: String) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
-        Text(value, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-    }
+    ResponsiveFinanceValueRow(label = label, value = value)
 }
 
 private fun portfolioMoney(value: Double): String = String.format(Locale.GERMANY, "%.2f €", value)
