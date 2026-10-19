@@ -554,6 +554,8 @@ fun InvestmentRadarUi(
                                     },
                                     onEdit = { investmentDialogItem = it },
                                     onRemove = vm::removeHolding,
+                                    onMarkSold = { vm.markHoldingSold(it) },
+                                    onReactivate = { vm.reactivateHolding(it) },
                                     onUpdateDepot = {
                                         selectedDetailId = null
                                         showSavingsPlans = false
