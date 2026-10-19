@@ -113,10 +113,12 @@ fun LivePortfolioCard(
 
 @Composable
 private fun LivePortfolioValue(label: String, value: String, valueColor: Color) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-        Text(label, color = Color(0xFF91A1B7))
-        Text(value, color = valueColor, fontWeight = FontWeight.Bold)
-    }
+    ResponsiveFinanceValueRow(
+        label = label,
+        value = value,
+        valueColor = valueColor,
+        labelColor = Color(0xFF91A1B7)
+    )
 }
 
 private fun formatLiveMoney(value: Double): String = String.format(Locale.GERMANY, "%.2f €", value)
