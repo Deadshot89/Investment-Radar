@@ -1,6 +1,7 @@
 package de.tobias.investmentradar
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -17,6 +18,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.viewmodel.compose.viewModel
 import java.util.Locale
 
@@ -83,13 +85,33 @@ fun PortfolioDashboard(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Column(Modifier.weight(1f)) {
-                    Text("PORTFOLIO", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                    Text("Mein Depot", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                if (maxWidth < 600.dp) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("PORTFOLIO", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                        Text("Mein Depot", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
+                        OutlinedButton(
+                            onClick = { onShowSavingsPlansChange(true) },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("Sparpläne", maxLines = 1, softWrap = false) }
+                        Button(onClick = onAddCustom, modifier = Modifier.fillMaxWidth()) {
+                            Text("Wert hinzufügen", maxLines = 1, softWrap = false)
+                        }
+                    }
+                } else {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Column(Modifier.weight(1f)) {
+                            Text("PORTFOLIO", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                            Text("Mein Depot", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
+                        }
+                        OutlinedButton(onClick = { onShowSavingsPlansChange(true) }) {
+                            Text("Sparpläne", maxLines = 1, softWrap = false)
+                        }
+                        Button(onClick = onAddCustom) {
+                            Text("Wert hinzufügen", maxLines = 1, softWrap = false)
+                        }
+                    }
                 }
-                OutlinedButton(onClick = { onShowSavingsPlansChange(true) }) { Text("Sparpläne") }
-                Button(onClick = onAddCustom) { Text("Wert hinzufügen") }
             }
         }
 
@@ -192,13 +214,12 @@ fun PortfolioDashboard(
             }
 
             PortfolioDashboardCard {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Column(Modifier.weight(1f)) {
-                        Text(item?.name ?: row.itemId, fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
-                        Text(listOfNotNull(item?.ticker?.takeIf { it.isNotBlank() }, item?.type?.takeIf { it.isNotBlank() }).joinToString(" · "), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    Text(if (row.active) "AKTIV" else "GESCHLOSSEN", color = if (row.active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Black)
-                }
+                PortfolioPositionHeader(
+                    name = item?.name ?: row.itemId,
+                    description = listOfNotNull(item?.ticker?.takeIf { it.isNotBlank() }, item?.type?.takeIf { it.isNotBlank() }).joinToString(" · "),
+                    status = if (row.active) "AKTIV" else "GESCHLOSSEN",
+                    statusColor = if (row.active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                )
 
                 HorizontalDivider()
                 when {
@@ -347,13 +368,12 @@ fun PortfolioDashboard(
                 val currentMarketPrice = row.currentPriceEur
 
                 PortfolioDashboardCard {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Column(Modifier.weight(1f)) {
-                            Text(item?.name ?: row.itemId, fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
-                            Text(listOfNotNull(item?.ticker?.takeIf { it.isNotBlank() }, item?.type?.takeIf { it.isNotBlank() }).joinToString(" · "), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        Text("VERKAUFT", color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Black)
-                    }
+                    PortfolioPositionHeader(
+                        name = item?.name ?: row.itemId,
+                        description = listOfNotNull(item?.ticker?.takeIf { it.isNotBlank() }, item?.type?.takeIf { it.isNotBlank() }).joinToString(" · "),
+                        status = "VERKAUFT",
+                        statusColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                     HorizontalDivider()
                     PortfolioDashboardValue(
                         "Aktueller Marktpreis",
@@ -475,6 +495,32 @@ fun PortfolioDashboard(
 private fun PortfolioDashboardCard(content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
     Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
         Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp), content = content)
+    }
+}
+
+@Composable
+private fun PortfolioPositionHeader(
+    name: String,
+    description: String,
+    status: String,
+    statusColor: androidx.compose.ui.graphics.Color
+) {
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        if (maxWidth < 560.dp) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(name, fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+                Text(description, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+                Text(status, color = statusColor, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+            }
+        } else {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(Modifier.weight(1f)) {
+                    Text(name, fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+                    Text(description, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+                }
+                Text(status, color = statusColor, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+            }
+        }
     }
 }
 
