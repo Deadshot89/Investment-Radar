@@ -237,21 +237,26 @@ object ScreenshotDepotReconciliation {
 
     private fun areCompatible(observations: List<TradeRepublicScreenshotObservation>): Boolean {
         if (observations.size <= 1) return true
-        val first = observations.first()
-        return observations.drop(1).all { other ->
-            compatibleRequired(first.valueEur, other.valueEur, MONEY_EPSILON) &&
-                compatibleOptional(first.profitLossEur, other.profitLossEur, MONEY_EPSILON) &&
-                compatibleOptional(first.profitLossPct, other.profitLossPct, PERCENT_EPSILON) &&
-                compatibleOptional(first.shares, other.shares, SHARES_EPSILON) &&
-                compatibleOptional(first.derivedCostBasisEur, other.derivedCostBasisEur, MONEY_EPSILON)
-        }
+        // Compare every present value. If the first screenshot omits a field, comparing only
+        // against that null value would accept contradictory data in later screenshots.
+        return compatibleObservedValues(observations.map { it.valueEur }, MONEY_EPSILON, required = true) &&
+            compatibleObservedValues(observations.map { it.profitLossEur }, MONEY_EPSILON) &&
+            compatibleObservedValues(observations.map { it.profitLossPct }, PERCENT_EPSILON) &&
+            compatibleObservedValues(observations.map { it.shares }, SHARES_EPSILON) &&
+            compatibleObservedValues(observations.map { it.derivedCostBasisEur }, MONEY_EPSILON)
     }
 
-    private fun compatibleRequired(left: Double?, right: Double?, epsilon: Double): Boolean =
-        left != null && right != null && abs(left - right) <= epsilon
-
-    private fun compatibleOptional(left: Double?, right: Double?, epsilon: Double): Boolean =
-        left == null || right == null || abs(left - right) <= epsilon
+    private fun compatibleObservedValues(
+        values: List<Double?>,
+        epsilon: Double,
+        required: Boolean = false
+    ): Boolean {
+        if (required && values.any { it == null }) return false
+        val observed = values.filterNotNull()
+        if (observed.size <= 1) return true
+        val first = observed.first()
+        return observed.drop(1).all { abs(it - first) <= epsilon }
+    }
 
     private fun mergeCompatibleFields(
         observations: List<TradeRepublicScreenshotObservation>
