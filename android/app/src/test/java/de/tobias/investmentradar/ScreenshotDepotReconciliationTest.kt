@@ -119,6 +119,57 @@ class ScreenshotDepotReconciliationTest {
     }
 
     @Test
+    fun firstMissingOptionalFieldsMustNotHideConflictsInLaterScreenshots() {
+        val result = ScreenshotDepotReconciliation.reconcileTradeRepublic(
+            observations = listOf(
+                observation("Meta Platforms", 100.0, sourceIndex = 0),
+                observation("Meta Platforms", 100.0, sourceIndex = 1, pnl = 10.0, shares = 2.0),
+                observation("Meta Platforms", 100.0, sourceIndex = 2, pnl = 20.0, shares = 3.0)
+            ),
+            builtInItems = listOf(item("meta", "Meta Platforms", "META")),
+            customItems = emptyList(),
+            existing = mapOf("meta" to PortfolioPosition("meta", snapshotValueEur = 95.0))
+        )
+
+        assertEquals(ScreenshotReviewStatus.CONFLICT, result.single().status)
+        assertEquals(setOf(0, 1, 2), result.single().sourceIndices)
+    }
+
+    @Test
+    fun compatibleSparseOptionalFieldsMergeWithoutInventingValues() {
+        val result = ScreenshotDepotReconciliation.reconcileTradeRepublic(
+            observations = listOf(
+                observation("Meta Platforms", 100.0, sourceIndex = 0),
+                observation("Meta Platforms", 100.0, sourceIndex = 1, pnl = 10.0, shares = 2.0),
+                observation("Meta Platforms", 100.0, sourceIndex = 2, pnl = 10.0, shares = 2.0)
+            ),
+            builtInItems = listOf(item("meta", "Meta Platforms", "META")),
+            customItems = emptyList(),
+            existing = mapOf("meta" to PortfolioPosition("meta", snapshotValueEur = 95.0))
+        )
+
+        assertEquals(ScreenshotReviewStatus.READY, result.single().status)
+        assertEquals(10.0, result.single().observation!!.profitLossEur!!, 0.001)
+        assertEquals(2.0, result.single().observation!!.shares!!, 0.001)
+    }
+
+    @Test
+    fun differentPercentagesMustConflictWhenFirstScreenshotOmitsPercentage() {
+        val result = ScreenshotDepotReconciliation.reconcileTradeRepublic(
+            observations = listOf(
+                observation("Meta Platforms", 100.0, sourceIndex = 0),
+                observation("Meta Platforms", 100.0, sourceIndex = 1).copy(profitLossPct = 5.0),
+                observation("Meta Platforms", 100.0, sourceIndex = 2).copy(profitLossPct = 7.0)
+            ),
+            builtInItems = listOf(item("meta", "Meta Platforms", "META")),
+            customItems = emptyList(),
+            existing = mapOf("meta" to PortfolioPosition("meta", snapshotValueEur = 95.0))
+        )
+
+        assertEquals(ScreenshotReviewStatus.CONFLICT, result.single().status)
+    }
+
+    @Test
     fun fuzzyCandidateRequiresReviewAndUnknownObservationBecomesNewPosition() {
         val builtIn = listOf(item("meta", "Meta Platforms", "META"))
 
