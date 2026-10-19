@@ -1,7 +1,7 @@
 # Investment Radar Android App
 
-**Version:** 2.5.49  
-**versionCode:** 119
+**Version:** 2.5.50  
+**versionCode:** 120
 
 Die verbindlichen Android-Versionsmetadaten werden in `android/app/build.gradle.kts` gepflegt. Für jede produktiv auszuliefernde App-Änderung müssen `versionName` und `versionCode` erhöht werden, damit bestehende Installationen das In-App-Update eindeutig als neuer erkennen.
 
@@ -43,6 +43,10 @@ Die verbindlichen Android-Versionsmetadaten werden in `android/app/build.gradle.
 - Geldaktions-Karten stapeln auf kompakten Displays Instrument/Begründung und Cash-Wirkung, damit lange Werte die Inhalte nicht zusammendrücken.
 
 ## Empfehlungen und Dezimaleingaben
+
+### Änderung in 2.5.50
+
+Bei mehreren Depot-Screenshots werden widersprüchliche Gewinn-/Verlust-, Prozent- und Stückzahlangaben auch dann als Konflikt angezeigt, wenn im ersten Screenshot der jeweilige Wert fehlt. Solche Werte werden nicht ungeprüft übernommen.
 
 ### Änderung in 2.5.49
 
