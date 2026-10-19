@@ -8,7 +8,10 @@ on:
   workflow_dispatch:
   # Required PR checks must be created even when only docs or backend files change.
   pull_request:
+  # Feature branches are checked by pull_request. Avoid a second expensive emulator run.
   push:
+    branches:
+      - main
     paths:
       - 'android/**'
       - '.github/workflows/android-ui-tests.yml'
@@ -19,7 +22,8 @@ permissions:
 jobs:
   instrumented-ui:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Two full, sequential phone/tablet runs can exceed 20 minutes on shared CI runners.
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v5
 
