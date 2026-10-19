@@ -1,7 +1,7 @@
 # Investment Radar Android App
 
-**Version:** 2.5.50  
-**versionCode:** 120
+**Version:** 2.5.51  
+**versionCode:** 121
 
 Die verbindlichen Android-Versionsmetadaten werden in `android/app/build.gradle.kts` gepflegt. Für jede produktiv auszuliefernde App-Änderung müssen `versionName` und `versionCode` erhöht werden, damit bestehende Installationen das In-App-Update eindeutig als neuer erkennen.
 
@@ -43,6 +43,10 @@ Die verbindlichen Android-Versionsmetadaten werden in `android/app/build.gradle.
 - Geldaktions-Karten stapeln auf kompakten Displays Instrument/Begründung und Cash-Wirkung, damit lange Werte die Inhalte nicht zusammendrücken.
 
 ## Empfehlungen und Dezimaleingaben
+
+### Änderung in 2.5.51
+
+Depotpositionen können direkt und nach Bestätigung als verkauft markiert werden; dabei bleiben Käufe, Verkäufe und Einstand erhalten, ohne einen Verkaufserlös oder App-Cash zu erfinden. Die Markierung lässt sich direkt wieder aufheben. Die endgültige Depotentfernung oder Löschung eigener Werte erfordert nun eine zusätzliche Bestätigung, die den Verlust lokal gespeicherter Positionshistorie offenlegt.
 
 ### Änderung in 2.5.50
 
