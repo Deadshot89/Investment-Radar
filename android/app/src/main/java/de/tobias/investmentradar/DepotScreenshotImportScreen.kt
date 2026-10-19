@@ -301,9 +301,16 @@ private fun ReviewRow(
             Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
         }
         row.observation?.let { observation ->
-            Text("Erkannter Depotwert: ${observation.valueEur?.let(::formatImportMoney) ?: "–"}")
-            observation.derivedCostBasisEur?.let { Text("Abgeleiteter Einstand: ${formatImportMoney(it)}") }
-            observation.shares?.let { Text("Erkannte Anteile: ${formatImportNumber(it)}") }
+            ResponsiveFinanceValueRow(
+                "Erkannter Depotwert",
+                observation.valueEur?.let(::formatImportMoney) ?: "–"
+            )
+            observation.derivedCostBasisEur?.let {
+                ResponsiveFinanceValueRow("Abgeleiteter Einstand", formatImportMoney(it))
+            }
+            observation.shares?.let {
+                ResponsiveFinanceValueRow("Erkannte Anteile", formatImportNumber(it))
+            }
             OutlinedButton(onClick = onCorrect, modifier = Modifier.fillMaxWidth()) {
                 Text("Erkannte Werte korrigieren")
             }
