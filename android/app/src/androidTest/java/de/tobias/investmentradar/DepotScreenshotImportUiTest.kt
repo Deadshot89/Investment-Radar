@@ -1,8 +1,11 @@
 package de.tobias.investmentradar
 
 import android.app.Application
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -15,6 +18,8 @@ import androidx.compose.ui.test.performScrollToIndex
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import org.junit.Rule
 import org.junit.Test
 
@@ -91,6 +96,24 @@ class DepotScreenshotImportUiTest {
                 )
             }
         }
+    }
+
+    @Test
+    fun narrowFinanceFieldsShowUnbrokenLabelAndAmountOnSeparateLines() {
+        val fieldLabel = "Realisierter G/V aus erfassten Verkäufen"
+        val fieldValue = "+123.456,78 € · +12,3 %"
+        composeRule.setContent {
+            MaterialTheme {
+                Box(modifier = Modifier.width(320.dp)) {
+                    ResponsiveFinanceValueRow(label = fieldLabel, value = fieldValue)
+                }
+            }
+        }
+        val labelBounds = composeRule.onNodeWithText(fieldLabel).getUnclippedBoundsInRoot()
+        val valueBounds = composeRule.onNodeWithText(fieldValue).getUnclippedBoundsInRoot()
+        assertTrue("On compact screens the value must be below its own label", valueBounds.top > labelBounds.top)
+        assertTrue("The label must stay one line", labelBounds.height < 36.dp)
+        assertTrue("The finance value must stay one line", valueBounds.height < 36.dp)
     }
 
     @Test
