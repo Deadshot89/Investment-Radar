@@ -25,6 +25,8 @@ grep -Fq 'if (isHolding) "Position erhöhen" else "Zum Depot hinzufügen"' "$MAI
 grep -Fq 'if (topInDepot) "Position erhöhen" else "Zum Depot"' "$MAIN" || fail "Top Live recommendation lacks add/increase depot action"
 grep -Fq 'onAddToPortfolio(top)' "$MAIN" || fail "Top Live recommendation does not open portfolio entry flow"
 grep -Fq 'onAddToPortfolio(item)' "$MAIN" || fail "Live recommendation row does not open portfolio entry flow"
-grep -Fq 'nur Orientierung, kein automatischer Einstand' "$MAIN" || fail "Live quote is not clearly separated from the real purchase cost basis"
+grep -Fq 'label = "EUR-Kurs (nur Orientierung)"' "$MAIN" || fail "Trade editor no longer labels the current EUR quote as orientation."
+grep -Fq 'Kein automatischer Einstand. Betrag, Kurs und Anteile selbst prüfen.' "$MAIN" || fail "Trade editor no longer separates quote price from real purchase cost basis."
+! grep -Fq 'Aktueller Live-Kurs:' "$MAIN" || fail "Undated trade quote again incorrectly claims realtime data."
 
 echo "PASS: Live recommendations use EUR-comparable prices for depot values and retain add/increase actions"
