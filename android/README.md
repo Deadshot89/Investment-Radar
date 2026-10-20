@@ -1,7 +1,7 @@
 # Investment Radar Android App
 
-**Version:** 2.5.53  
-**versionCode:** 123
+**Version:** 2.5.54  
+**versionCode:** 124
 
 Die verbindlichen Android-Versionsmetadaten werden in `android/app/build.gradle.kts` gepflegt. Für jede produktiv auszuliefernde App-Änderung müssen `versionName` und `versionCode` erhöht werden, damit bestehende Installationen das In-App-Update eindeutig als neuer erkennen.
 
@@ -43,6 +43,10 @@ Die verbindlichen Android-Versionsmetadaten werden in `android/app/build.gradle.
 - Geldaktions-Karten stapeln auf kompakten Displays Instrument/Begründung und Cash-Wirkung, damit lange Werte die Inhalte nicht zusammendrücken.
 
 ## Empfehlungen und Dezimaleingaben
+
+### Änderung in 2.5.54
+
+Die Maske „Kaufhistorie & Verkäufe“ verwendet eine einzeilige EUR-Kursanzeige ohne unbelegte Echtzeitbehauptung. Ein nicht verfügbarer EUR-Kurs bleibt ausdrücklich nicht verfügbar. Quelle, Verzögerung und Datenwarnungen werden aus dem vorhandenen API-Vertrag angezeigt; der Nutzer wird weiterhin aufgefordert, Betrag, Kurs und Anteile selbst zu prüfen. Keine Änderung an Handels- oder Budgetbuchungen.
 
 ### Änderung in 2.5.53
 
