@@ -2562,7 +2562,13 @@ private fun priceLine(item: InvestmentItem): String {
         ?.takeIf { item.price != null && !item.currency.equals("EUR", ignoreCase = true) }
         ?.let { " · ≈ ${formatMoney(it)}" }
         .orEmpty()
-    val quality = if (item.price == null) "" else if (item.dataDelayed) " · verzögert" else " · Live"
+    val quality = PriceLineQuoteStatus.render(
+        hasPrice = item.price?.let { it.isFinite() && it > 0.0 } == true,
+        delayed = item.dataDelayed,
+        fxDelayed = item.fxDelayed && !item.currency.equals("EUR", ignoreCase = true),
+        source = item.dataSource,
+        dataError = item.dataError
+    )
     return "Kurs $price ${item.currency}$eur · Heute $change$quality"
 }
 
