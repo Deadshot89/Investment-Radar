@@ -1455,12 +1455,31 @@ private fun PurchaseHistoryDialog(
             ) {
                 Text(item.name, fontWeight = FontWeight.Black)
                 Text("${item.ticker} · ${item.isin}", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
-                Text(
-                    "Aktueller Live-Kurs: ${euroComparablePrice(item)?.let(::formatMoney) ?: "–"} · nur Orientierung, kein automatischer Einstand",
-                    color = RadarCyan,
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.Bold
+                ResponsiveFinanceValueRow(
+                    label = "EUR-Kurs (nur Orientierung)",
+                    value = euroComparablePrice(item)?.let(::formatMoney) ?: "Nicht verfügbar",
+                    valueColor = RadarCyan,
+                    labelColor = RadarMuted
                 )
+                euroComparablePrice(item)?.let {
+                    val quoteStatus = PriceLineQuoteStatus.render(
+                        hasPrice = true,
+                        delayed = item.dataDelayed,
+                        fxDelayed = item.fxDelayed && !item.currency.equals("EUR", ignoreCase = true),
+                        source = item.dataSource,
+                        dataError = item.dataError
+                    ).removePrefix(" · ")
+                    Text(
+                        quoteStatus,
+                        color = RadarMuted,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1,
+                        softWrap = false,
+                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+                    )
+                }
+                Text("Kein automatischer Einstand. Betrag, Kurs und Anteile selbst prüfen.",
+                    color = RadarMuted, style = MaterialTheme.typography.bodySmall)
                 initialPrefillMessage?.takeIf { it.isNotBlank() }?.let { message ->
                     Text(
                         "$message Bitte Betrag, Kurs und Anteile vor der Bestätigung prüfen.",
