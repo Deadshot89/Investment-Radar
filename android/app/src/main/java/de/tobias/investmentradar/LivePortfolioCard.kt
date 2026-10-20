@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -124,7 +125,17 @@ fun LivePortfolioCard(
             HorizontalDivider()
             summary.positions.forEach { row ->
                 val name = itemById[row.itemId]?.name ?: customById[row.itemId]?.name ?: row.itemId
-                val isFixedIncome = customById[row.itemId]?.type.equals("Festzins", ignoreCase = true)
+                val custom = customById[row.itemId]
+                val item = itemById[row.itemId]
+                val isFixedIncome = custom?.type.equals("Festzins", ignoreCase = true)
+                val quoteProvenance = LiveQuoteProvenanceResolver.resolve(
+                    marketPriceEur = item?.priceEur,
+                    manualPriceEur = custom?.manualPriceEur,
+                    marketDelayed = item?.dataDelayed == true,
+                    fxDelayed = item?.fxDelayed == true && !item.currency.equals("EUR", ignoreCase = true),
+                    dataError = item?.dataError,
+                    dataSource = item?.dataSource
+                )
                 BoxWithConstraints(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -139,8 +150,7 @@ fun LivePortfolioCard(
                                 style = MaterialTheme.typography.bodySmall, maxLines = 1, softWrap = false,
                                 modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()))
                             if (!isFixedIncome && row.currentPriceEur != null) {
-                                Text("Kurs: ${formatLiveMoney(row.currentPriceEur)}", color = muted,
-                                    style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false)
+                                LiveQuoteText(quoteProvenance, row.currentPriceEur, muted)
                             }
                             Text(formatLivePercent(row.weightPct), color = muted,
                                 style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false)
@@ -155,8 +165,7 @@ fun LivePortfolioCard(
                                 Text(formatLiveMoney(row.currentValue), fontWeight = FontWeight.Bold,
                                     style = MaterialTheme.typography.bodySmall, maxLines = 1, softWrap = false)
                                 if (!isFixedIncome && row.currentPriceEur != null) {
-                                    Text("Kurs: ${formatLiveMoney(row.currentPriceEur)}", color = muted,
-                                        style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false)
+                                    LiveQuoteText(quoteProvenance, row.currentPriceEur, muted)
                                 }
                                 Text(formatLivePercent(row.weightPct), color = muted,
                                     style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false)
@@ -166,6 +175,28 @@ fun LivePortfolioCard(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun LiveQuoteText(status: LiveQuoteProvenance, priceEur: Double, muted: Color) {
+    Text(
+        "${status.label}: ${formatLiveMoney(priceEur)}",
+        color = muted,
+        style = MaterialTheme.typography.labelSmall,
+        maxLines = 1,
+        softWrap = false,
+        modifier = Modifier.widthIn(max = 240.dp).horizontalScroll(rememberScrollState())
+    )
+    status.notice?.let { notice ->
+        Text(
+            notice,
+            color = muted,
+            style = MaterialTheme.typography.labelSmall,
+            maxLines = 1,
+            softWrap = false,
+            modifier = Modifier.widthIn(max = 240.dp).horizontalScroll(rememberScrollState())
+        )
     }
 }
 

@@ -1,7 +1,7 @@
 # Investment Radar Android App
 
-**Version:** 2.5.51  
-**versionCode:** 121
+**Version:** 2.5.52  
+**versionCode:** 122
 
 Die verbindlichen Android-Versionsmetadaten werden in `android/app/build.gradle.kts` gepflegt. Für jede produktiv auszuliefernde App-Änderung müssen `versionName` und `versionCode` erhöht werden, damit bestehende Installationen das In-App-Update eindeutig als neuer erkennen.
 
@@ -43,6 +43,10 @@ Die verbindlichen Android-Versionsmetadaten werden in `android/app/build.gradle.
 - Geldaktions-Karten stapeln auf kompakten Displays Instrument/Begründung und Cash-Wirkung, damit lange Werte die Inhalte nicht zusammendrücken.
 
 ## Empfehlungen und Dezimaleingaben
+
+### Änderung in 2.5.52
+
+Die Live-Depotansicht kennzeichnet jetzt verzögerte Kursdaten, verzögerte EUR-Umrechnung, manuelle Kurswerte und gemeldete Datenwarnungen. Anbieterquellen werden nur angezeigt, wenn tatsächlich gemeldet. Eine nicht gemeldete Verzögerung ist keine Zusage von Echtzeitkursen. Der Depotwert und die Finanzbuchungen bleiben unverändert.
 
 ### Änderung in 2.5.51
 
