@@ -16,6 +16,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
@@ -1455,12 +1456,31 @@ private fun PurchaseHistoryDialog(
             ) {
                 Text(item.name, fontWeight = FontWeight.Black)
                 Text("${item.ticker} · ${item.isin}", color = RadarMuted, style = MaterialTheme.typography.bodySmall)
-                Text(
-                    "Aktueller Live-Kurs: ${euroComparablePrice(item)?.let(::formatMoney) ?: "–"} · nur Orientierung, kein automatischer Einstand",
-                    color = RadarCyan,
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.Bold
+                ResponsiveFinanceValueRow(
+                    label = "EUR-Kurs (nur Orientierung)",
+                    value = euroComparablePrice(item)?.let(::formatMoney) ?: "Nicht verfügbar",
+                    valueColor = RadarCyan,
+                    labelColor = RadarMuted
                 )
+                euroComparablePrice(item)?.let {
+                    val quoteStatus = PriceLineQuoteStatus.render(
+                        hasPrice = true,
+                        delayed = item.dataDelayed,
+                        fxDelayed = item.fxDelayed && !item.currency.equals("EUR", ignoreCase = true),
+                        source = item.dataSource,
+                        dataError = item.dataError
+                    ).removePrefix(" · ")
+                    Text(
+                        quoteStatus,
+                        color = RadarMuted,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1,
+                        softWrap = false,
+                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+                    )
+                }
+                Text("Kein automatischer Einstand. Betrag, Kurs und Anteile selbst prüfen.",
+                    color = RadarMuted, style = MaterialTheme.typography.bodySmall)
                 initialPrefillMessage?.takeIf { it.isNotBlank() }?.let { message ->
                     Text(
                         "$message Bitte Betrag, Kurs und Anteile vor der Bestätigung prüfen.",
