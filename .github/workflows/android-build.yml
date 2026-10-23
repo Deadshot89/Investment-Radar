@@ -255,7 +255,11 @@ jobs:
         run: |
           set -euo pipefail
           required=("Android Contract Tests" "Android Instrumented UI Tests")
-          for attempt in $(seq 1 90); do
+          # The emulator UI workflow may run for up to 35 minutes. The old
+          # 90 x 10 s gate rejected otherwise successful builds after 15 min.
+          # Allow up to 40 min without ever relaxing the required-success checks.
+          companion_attempts=240
+          for attempt in $(seq 1 "$companion_attempts"); do
             payload=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$GITHUB_SHA&per_page=100")
             all_ok=true
             for gate in "${required[@]}"; do
@@ -274,7 +278,7 @@ jobs:
               echo "✅ Contract- und UI-Gates für $GITHUB_SHA sind grün." >> "$GITHUB_STEP_SUMMARY"
               break
             fi
-            if [ "$attempt" -eq 90 ]; then
+            if [ "$attempt" -eq "$companion_attempts" ]; then
               echo "❌ Release blockiert: Companion-Gates wurden nicht rechtzeitig grün." >> "$GITHUB_STEP_SUMMARY"
               exit 1
             fi
