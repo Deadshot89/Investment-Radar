@@ -30,6 +30,13 @@ grep -q 'EXPECTED_API_SCHEMA: "2026-09-14.1"' "$WF"
 grep -q 'universeTotal' "$WF"
 grep -q '2000' "$WF"
 grep -q 'Publish APK for in-app updates' "$WF"
+# The release gate must outlast the up-to-35-minute Android emulator UI job.
+grep -Fq 'companion_attempts=240' "$WF" || {
+  echo 'Companion gate wartet nicht lange genug auf den Android-UI-Test'
+  exit 1
+}
+grep -Fq 'for attempt in $(seq 1 "$companion_attempts"); do' "$WF" || exit 1
+grep -Fq 'if [ "$attempt" -eq "$companion_attempts" ]; then' "$WF" || exit 1
 
 # Publishing remains production-only even though the live-backend gate can validate the 2.4 candidate branch.
 publish_line=$(grep -n 'Publish APK for in-app updates' "$WF" | head -1 | cut -d: -f1)
