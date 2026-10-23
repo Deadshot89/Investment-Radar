@@ -364,11 +364,16 @@ class DepotScreenshotImportViewModel(
         }
         val failed = imageResults.map { result ->
             if (result.errorMessage == null && result.parseResult != null && !result.parseResult.recognizedAsTradeRepublic) {
-                result.copy(errorMessage = "Kein Trade-Republic-Depot erkannt", parseResult = null)
+                result.copy(errorMessage = "Keine eindeutigen Depotpositionen erkannt. Bitte einen scharfen Screenshot der Positionsliste wählen; beim Scrollen am besten mehrere Bilder mit überlappenden Positionen verwenden.", parseResult = null)
             } else {
                 result
             }
         }.filter { it.errorMessage != null }
+        // Do not label all stored holdings as missing if OCR has not read a single image.
+        if (successful.isEmpty()) {
+            publishReview(emptyList(), failed)
+            return
+        }
         val observations = successful.flatMap { it.parseResult?.observations.orEmpty() }
         val reconciled = ScreenshotDepotReconciliation.reconcileTradeRepublic(
             observations = observations,
