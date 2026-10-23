@@ -128,4 +128,97 @@ class TradeRepublicScreenshotParserTest {
         assertFalse(result.recognizedAsTradeRepublic)
         assertTrue(result.observations.isEmpty())
     }
+
+    @Test
+    fun acceptsScrolledPortfolioWithoutVisibleHeaderWhenRowsContainPerformance() {
+        val result = TradeRepublicScreenshotParser.parse(
+            blocks = listOf(
+                block("Apple", 100, left = 20, right = 250),
+                block("68,42 €", 130, left = 610, right = 760),
+                block("+7,42 €", 154, left = 610, right = 760),
+                block("+12,16 %", 177, left = 610, right = 760),
+                block("Samsung (GDR)", 230, left = 20, right = 250),
+                block("59,91 €", 260, left = 610, right = 760),
+                block("-3,71 €", 283, left = 610, right = 760),
+                block("-5,83 %", 306, left = 610, right = 760)
+            ),
+            sourceIndex = 2
+        )
+        assertTrue(result.recognizedAsTradeRepublic)
+        assertEquals(listOf("Apple", "Samsung (GDR)"), result.observations.map { it.name })
+    }
+
+    @Test
+    fun acceptsSingleScrolledPositionOnlyWithStrongPerformanceEvidence() {
+        val trusted = TradeRepublicScreenshotParser.parse(
+            blocks = listOf(
+                block("Microsoft", 100, right = 300),
+                block("45,87 €", 130, left = 610, right = 760),
+                block("+7,04 €", 154, left = 610, right = 760),
+                block("+18,13 %", 177, left = 610, right = 760)
+            ),
+            sourceIndex = 0
+        )
+        assertTrue(trusted.recognizedAsTradeRepublic)
+        assertEquals("Microsoft", trusted.observations.single().name)
+
+        val untrusted = TradeRepublicScreenshotParser.parse(
+            blocks = listOf(block("Pizza", 100), block("18,50 €", 130, left = 610)),
+            sourceIndex = 0
+        )
+        assertFalse(untrusted.recognizedAsTradeRepublic)
+        assertTrue(untrusted.observations.isEmpty())
+    }
+
+    @Test
+    fun recognizesInvestmentsHeaderAndEurCurrency() {
+        val result = TradeRepublicScreenshotParser.parse(
+            blocks = listOf(
+                block("Investments", 20),
+                block("Alphabet", 100),
+                block("1.217,07 EUR", 130, left = 610)
+            ),
+            sourceIndex = 0
+        )
+        assertTrue(result.recognizedAsTradeRepublic)
+        assertEquals(1217.07, result.observations.single().valueEur!!, 0.001)
+    }
+
+    @Test
+    fun keepsWrappedEtfNameTogetherInsteadOfMislabelingItsValue() {
+        val result = TradeRepublicScreenshotParser.parse(
+            blocks = listOf(
+                block("Portfolio", 10),
+                block("iShares Core MSCI World", 100, left = 20, right = 340),
+                block("USD (Acc)", 126, left = 20, right = 220),
+                block("1.217,07 €", 160, left = 610, right = 760),
+                block("+34,40 €", 183, left = 610, right = 760),
+                block("Microsoft", 260, left = 20, right = 300),
+                block("45,87 €", 290, left = 610, right = 760)
+            ),
+            sourceIndex = 0
+        )
+        assertTrue(result.recognizedAsTradeRepublic)
+        assertEquals(2, result.observations.size)
+        assertEquals("iShares Core MSCI World USD (Acc)", result.observations[0].name)
+        assertEquals(1217.07, result.observations[0].valueEur!!, 0.001)
+        assertEquals("Microsoft", result.observations[1].name)
+        assertEquals(45.87, result.observations[1].valueEur!!, 0.001)
+    }
+
+    @Test
+    fun splitsNameAndAmountWhenOcrMergesThemIntoOneLine() {
+        val result = TradeRepublicScreenshotParser.parse(
+            blocks = listOf(
+                block("Portfolio", 10),
+                block("Meta Platforms 794,83 €", 100, left = 20, right = 760),
+                block("+34,40 €", 135, left = 610, right = 760),
+                block("+4,52 %", 157, left = 610, right = 760)
+            ),
+            sourceIndex = 0
+        )
+        assertTrue(result.recognizedAsTradeRepublic)
+        assertEquals("Meta Platforms", result.observations.single().name)
+        assertEquals(794.83, result.observations.single().valueEur!!, 0.001)
+    }
 }
