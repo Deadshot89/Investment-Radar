@@ -58,7 +58,7 @@ class DepotImportPersistenceInstrumentedTest {
                 context,
                 CustomInvestment("custom-old", "Old Asset", "OLD", "", "Aktie")
             )
-            budgetPrefs.edit().putString("entries_v1", "budget-sentinel").commit()
+            seedStableImportBudget(context, "custom-rollback")
             val portfolioBefore = portfolioPrefs.all.toMap()
             val customBefore = customPrefs.all.toMap()
             val budgetBefore = budgetPrefs.all.toMap()
@@ -99,7 +99,7 @@ class DepotImportPersistenceInstrumentedTest {
                 context,
                 CustomInvestment("custom-old", "Old Asset", "OLD", "", "Aktie")
             )
-            budgetPrefs.edit().putString("entries_v1", "budget-sentinel-2").commit()
+            seedStableImportBudget(context, "portfolio-rollback")
             val portfolioBefore = portfolioPrefs.all.toMap()
             val customBefore = customPrefs.all.toMap()
             val budgetBefore = budgetPrefs.all.toMap()

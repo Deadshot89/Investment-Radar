@@ -35,10 +35,7 @@ class PortfolioImportStoreInstrumentedTest {
                 purchases = listOf(PortfolioPurchase("buy", "2026-09-01", 90.0, 1.0))
             )
             PortfolioStore.save(context, initial)
-            budgetPrefs.edit()
-                .putString("entries_v1", "sentinel-entries")
-                .putString("reservations_v1", "sentinel-reservations")
-                .commit()
+            seedStableImportBudget(context, "mark-sold")
             val budgetBefore = budgetPrefs.all.toMap()
 
             val result = PortfolioImportApplier.preview(
@@ -72,10 +69,7 @@ class PortfolioImportStoreInstrumentedTest {
                 purchases = listOf(PortfolioPurchase("buy-apple", "2026-09-02", 45.0, 0.5))
             )
             PortfolioStore.save(context, initial)
-            budgetPrefs.edit()
-                .putString("entries_v1", "sentinel-entries-delete")
-                .putString("reservations_v1", "sentinel-reservations-delete")
-                .commit()
+            seedStableImportBudget(context, "delete")
             val budgetBefore = budgetPrefs.all.toMap()
 
             val result = PortfolioImportApplier.preview(
