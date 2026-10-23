@@ -227,7 +227,7 @@ class TradeRepublicScreenshotParserTest {
         assertEquals("Apple", apple.name)
         assertEquals(68.42, apple.valueEur!!, 0.001)
         assertEquals(7.42, apple.profitLossEur!!, 0.001)
-        assertEquals(60.99, apple.derivedCostBasisEur!!, 0.001)
+        assertEquals(61.00, apple.derivedCostBasisEur!!, 0.001)
     }
 
     @Test
