@@ -206,6 +206,47 @@ class TradeRepublicScreenshotParserTest {
         assertEquals(45.87, result.observations[1].valueEur!!, 0.001)
     }
 
+
+    @Test
+    fun pairsCurrencyInSeparateOcrBlocksWithoutLosingPortfolioValues() {
+        val result = TradeRepublicScreenshotParser.parse(
+            blocks = listOf(
+                block("Portfolio", 20),
+                block("Apple", 100, left = 20, right = 250),
+                block("68,42", 130, left = 610, right = 704),
+                block("€", 132, left = 710, right = 730),
+                block("+7,42", 158, left = 610, right = 704),
+                block("EUR", 157, left = 711, right = 755),
+                block("+12,16 %", 185, left = 610, right = 760)
+            ),
+            sourceIndex = 0
+        )
+
+        assertTrue(result.recognizedAsTradeRepublic)
+        val apple = result.observations.single()
+        assertEquals("Apple", apple.name)
+        assertEquals(68.42, apple.valueEur!!, 0.001)
+        assertEquals(7.42, apple.profitLossEur!!, 0.001)
+        assertEquals(60.99, apple.derivedCostBasisEur!!, 0.001)
+    }
+
+    @Test
+    fun detachedCurrencyFromAnotherLineDoesNotInventCurrentValue() {
+        val result = TradeRepublicScreenshotParser.parse(
+            blocks = listOf(
+                block("Portfolio", 20),
+                block("Apple", 100, left = 20, right = 250),
+                block("68,42", 130, left = 610, right = 700),
+                block("€", 185, left = 705, right = 725),
+                block("-4,00 %", 205, left = 610, right = 760)
+            ),
+            sourceIndex = 0
+        )
+
+        assertFalse(result.recognizedAsTradeRepublic)
+        assertTrue(result.observations.isEmpty())
+    }
+
     @Test
     fun splitsNameAndAmountWhenOcrMergesThemIntoOneLine() {
         val result = TradeRepublicScreenshotParser.parse(
