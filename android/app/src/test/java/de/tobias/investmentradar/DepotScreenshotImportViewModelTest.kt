@@ -42,6 +42,37 @@ class DepotScreenshotImportViewModelTest {
     }
 
     @Test
+    fun unreadableScreenshotDoesNotPresentExistingPositionsAsMissing() = runBlocking {
+        val image = image("unreadable")
+        val loader = ScreenshotImportBatchLoader { selected, onProgress ->
+            onProgress(1, 1)
+            ScreenshotImportBatch(
+                listOf(
+                    ScreenshotImportImageResult(
+                        image = selected.single(),
+                        parseResult = TradeRepublicParseResult(
+                            recognizedAsTradeRepublic = false,
+                            observations = emptyList()
+                        )
+                    )
+                )
+            )
+        }
+        val source = source(
+            items = listOf(item("apple", "Apple")),
+            positions = mapOf("apple" to position("apple", 100.0))
+        )
+        val viewModel = viewModel(loader, source)
+        viewModel.selectImages(listOf(image))
+        viewModel.analyze()
+
+        val reviewing = viewModel.state.value as DepotScreenshotImportState.Reviewing
+        assertTrue(reviewing.rows.isEmpty())
+        assertEquals(1, reviewing.failedImages.size)
+        assertFalse(reviewing.canApply)
+    }
+
+    @Test
     fun oneFailedImageKeepsSuccessfulReviewButBlocksApply() = runBlocking {
         val images = listOf(image("good"), image("broken"))
         val loader = ScreenshotImportBatchLoader { _, onProgress ->

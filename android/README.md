@@ -1,7 +1,7 @@
 # Investment Radar Android App
 
-**Version:** 2.5.54  
-**versionCode:** 124
+**Version:** 2.5.55  
+**versionCode:** 125
 
 Die verbindlichen Android-Versionsmetadaten werden in `android/app/build.gradle.kts` gepflegt. Für jede produktiv auszuliefernde App-Änderung müssen `versionName` und `versionCode` erhöht werden, damit bestehende Installationen das In-App-Update eindeutig als neuer erkennen.
 
@@ -43,6 +43,10 @@ Die verbindlichen Android-Versionsmetadaten werden in `android/app/build.gradle.
 - Geldaktions-Karten stapeln auf kompakten Displays Instrument/Begründung und Cash-Wirkung, damit lange Werte die Inhalte nicht zusammendrücken.
 
 ## Empfehlungen und Dezimaleingaben
+
+### Änderung in 2.5.55
+
+Die lokale Trade-Republic-Screenshot-Auswertung erkennt nun auch gescrollte Depotansichten mit eindeutigen Positions- und Performancewerten ohne sichtbaren Portfolio-Header. Mehrzeilige Wertpapiernamen und OCR-Zeilen, in denen Name und EUR-Betrag zusammenstehen, werden besser getrennt und zugeordnet. Bleibt die Bilderkennung vollständig ohne verwertbare Positionen, werden keine Bestände als fehlend bewertet. Ein neuer Bildauswahl-Button und verständlichere Fehlermeldungen erleichtern die Korrektur. Depotverkäufe, Kaufbudget und vorhandene Transaktionen werden nicht automatisch verändert.
 
 ### Änderung in 2.5.54
 

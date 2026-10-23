@@ -1,5 +1,8 @@
 package de.tobias.investmentradar
 
+import kotlin.math.abs
+import kotlin.math.roundToInt
+
 data class RecognizedTextBlock(
     val text: String,
     val left: Int,
@@ -25,15 +28,22 @@ data class TradeRepublicParseResult(
 
 object TradeRepublicScreenshotParser {
     private val ignoredLabels = setOf(
-        "portfolio",
-        "investments",
-        "investment",
-        "cash",
-        "seit kauf",
-        "seit beginn",
-        "performance",
-        "depot",
-        "depotwert"
+        "portfolio", "investments", "investment", "cash", "seit kauf", "seit beginn",
+        "performance", "depot", "depotwert", "trade republic", "positionen",
+        "alle positionen", "wertpapiere", "deine investments", "investiert",
+        "übersicht", "suche", "suchen", "start", "profil", "märkte", "entdecken",
+        "aktien", "etfs", "sparpläne", "wertentwicklung", "heute", "gesamt",
+        "rendite", "gewinn", "verlust", "details", "anzeigen", "alle"
+    )
+
+    private val portfolioMarkers = listOf(
+        "trade republic", "portfolio", "depot", "seit kauf", "seit beginn",
+        "investments", "investiert", "positionen", "wertpapiere"
+    )
+    private val euroCurrency = Regex("""(?:€|\bEUR\b)""", RegexOption.IGNORE_CASE)
+    private val combinedNameAndValue = Regex(
+        """^(.+?)\s+((?:\d+(?:[.,]\d+)*)(?:\s*(?:€|EUR)))\s*$""",
+        RegexOption.IGNORE_CASE
     )
 
     private val germanThousandsOnly = Regex("^[1-9]\\d{0,2}(\\.\\d{3})+$")
@@ -90,20 +100,43 @@ object TradeRepublicScreenshotParser {
         sourceIndex: Int
     ): TradeRepublicParseResult {
         val ordered = blocks
+            .flatMap(::splitNameAndValue)
             .filter { it.text.isNotBlank() }
             .sortedWith(compareBy<RecognizedTextBlock>({ it.top }, { it.left }))
-        val hasTradeRepublicMarker = ordered.any { block ->
+        val hasPortfolioHeader = ordered.any { block ->
             val normalized = block.text.trim().lowercase()
-            normalized == "seit kauf" || normalized == "portfolio" || normalized == "depot"
+            portfolioMarkers.any { marker -> normalized == marker || normalized.startsWith("$marker ") }
         }
-        if (!hasTradeRepublicMarker) return TradeRepublicParseResult(false, emptyList())
 
-        val nameBlocks = ordered.filter(::isAssetNameBlock)
+        // Combine wrapped asset names before pairing them with a nearby portfolio value.
+        // Otherwise, the second line of an ETF name may steal the first line's value.
+        val nameGroups = mutableListOf<MutableList<RecognizedTextBlock>>()
+        ordered.filter(::isAssetNameBlock).forEach { name ->
+            val group = nameGroups.lastOrNull()
+            val previous = group?.lastOrNull()
+            val nearby = previous != null &&
+                name.top - previous.bottom in -5..28 &&
+                abs(name.left - previous.left) <= 70
+            val amountBeforeNextName = previous != null && ordered.any { block ->
+                block.top >= previous.top && block.top < name.top &&
+                    (isUnsignedEuroAmount(block.text) || isSignedEuroAmount(block.text))
+            }
+            if (nearby && !amountBeforeNextName) {
+                group!!.add(name)
+            } else {
+                nameGroups.add(mutableListOf(name))
+            }
+        }
+
         val observations = buildList {
-            nameBlocks.forEachIndexed { index, nameBlock ->
-                val nextTop = nameBlocks.getOrNull(index + 1)?.top ?: Int.MAX_VALUE
-                val rowBlocks = ordered.filter { it.top >= nameBlock.top && it.top < nextTop }
-                val valueBlock = rowBlocks.firstOrNull { isUnsignedEuroAmount(it.text) } ?: return@forEachIndexed
+            nameGroups.forEachIndexed { index, group ->
+                val firstName = group.first()
+                val nextTop = nameGroups.getOrNull(index + 1)?.first()?.top ?: Int.MAX_VALUE
+                val rowBlocks = ordered.filter { it.top >= firstName.top && it.top < nextTop }
+                // Keep only amounts spatially associated with the asset name.
+                val valueBlock = rowBlocks.firstOrNull {
+                    isUnsignedEuroAmount(it.text) && it.left >= firstName.left
+                } ?: return@forEachIndexed
                 val value = parseLocalizedNumber(valueBlock.text) ?: return@forEachIndexed
                 if (!value.isFinite() || value < 0.0) return@forEachIndexed
 
@@ -126,7 +159,7 @@ object TradeRepublicScreenshotParser {
 
                 add(
                     TradeRepublicScreenshotObservation(
-                        name = nameBlock.text.trim(),
+                        name = group.joinToString(" ") { it.text.trim() },
                         valueEur = value,
                         profitLossEur = pnl,
                         profitLossPct = pnlPct,
@@ -137,9 +170,35 @@ object TradeRepublicScreenshotParser {
                 )
             }
         }
+
+        // A scrolled screenshot may not show the portfolio header. In that case,
+        // require more than a generic name/amount pair to avoid reading receipts.
+        val strongRows = observations.count {
+            it.profitLossEur != null || it.profitLossPct != null
+        }
+        val headerlessPortfolio = (observations.size >= 2 && strongRows >= 2) ||
+            (observations.size == 1 &&
+                observations.single().profitLossEur != null &&
+                observations.single().profitLossPct != null)
+        val recognized = observations.isNotEmpty() && (hasPortfolioHeader || headerlessPortfolio)
         return TradeRepublicParseResult(
-            recognizedAsTradeRepublic = observations.isNotEmpty(),
-            observations = observations
+            recognizedAsTradeRepublic = recognized,
+            observations = if (recognized) observations else emptyList()
+        )
+    }
+
+    private fun splitNameAndValue(block: RecognizedTextBlock): List<RecognizedTextBlock> {
+        val match = combinedNameAndValue.matchEntire(block.text.trim()) ?: return listOf(block)
+        val label = match.groupValues[1].trim()
+        val amount = match.groupValues[2].trim()
+        if (!label.any(Char::isLetter) || label.lowercase() in ignoredLabels) return listOf(block)
+        val splitPosition = match.groups[2]?.range?.first ?: return listOf(block)
+        val estimatedX = block.left + (
+            (block.right - block.left).toDouble() * splitPosition / block.text.length.coerceAtLeast(1)
+        ).roundToInt()
+        return listOf(
+            block.copy(text = label, right = estimatedX),
+            block.copy(text = amount, left = estimatedX)
         )
     }
 
@@ -149,20 +208,20 @@ object TradeRepublicScreenshotParser {
         if (text.isBlank() || lower in ignoredLabels) return false
         if (!text.any(Char::isLetter)) return false
         if (Regex("^\\([^)]{1,8}\\)$").matches(text)) return false
-        if (text.contains('€') || text.contains('%') || isSharesText(text)) return false
+        if (euroCurrency.containsMatchIn(text) || text.contains('%') || isSharesText(text)) return false
         if (parseLocalizedNumber(text) != null && text.none(Char::isLetter)) return false
         return true
     }
 
     private fun isUnsignedEuroAmount(text: String): Boolean {
-        if (!text.contains('€')) return false
+        if (!euroCurrency.containsMatchIn(text)) return false
         val normalized = text.trim().replace('−', '-').replace('–', '-')
         if (normalized.startsWith('+') || normalized.startsWith('-')) return false
         return parseLocalizedNumber(normalized)?.let { it.isFinite() && it >= 0.0 } == true
     }
 
     private fun isSignedEuroAmount(text: String): Boolean {
-        if (!text.contains('€')) return false
+        if (!euroCurrency.containsMatchIn(text)) return false
         val normalized = text.trim().replace('−', '-').replace('–', '-')
         if (!normalized.startsWith('+') && !normalized.startsWith('-')) return false
         return parseLocalizedNumber(normalized) != null

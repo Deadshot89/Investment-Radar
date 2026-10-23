@@ -71,7 +71,7 @@ fun DepotScreenshotImportScreen(
         }
     }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
-        coordinator.selectImages(
+        if (uris.isNotEmpty()) coordinator.selectImages(
             uris.mapIndexed { index, uri ->
                 ScreenshotImageRef(sourceId = "${uri}#$index", uriString = uri.toString())
             }
@@ -167,6 +167,9 @@ fun DepotScreenshotImportContent(
                 item {
                     ImportCard("3 von 4 · Prüfen & korrigieren") {
                         Text("${state.images.size} Screenshots · ${state.rows.size} Depotzeilen")
+                        OutlinedButton(onClick = actions.onPickImages, modifier = Modifier.fillMaxWidth()) {
+                            Text("Andere Screenshots auswählen")
+                        }
                         Text(
                             "Erst nach deiner Bestätigung werden Änderungen gespeichert. Fehlende Positionen werden niemals automatisch verkauft oder gelöscht.",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
