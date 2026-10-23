@@ -99,8 +99,7 @@ object TradeRepublicScreenshotParser {
         blocks: List<RecognizedTextBlock>,
         sourceIndex: Int
     ): TradeRepublicParseResult {
-        val ordered = blocks
-            .flatMap(::splitNameAndValue)
+        val ordered = joinSplitEuroAmounts(blocks.flatMap(::splitNameAndValue))
             .filter { it.text.isNotBlank() }
             .sortedWith(compareBy<RecognizedTextBlock>({ it.top }, { it.left }))
         val hasPortfolioHeader = ordered.any { block ->
@@ -185,6 +184,64 @@ object TradeRepublicScreenshotParser {
             recognizedAsTradeRepublic = recognized,
             observations = if (recognized) observations else emptyList()
         )
+    }
+
+    // ML Kit sometimes recognizes the amount and its currency as two separate
+    // text blocks. Pair only bare numbers with a nearby currency token on the
+    // same visual line. Never infer a currency from an unmarked number.
+    private fun joinSplitEuroAmounts(blocks: List<RecognizedTextBlock>): List<RecognizedTextBlock> {
+        val currencyIndices = blocks.indices.filter { index ->
+            val text = blocks[index].text.trim()
+            text == "€" || text.equals("EUR", ignoreCase = true)
+        }.toSet()
+        val usedCurrencyIndices = mutableSetOf<Int>()
+        val bareNumber = Regex("""^[+−–-]?\s*\d[\d.,\s]*$""")
+        return buildList {
+            blocks.forEachIndexed { index, amount ->
+                if (index in currencyIndices) return@forEachIndexed
+                if (!bareNumber.matches(amount.text.trim()) || parseLocalizedNumber(amount.text) == null) {
+                    add(amount)
+                    return@forEachIndexed
+                }
+
+                val currencyIndex = currencyIndices.asSequence()
+                    .filter { it !in usedCurrencyIndices }
+                    .map { currencyIndex ->
+                        val currency = blocks[currencyIndex]
+                        val centerDelta = abs(
+                            (amount.top + amount.bottom) / 2 -
+                                (currency.top + currency.bottom) / 2
+                        )
+                        val horizontalGap = when {
+                            amount.right < currency.left -> currency.left - amount.right
+                            currency.right < amount.left -> amount.left - currency.right
+                            else -> 0
+                        }
+                        Triple(currencyIndex, centerDelta, horizontalGap)
+                    }
+                    .filter { (_, centerDelta, horizontalGap) ->
+                        centerDelta <= 12 && horizontalGap <= 32
+                    }
+                    .minWithOrNull(compareBy<Triple<Int, Int, Int>>({ it.third }, { it.second }))
+                    ?.first
+
+                if (currencyIndex == null) {
+                    add(amount)
+                } else {
+                    usedCurrencyIndices += currencyIndex
+                    val currency = blocks[currencyIndex]
+                    add(
+                        amount.copy(
+                            text = "${amount.text.trim()} €",
+                            left = minOf(amount.left, currency.left),
+                            top = minOf(amount.top, currency.top),
+                            right = maxOf(amount.right, currency.right),
+                            bottom = maxOf(amount.bottom, currency.bottom)
+                        )
+                    )
+                }
+            }
+        }
     }
 
     private fun splitNameAndValue(block: RecognizedTextBlock): List<RecognizedTextBlock> {

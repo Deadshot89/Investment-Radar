@@ -1,7 +1,7 @@
 # Investment Radar Android App
 
-**Version:** 2.5.55  
-**versionCode:** 125
+**Version:** 2.5.56  
+**versionCode:** 126
 
 Die verbindlichen Android-Versionsmetadaten werden in `android/app/build.gradle.kts` gepflegt. Für jede produktiv auszuliefernde App-Änderung müssen `versionName` und `versionCode` erhöht werden, damit bestehende Installationen das In-App-Update eindeutig als neuer erkennen.
 
@@ -43,6 +43,10 @@ Die verbindlichen Android-Versionsmetadaten werden in `android/app/build.gradle.
 - Geldaktions-Karten stapeln auf kompakten Displays Instrument/Begründung und Cash-Wirkung, damit lange Werte die Inhalte nicht zusammendrücken.
 
 ## Empfehlungen und Dezimaleingaben
+
+### Änderung in 2.5.56
+
+Die lokale Trade-Republic-Screenshot-Erkennung kann nun einen Geldbetrag auch dann korrekt lesen, wenn Google ML Kit den numerischen Betrag und das EUR-/Eurozeichen als getrennte OCR-Blöcke zurückgibt. Sie führt beide nur bei passender Lage auf derselben Zeile zusammen. Ohne eindeutig zugeordnetes Währungssymbol wird kein Geldbetrag erfunden; bestehende Depot-, Verkaufs- und Budgetdaten bleiben unangetastet. Zwei neue Regressionstests prüfen korrekte Zuordnung und Schutz vor zeilenübergreifenden Fehlzuordnungen.
 
 ### Änderung in 2.5.55
 
