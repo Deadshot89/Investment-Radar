@@ -55,6 +55,23 @@ object PortfolioAssetMatcher {
         if (exactIds.size > 1) return AssetMatch.Review(exactIds)
 
         if (observed.length < MIN_FUZZY_LENGTH) return AssetMatch.Unknown
+
+        // Long broker names are often visually clipped to a shorter first line.
+        // A common prefix of at least 12 normalized characters is a review hint
+        // only, never a definitive identification.
+        val prefixIds = candidates
+            .filter { candidate ->
+                candidate.fuzzyAliases.any { alias ->
+                    val normalizedAlias = normalize(alias)
+                    minOf(observed.length, normalizedAlias.length) >= 12 &&
+                        (observed.startsWith(normalizedAlias) || normalizedAlias.startsWith(observed))
+                }
+            }
+            .map { it.itemId }
+            .distinct()
+            .sorted()
+        if (prefixIds.isNotEmpty()) return AssetMatch.Review(prefixIds)
+
         val fuzzy = candidates
             .mapNotNull { candidate ->
                 val score = candidate.fuzzyAliases

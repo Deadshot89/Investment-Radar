@@ -364,7 +364,12 @@ class DepotScreenshotImportViewModel(
         }
         val failed = imageResults.map { result ->
             if (result.errorMessage == null && result.parseResult != null && !result.parseResult.recognizedAsTradeRepublic) {
-                result.copy(errorMessage = "Keine eindeutigen Depotpositionen erkannt. Bitte einen scharfen Screenshot der Positionsliste wählen; beim Scrollen am besten mehrere Bilder mit überlappenden Positionen verwenden.", parseResult = null)
+                val message = if (result.recognizedTextLines == 0) {
+                    "Keine Textzeile im Bild erkannt. Bitte Original-Screenshot statt Vorschau wählen und erneut versuchen."
+                } else {
+                    "${result.recognizedTextLines} Textzeilen erkannt, aber keine sichere Aktienposition mit Euro-Depotwert. Bitte die Positionsliste statt einer Kurs- oder Transaktionsansicht auswählen."
+                }
+                result.copy(errorMessage = message, parseResult = null)
             } else {
                 result
             }

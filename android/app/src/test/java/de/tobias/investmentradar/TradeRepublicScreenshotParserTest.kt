@@ -44,7 +44,7 @@ class TradeRepublicScreenshotParserTest {
         assertTrue(result.recognizedAsTradeRepublic)
         assertEquals(1, result.observations.size)
         val position = result.observations.single()
-        assertEquals("Meta Platforms", position.name)
+        assertEquals("Meta Platforms (A)", position.name)
         assertEquals(794.83, position.valueEur!!, 0.001)
         assertEquals(34.40, position.profitLossEur!!, 0.001)
         assertEquals(4.52, position.profitLossPct!!, 0.001)
@@ -262,4 +262,95 @@ class TradeRepublicScreenshotParserTest {
         assertEquals("Meta Platforms", result.observations.single().name)
         assertEquals(794.83, result.observations.single().valueEur!!, 0.001)
     }
+    @Test
+    fun croppedKnownHoldingWithoutHeaderGetsManualReviewInsteadOfZeroStocks() {
+        val result = TradeRepublicScreenshotParser.parse(
+            listOf(
+                block("Meta Platforms", 100, left = 20, right = 320),
+                block("(A)", 122, left = 20, right = 75),
+                block("852,03 €", 145, left = 610, right = 760)
+            ),
+            sourceIndex = 2,
+            trustedAssetNames = setOf("Meta Platforms (A)", "Apple", "Microsoft")
+        )
+        assertTrue(result.recognizedAsTradeRepublic)
+        val meta = result.observations.single()
+        assertEquals("Meta Platforms (A)", meta.name)
+        assertEquals(852.03, meta.valueEur!!, 0.001)
+        assertTrue(meta.requiresConfirmation)
+    }
+
+    @Test
+    fun unrelatedReceiptStillRejectedEvenWithTrustedStockNames() {
+        val result = TradeRepublicScreenshotParser.parse(
+            listOf(
+                block("Restaurant Rechnung", 12),
+                block("Pizza", 100),
+                block("18,50 €", 130, left = 610, right = 760)
+            ),
+            sourceIndex = 0,
+            trustedAssetNames = setOf("Meta Platforms (A)", "Microsoft")
+        )
+        assertFalse(result.recognizedAsTradeRepublic)
+        assertTrue(result.observations.isEmpty())
+    }
+
+    @Test
+    fun withoutTrustedCatalogSingleHeaderlessAmountDoesNotCreateHolding() {
+        val result = TradeRepublicScreenshotParser.parse(
+            listOf(block("Microsoft", 100), block("45,87 €", 130, left = 610)),
+            sourceIndex = 0
+        )
+        assertFalse(result.recognizedAsTradeRepublic)
+    }
+
+    @Test
+    fun mergedNameAmountAndPercentInOneOcrLineAreParsed() {
+        val result = TradeRepublicScreenshotParser.parse(
+            listOf(
+                block("Portfolio", 10),
+                block("Apple 68,42 € +12,16 %", 100, left = 20, right = 760)
+            ),
+            sourceIndex = 0
+        )
+        assertTrue(result.recognizedAsTradeRepublic)
+        val apple = result.observations.single()
+        assertEquals("Apple", apple.name)
+        assertEquals(68.42, apple.valueEur!!, 0.001)
+        assertEquals(12.16, apple.profitLossPct!!, 0.001)
+    }
+
+    @Test
+    fun mergedNameValueProfitAndPercentRespectActualEurAmounts() {
+        val result = TradeRepublicScreenshotParser.parse(
+            listOf(
+                block("Dein Portfolio", 10),
+                block("Meta Platforms (A) 794,83 € +34,40 € +4,52 %", 100, left = 20, right = 760)
+            ),
+            sourceIndex = 0
+        )
+        assertTrue(result.recognizedAsTradeRepublic)
+        val meta = result.observations.single()
+        assertEquals("Meta Platforms (A)", meta.name)
+        assertEquals(794.83, meta.valueEur!!, 0.001)
+        assertEquals(34.40, meta.profitLossEur!!, 0.001)
+        assertEquals(4.52, meta.profitLossPct!!, 0.001)
+        assertEquals(760.43, meta.derivedCostBasisEur!!, 0.001)
+    }
+
+    @Test
+    fun shortenedEtfBrokerNameIsStillAvailableForManualReview() {
+        val result = TradeRepublicScreenshotParser.parse(
+            listOf(
+                block("MSCI All Country World", 100, left = 20, right = 300),
+                block("80,04 €", 130, left = 610, right = 770)
+            ),
+            sourceIndex = 0,
+            trustedAssetNames = setOf("MSCI All Country World Investable Market Unhedged USD (Acc)")
+        )
+        assertTrue(result.recognizedAsTradeRepublic)
+        assertEquals("MSCI All Country World", result.observations.single().name)
+        assertTrue(result.observations.single().requiresConfirmation)
+    }
+
 }

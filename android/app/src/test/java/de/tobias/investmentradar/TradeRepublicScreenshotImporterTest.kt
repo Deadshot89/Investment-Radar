@@ -95,6 +95,28 @@ class TradeRepublicScreenshotImporterTest {
         assertTrue(recognizer.calls.isEmpty())
     }
 
+
+    @Test
+    fun `one scrolled screenshot with a known stock is not silently discarded`() = runBlocking {
+        val image = ScreenshotImageRef("scroll", "content://screenshots/scroll")
+        val recognizer = FakeRecognizer(
+            mapOf(
+                "scroll" to listOf(
+                    RecognizedTextBlock("Microsoft", 20, 100, 320, 122),
+                    RecognizedTextBlock("45,87 €", 610, 130, 760, 152)
+                )
+            )
+        )
+        val batch = TradeRepublicScreenshotImporter.import(
+            listOf(image), recognizer,
+            trustedAssetNames = setOf("Microsoft")
+        )
+        assertEquals(1, batch.successfulImages.size)
+        assertEquals(2, batch.images.single().recognizedTextLines)
+        assertEquals("Microsoft", batch.observations.single().name)
+        assertTrue(batch.observations.single().requiresConfirmation)
+    }
+
     private class FakeRecognizer(
         private val responses: Map<String, List<RecognizedTextBlock>>,
         private val failures: Set<String> = emptySet()

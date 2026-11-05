@@ -108,4 +108,24 @@ class PortfolioAssetMatcherTest {
             PortfolioAssetMatcher.match("Festzins 2027", emptyList(), custom)
         )
     }
+    @Test
+    fun shortenedEtfNameOffersKnownBrokerPositionForReviewNotAutomaticMatching() {
+        val items = listOf(
+            item(
+                "spyi",
+                "SPDR MSCI ACWI IMI UCITS ETF",
+                "SPYI",
+                "MSCI All Country World Investable Market Unhedged USD (Acc)",
+                "ETF"
+            )
+        )
+        val match = PortfolioAssetMatcher.match(
+            observedName = "MSCI All Country World",
+            builtInItems = items,
+            customItems = emptyList()
+        )
+        assertEquals(AssetMatch.Review(listOf("spyi")), match)
+    }
+
+
 }

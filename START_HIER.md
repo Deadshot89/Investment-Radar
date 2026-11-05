@@ -1,6 +1,6 @@
-# START HIER – Investment Radar 2.5.57
+# START HIER – Investment Radar 2.5.58
 
-**Android:** 2.5.57 / versionCode 127  
+**Android:** 2.5.58 / versionCode 128  
 **Backend:** 2.1.0  
 **API-Schema:** 2026-09-14.1
 
@@ -66,8 +66,8 @@ Optional:
 Die produktive App wird mit einem dauerhaft erhaltenen Keystore signiert. Dieser Keystore darf nicht ersetzt werden, sonst akzeptiert Android spätere Updates nicht mehr.
 
 Aktueller Stand:
-- `versionName = 2.5.57`
-- `versionCode = 127`
+- `versionName = 2.5.58`
+- `versionCode = 128`
 
 Vor einem Release müssen grün sein:
 1. Android Contract Tests
