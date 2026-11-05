@@ -47,10 +47,21 @@ object InvestmentBudgetExecutionService {
             return BudgetExecutionResult(position, entries, reservations, "Ungültige Kaufdaten")
         }
 
+        val purchaseDate = InvestmentBudgetDate.parse(request.date)
+            ?: return BudgetExecutionResult(position, entries, reservations, "Ungültige Kaufdaten")
         val matchingReservation = request.reservationId
             ?.let { id -> reservations.firstOrNull { it.id == id && it.itemId == request.itemId } }
-        val summary = InvestmentBudgetJournalEngine.summarize(entries, reservations)
-        val buyingPower = summary.availableEur + (matchingReservation?.amountEur ?: 0.0)
+        // Only release a reservation that belongs to the purchased instrument.
+        // A reservation for another position must never be removed by this purchase.
+        val releasedReservations = matchingReservation
+            ?.let { InvestmentBudgetJournalEngine.removeReservation(reservations, it.id) }
+            ?: reservations
+        val buyingPower = buyAllowance(
+            entries = entries,
+            reservations = releasedReservations,
+            date = purchaseDate,
+            source = request.source
+        )
         if (request.amountEur > buyingPower + EPSILON) {
             return BudgetExecutionResult(position, entries, reservations, "Nicht genügend verfügbares Budget")
         }
@@ -77,9 +88,7 @@ object InvestmentBudgetExecutionService {
                 feeEur = request.feeEur
             )
         )
-        val updatedReservations = request.reservationId
-            ?.let { InvestmentBudgetJournalEngine.removeReservation(reservations, it) }
-            ?: reservations
+        val updatedReservations = releasedReservations
 
         return BudgetExecutionResult(updatedPosition, updatedEntries, updatedReservations)
     }
@@ -105,8 +114,17 @@ object InvestmentBudgetExecutionService {
             return BudgetExecutionResult(position, entries, reservations, "Ungültige Kaufdaten")
         }
 
-        val summary = InvestmentBudgetJournalEngine.summarize(entries, reservations)
-        val restoredBuyingPower = summary.availableEur + existingEntry.amountEur
+        val purchaseDate = InvestmentBudgetDate.parse(purchase.date)
+            ?: return BudgetExecutionResult(position, entries, reservations, "Ungültige Kaufdaten")
+        // Restore the original purchase in the calculation before checking its edit;
+        // an edited date can move a purchase to a different month's buying limit.
+        val restoredEntries = entries.filterNot { it.id == existingEntry.id }
+        val restoredBuyingPower = buyAllowance(
+            entries = restoredEntries,
+            reservations = reservations,
+            date = purchaseDate,
+            source = existingEntry.source
+        )
         if (purchase.investedAmount > restoredBuyingPower + EPSILON) {
             return BudgetExecutionResult(position, entries, reservations, "Nicht genügend verfügbares Budget")
         }
@@ -236,6 +254,27 @@ object InvestmentBudgetExecutionService {
         val updatedPosition = position.removeSale(saleId)
         val updatedEntries = entries.filterNot { it.id == matchingEntry.id }
         return BudgetExecutionResult(updatedPosition, updatedEntries, reservations)
+    }
+
+    private fun buyAllowance(
+        entries: List<BudgetJournalEntry>,
+        reservations: List<BudgetReservation>,
+        date: java.time.LocalDate,
+        source: BudgetJournalSource
+    ): Double {
+        val summary = InvestmentBudgetJournalEngine.summarize(entries, reservations)
+        // Explicit spare-change purchases use separate accumulated funding and
+        // must not consume the month's 100 EUR buy budget.
+        if (source == BudgetJournalSource.SPARE_CHANGE) {
+            return summary.availableEur.coerceAtLeast(0.0)
+        }
+        // Cash, carryover, correction credits and private sale proceeds must not
+        // increase this month's purchase allowance. Match the advisor cockpit.
+        return InvestmentBudgetViewState.from(
+            summary = summary,
+            entries = entries,
+            today = date
+        ).monthlyAvailableEur
     }
 
     private const val EPSILON = 0.000001
