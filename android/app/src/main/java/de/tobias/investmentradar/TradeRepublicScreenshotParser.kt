@@ -2,6 +2,8 @@ package de.tobias.investmentradar
 
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import java.text.Normalizer
+import java.util.Locale
 
 data class RecognizedTextBlock(
     val text: String,
@@ -18,7 +20,8 @@ data class TradeRepublicScreenshotObservation(
     val profitLossPct: Double?,
     val shares: Double?,
     val derivedCostBasisEur: Double?,
-    val sourceIndex: Int
+    val sourceIndex: Int,
+    val requiresConfirmation: Boolean = false
 )
 
 data class TradeRepublicParseResult(
@@ -33,7 +36,9 @@ object TradeRepublicScreenshotParser {
         "alle positionen", "wertpapiere", "deine investments", "investiert",
         "übersicht", "suche", "suchen", "start", "profil", "märkte", "entdecken",
         "aktien", "etfs", "sparpläne", "wertentwicklung", "heute", "gesamt",
-        "rendite", "gewinn", "verlust", "details", "anzeigen", "alle"
+        "rendite", "gewinn", "verlust", "details", "anzeigen", "alle",
+        "kurs", "preis", "einstand", "buy in", "buy-in", "marktwert",
+        "gesamtwert", "aktuell", "tagesgewinn", "summe"
     )
 
     private val portfolioMarkers = listOf(
@@ -41,10 +46,10 @@ object TradeRepublicScreenshotParser {
         "investments", "investiert", "positionen", "wertpapiere"
     )
     private val euroCurrency = Regex("""(?:€|\bEUR\b)""", RegexOption.IGNORE_CASE)
-    private val combinedNameAndValue = Regex(
-        """^(.+?)\s+((?:\d+(?:[.,]\d+)*)(?:\s*(?:€|EUR)))\s*$""",
-        RegexOption.IGNORE_CASE
-    )
+    // OCR can put the name, current value and P/L on the same line. Split each
+    // explicit currency/percent token instead of dropping the entire name row.
+    private val monetaryToken = Regex("""[+−–-]?\s*\d[\d.,]*\s*(?:€|\bEUR\b)""", RegexOption.IGNORE_CASE)
+    private val percentToken = Regex("""[+−–-]?\s*\d[\d.,]*\s*%""")
 
     private val germanThousandsOnly = Regex("^[1-9]\\d{0,2}(\\.\\d{3})+$")
 
@@ -97,14 +102,18 @@ object TradeRepublicScreenshotParser {
 
     fun parse(
         blocks: List<RecognizedTextBlock>,
-        sourceIndex: Int
+        sourceIndex: Int,
+        trustedAssetNames: Set<String> = emptySet()
     ): TradeRepublicParseResult {
         val ordered = joinSplitEuroAmounts(blocks.flatMap(::splitNameAndValue))
             .filter { it.text.isNotBlank() }
             .sortedWith(compareBy<RecognizedTextBlock>({ it.top }, { it.left }))
         val hasPortfolioHeader = ordered.any { block ->
             val normalized = block.text.trim().lowercase()
-            portfolioMarkers.any { marker -> normalized == marker || normalized.startsWith("$marker ") }
+            portfolioMarkers.any { marker ->
+                normalized == marker || normalized.startsWith("$marker ") ||
+                    (normalized.length <= 42 && normalized.endsWith(" $marker"))
+            }
         }
 
         // Combine wrapped asset names before pairing them with a nearby portfolio value.
@@ -179,10 +188,25 @@ object TradeRepublicScreenshotParser {
             (observations.size == 1 &&
                 observations.single().profitLossEur != null &&
                 observations.single().profitLossPct != null)
-        val recognized = observations.isNotEmpty() && (hasPortfolioHeader || headerlessPortfolio)
+        // Scrolled portfolio screenshots can contain a single known holding and
+        // only its EUR value. They have no title or P/L; rejecting them created
+        // the user-visible '0 detected stocks' failure. Trust names from the
+        // local asset catalog, never an arbitrary name/amount pair from a receipt.
+        val trusted = observations.filter { observation ->
+            matchesTrustedName(observation.name, trustedAssetNames)
+        }
+        val recognized = observations.isNotEmpty() &&
+            (hasPortfolioHeader || headerlessPortfolio || trusted.isNotEmpty())
+        val accepted = when {
+            !recognized -> emptyList()
+            hasPortfolioHeader || headerlessPortfolio -> observations
+            // Headerless fallback uses only trusted rows and requires explicit
+            // confirmation so an accidental receipt match cannot update a holding.
+            else -> trusted.map { it.copy(requiresConfirmation = true) }
+        }
         return TradeRepublicParseResult(
             recognizedAsTradeRepublic = recognized,
-            observations = if (recognized) observations else emptyList()
+            observations = accepted
         )
     }
 
@@ -245,26 +269,69 @@ object TradeRepublicScreenshotParser {
     }
 
     private fun splitNameAndValue(block: RecognizedTextBlock): List<RecognizedTextBlock> {
-        val match = combinedNameAndValue.matchEntire(block.text.trim()) ?: return listOf(block)
-        val label = match.groupValues[1].trim()
-        val amount = match.groupValues[2].trim()
-        if (!label.any(Char::isLetter) || label.lowercase() in ignoredLabels) return listOf(block)
-        val splitPosition = match.groups[2]?.range?.first ?: return listOf(block)
-        val estimatedX = block.left + (
-            (block.right - block.left).toDouble() * splitPosition / block.text.length.coerceAtLeast(1)
-        ).roundToInt()
-        return listOf(
-            block.copy(text = label, right = estimatedX),
-            block.copy(text = amount, left = estimatedX)
-        )
+        val line = block.text.trim()
+        val tokens = (monetaryToken.findAll(line).toList() +
+            percentToken.findAll(line).toList())
+            .sortedBy { it.range.first }
+        if (tokens.isEmpty()) return listOf(block)
+        if (tokens.zipWithNext().any { (first, second) ->
+                first.range.last >= second.range.first
+            }) return listOf(block)
+
+        val trailing = line.substring(tokens.last().range.last + 1).trim()
+        if (trailing.isNotEmpty()) return listOf(block)
+        val prefix = line.substring(0, tokens.first().range.first).trim()
+        if (prefix.isNotEmpty() && (
+                !prefix.any(Char::isLetter) ||
+                prefix.lowercase() in ignoredLabels ||
+                isSharesText(prefix)
+            )) return listOf(block)
+
+        val spans = buildList {
+            if (prefix.isNotBlank()) {
+                add(0 to tokens.first().range.first)
+            }
+            tokens.forEach { add(it.range.first to (it.range.last + 1)) }
+        }
+        if (spans.size <= 1) return listOf(block)
+        val width = (block.right - block.left).coerceAtLeast(0)
+        return spans.mapNotNull { (from, until) ->
+            val value = line.substring(from, until).trim()
+            if (value.isEmpty()) null else {
+                block.copy(
+                    text = value,
+                    left = block.left + (width.toDouble() * from / line.length).roundToInt(),
+                    right = block.left + (width.toDouble() * until / line.length).roundToInt()
+                )
+            }
+        }
     }
+
+    private fun matchesTrustedName(name: String, trustedNames: Set<String>): Boolean {
+        val normalized = normalizeName(name)
+        if (normalized.length < 5) return false
+        return trustedNames.any { candidate ->
+            val known = normalizeName(candidate)
+            normalized == known ||
+                (minOf(normalized.length, known.length) >= 12 &&
+                    (normalized.startsWith(known) || known.startsWith(normalized)))
+        }
+    }
+
+    private fun normalizeName(value: String): String =
+        Normalizer.normalize(value.trim(), Normalizer.Form.NFD)
+            .replace(Regex("""\\p{M}+"""), "")
+            .lowercase(Locale.ROOT)
+            .replace(Regex("[^a-z0-9]+"), "")
 
     private fun isAssetNameBlock(block: RecognizedTextBlock): Boolean {
         val text = block.text.trim()
         val lower = text.lowercase()
         if (text.isBlank() || lower in ignoredLabels) return false
         if (!text.any(Char::isLetter)) return false
-        if (Regex("^\\([^)]{1,8}\\)$").matches(text)) return false
+        if (Regex("^\\([^)]{1,8}\\)$").matches(text)) {
+            return Regex("""^\\((?:A|B|ADR|GDR|Acc|Dist)\\)$""", RegexOption.IGNORE_CASE).matches(text)
+        }
         if (euroCurrency.containsMatchIn(text) || text.contains('%') || isSharesText(text)) return false
         if (parseLocalizedNumber(text) != null && text.none(Char::isLetter)) return false
         return true
