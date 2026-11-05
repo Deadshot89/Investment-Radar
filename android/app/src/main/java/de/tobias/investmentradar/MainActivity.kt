@@ -174,7 +174,24 @@ fun InvestmentRadarUi(
         val recognizer = MlKitLocalScreenshotTextRecognizer(context)
         DepotScreenshotImportViewModel(
             batchLoader = ScreenshotImportBatchLoader { images, onProgress ->
-                TradeRepublicScreenshotImporter.import(images, recognizer, onProgress)
+                val trustedNames = buildSet {
+                    latestImportItems.value
+                        .filter(PortfolioAssetMatcher::isTradeRepublicCandidate)
+                        .forEach { item ->
+                            add(item.name)
+                            add(item.tradeRepublicName)
+                            add(item.ticker)
+                        }
+                    latestImportCustomItems.value
+                        .filter(PortfolioAssetMatcher::isTradeRepublicCandidate)
+                        .forEach { item ->
+                            add(item.name)
+                            add(item.ticker)
+                        }
+                }.filter(String::isNotBlank).toSet()
+                TradeRepublicScreenshotImporter.import(
+                    images, recognizer, onProgress, trustedAssetNames = trustedNames
+                )
             },
             sourceProvider = {
                 DepotImportSourceSnapshot(
