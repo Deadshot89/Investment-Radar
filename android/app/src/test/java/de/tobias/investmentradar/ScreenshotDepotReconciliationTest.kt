@@ -289,4 +289,31 @@ class ScreenshotDepotReconciliationTest {
         assertTrue(result.single().reason!!.contains("bestätigen"))
     }
 
+    @Test
+    fun headerlessPartialScreenshotDoesNotMarkOtherHoldingsMissing() {
+        val parsed = TradeRepublicScreenshotParser.parse(
+            blocks = listOf(
+                RecognizedTextBlock("Meta Platforms", 20, 100, 320, 125),
+                RecognizedTextBlock("852,03 €", 610, 132, 760, 154)
+            ),
+            sourceIndex = 0,
+            trustedAssetNames = setOf("Meta Platforms")
+        )
+        val reviewed = ScreenshotDepotReconciliation.reconcileTradeRepublic(
+            observations = parsed.observations,
+            builtInItems = listOf(
+                item("meta", "Meta Platforms", "META"),
+                item("apple", "Apple", "AAPL")
+            ),
+            customItems = emptyList(),
+            existing = mapOf(
+                "meta" to PortfolioPosition("meta", snapshotValueEur = 800.0),
+                "apple" to PortfolioPosition("apple", snapshotValueEur = 65.0)
+            )
+        )
+        assertEquals(1, reviewed.size)
+        assertEquals("meta", reviewed.single().itemId)
+        assertEquals(ScreenshotReviewStatus.NEEDS_REVIEW, reviewed.single().status)
+    }
+
 }
