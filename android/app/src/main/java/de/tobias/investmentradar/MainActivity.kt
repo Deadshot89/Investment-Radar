@@ -190,7 +190,7 @@ fun InvestmentRadarUi(
                         }
                 }.filter(String::isNotBlank).toSet()
                 TradeRepublicScreenshotImporter.import(
-                    images, recognizer, onProgress, trustedAssetNames = trustedNames
+                    images, recognizer, trustedAssetNames = trustedNames, onProgress = onProgress
                 )
             },
             sourceProvider = {
