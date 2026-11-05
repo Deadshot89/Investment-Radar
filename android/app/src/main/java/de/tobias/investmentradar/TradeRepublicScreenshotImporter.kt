@@ -21,7 +21,8 @@ interface LocalScreenshotTextRecognizer {
 data class ScreenshotImportImageResult(
     val image: ScreenshotImageRef,
     val parseResult: TradeRepublicParseResult? = null,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val recognizedTextLines: Int = 0
 )
 
 data class ScreenshotImportBatch(
@@ -41,7 +42,8 @@ object TradeRepublicScreenshotImporter {
     suspend fun import(
         images: List<ScreenshotImageRef>,
         recognizer: LocalScreenshotTextRecognizer,
-        onProgress: (completed: Int, total: Int) -> Unit = { _, _ -> }
+        onProgress: (completed: Int, total: Int) -> Unit = { _, _ -> },
+        trustedAssetNames: Set<String> = emptySet()
     ): ScreenshotImportBatch {
         if (images.isEmpty()) return ScreenshotImportBatch(emptyList())
 
@@ -53,8 +55,10 @@ object TradeRepublicScreenshotImporter {
                     image = image,
                     parseResult = TradeRepublicScreenshotParser.parse(
                         blocks = blocks,
-                        sourceIndex = index
-                    )
+                        sourceIndex = index,
+                        trustedAssetNames = trustedAssetNames
+                    ),
+                    recognizedTextLines = blocks.size
                 )
             } catch (error: Exception) {
                 ScreenshotImportImageResult(
