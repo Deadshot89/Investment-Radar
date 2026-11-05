@@ -168,4 +168,114 @@ class InvestmentBudgetExecutionServiceTest {
         assertTrue(deleted.entries.none { it.id == "sell-msci" })
         assertEquals(100.0, InvestmentBudgetJournalEngine.summarize(deleted.entries, deleted.reservations).availableEur, 0.000001)
     }
+    @Test
+    fun `previous month carryover cannot fund oversized current month manual buy`() {
+        val entries = listOf(
+            BudgetJournalEntry("month-sep", BudgetJournalType.MONTHLY_DEPOSIT, 100.0, "2026-09-01"),
+            BudgetJournalEntry("month-oct", BudgetJournalType.MONTHLY_DEPOSIT, 100.0, "2026-10-01")
+        )
+        val request = BudgetBuyExecution(
+            "buy-oversized", null, "meta", "2026-10-05", 120.0, 1.0, BudgetJournalSource.MANUAL
+        )
+        // Historical cash is 200 EUR but current month's limit is only 100 EUR.
+        assertEquals(200.0, InvestmentBudgetJournalEngine.summarize(entries, emptyList()).availableEur, 0.000001)
+
+        val result = InvestmentBudgetExecutionService.executeBuy(
+            PortfolioPosition("meta"), entries, emptyList(), request
+        )
+
+        assertEquals("Nicht genügend verfügbares Budget", result.error)
+        assertTrue(result.position!!.purchases.isEmpty())
+        assertEquals(entries, result.entries)
+    }
+
+    @Test
+    fun `extra funding does not let a confirmed recommendation buy exceed remaining monthly 10 euro`() {
+        val entries = listOf(
+            BudgetJournalEntry("month-oct", BudgetJournalType.MONTHLY_DEPOSIT, 100.0, "2026-10-01"),
+            BudgetJournalEntry("extra-500", BudgetJournalType.EXTRA_DEPOSIT, 500.0, "2026-10-01"),
+            BudgetJournalEntry("buy-90", BudgetJournalType.BUY_DEBIT, 90.0, "2026-10-02", "apple")
+        )
+        val forbidden = InvestmentBudgetExecutionService.executeBuy(
+            PortfolioPosition("meta"), entries, emptyList(),
+            BudgetBuyExecution("buy-20", null, "meta", "2026-10-08", 20.0, 1.0, BudgetJournalSource.RECOMMENDATION)
+        )
+        assertEquals("Nicht genügend verfügbares Budget", forbidden.error)
+
+        val allowed = InvestmentBudgetExecutionService.executeBuy(
+            PortfolioPosition("meta"), entries, emptyList(),
+            BudgetBuyExecution("buy-10", null, "meta", "2026-10-08", 10.0, 0.5, BudgetJournalSource.MANUAL)
+        )
+        assertNull(allowed.error)
+        val state = InvestmentBudgetViewState.from(
+            InvestmentBudgetJournalEngine.summarize(allowed.entries, allowed.reservations),
+            allowed.entries,
+            today = java.time.LocalDate.of(2026, 10, 8)
+        )
+        assertEquals(0.0, state.monthlyAvailableEur, 0.000001)
+        assertEquals(0, state.advisorBudgetEur)
+    }
+
+    @Test
+    fun `editing a purchase cannot use old carryover to exceed current month cap`() {
+        val entries = listOf(
+            BudgetJournalEntry("month-sep", BudgetJournalType.MONTHLY_DEPOSIT, 100.0, "2026-09-01"),
+            BudgetJournalEntry("month-oct", BudgetJournalType.MONTHLY_DEPOSIT, 100.0, "2026-10-01"),
+            BudgetJournalEntry("buy-meta", BudgetJournalType.BUY_DEBIT, 90.0, "2026-10-03", "meta")
+        )
+        val position = PortfolioPosition("meta").upsertPurchaseIfValid(
+            PortfolioPurchase("buy-meta", "2026-10-03", 90.0, 1.0)
+        )!!
+
+        val revised = InvestmentBudgetExecutionService.reviseBuy(
+            position, entries, PortfolioPurchase("buy-meta", "2026-10-03", 110.0, 1.2)
+        )
+        assertEquals("Nicht genügend verfügbares Budget", revised.error)
+        assertEquals(entries, revised.entries)
+        assertEquals(position, revised.position)
+    }
+
+    @Test
+    fun `unrelated reservation is never removed when confirming a different position`() {
+        val entries = listOf(
+            BudgetJournalEntry("month-oct", BudgetJournalType.MONTHLY_DEPOSIT, 100.0, "2026-10-01")
+        )
+        val reservations = listOf(BudgetReservation("for-apple", "apple", 30.0))
+        val result = InvestmentBudgetExecutionService.executeBuy(
+            PortfolioPosition("meta"), entries, reservations,
+            BudgetBuyExecution("buy-meta", "for-apple", "meta", "2026-10-03", 10.0, 0.5, BudgetJournalSource.MANUAL)
+        )
+        assertNull(result.error)
+        assertEquals(reservations, result.reservations)
+        assertEquals(60.0, InvestmentBudgetJournalEngine.summarize(result.entries, result.reservations).availableEur, 0.000001)
+    }
+
+    @Test
+    fun `explicit spare change purchase remains independent of used monthly budget`() {
+        val entries = listOf(
+            BudgetJournalEntry("month-oct", BudgetJournalType.MONTHLY_DEPOSIT, 100.0, "2026-10-01"),
+            BudgetJournalEntry("buy-month", BudgetJournalType.BUY_DEBIT, 100.0, "2026-10-02", "apple"),
+            BudgetJournalEntry("extra-change", BudgetJournalType.EXTRA_DEPOSIT, 6.42, "2026-10-05", source = BudgetJournalSource.SPARE_CHANGE)
+        )
+        val result = InvestmentBudgetExecutionService.executeBuy(
+            PortfolioPosition("msci"), entries, emptyList(),
+            BudgetBuyExecution("buy-change", null, "msci", "2026-10-05", 6.42, 0.1, BudgetJournalSource.SPARE_CHANGE)
+        )
+        assertNull(result.error)
+        assertEquals(0.0, InvestmentBudgetJournalEngine.summarize(result.entries, result.reservations).availableEur, 0.000001)
+    }
+
+    @Test
+    fun `invalid purchase date never bypasses monthly budget limit`() {
+        val entries = listOf(
+            BudgetJournalEntry("month-oct", BudgetJournalType.MONTHLY_DEPOSIT, 100.0, "2026-10-01")
+        )
+        val result = InvestmentBudgetExecutionService.executeBuy(
+            PortfolioPosition("meta"), entries, emptyList(),
+            BudgetBuyExecution("buy-meta", null, "meta", "invalid-date", 20.0, 1.0, BudgetJournalSource.MANUAL)
+        )
+        assertEquals("Ungültige Kaufdaten", result.error)
+        assertEquals(entries, result.entries)
+    }
+
 }
