@@ -96,4 +96,4 @@ dependencies {
     implementation("com.google.firebase:firebase-messaging")
 }
 
-// Release candidate: Investment Radar 2.5.56
+// Release candidate: Investment Radar 2.5.57
