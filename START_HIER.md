@@ -66,8 +66,8 @@ Optional:
 Die produktive App wird mit einem dauerhaft erhaltenen Keystore signiert. Dieser Keystore darf nicht ersetzt werden, sonst akzeptiert Android spätere Updates nicht mehr.
 
 Aktueller Stand:
-- `versionName = 2.5.56`
-- `versionCode = 126`
+- `versionName = 2.5.57`
+- `versionCode = 127`
 
 Vor einem Release müssen grün sein:
 1. Android Contract Tests
