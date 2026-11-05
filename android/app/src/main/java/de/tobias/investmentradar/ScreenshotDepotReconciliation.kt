@@ -156,11 +156,13 @@ object ScreenshotDepotReconciliation {
                 val status = when {
                     current == null -> ScreenshotReviewStatus.NEW_POSITION
                     current.lifecycleStatus == PortfolioLifecycleStatus.SOLD_MARKED -> ScreenshotReviewStatus.SOLD_REAPPEARED
+                    merged.requiresConfirmation -> ScreenshotReviewStatus.NEEDS_REVIEW
                     else -> ScreenshotReviewStatus.READY
                 }
                 val reason = when (status) {
                     ScreenshotReviewStatus.NEW_POSITION -> "Neue Position muss bestätigt werden"
                     ScreenshotReviewStatus.SOLD_REAPPEARED -> "Als verkauft markierte Position ist wieder auf Trade Republic sichtbar"
+                    ScreenshotReviewStatus.NEEDS_REVIEW -> "Ausschnitt ohne Depotüberschrift: Bitte erkannte Werte bestätigen"
                     else -> null
                 }
                 TradeRepublicScreenshotReviewItem(
@@ -268,7 +270,8 @@ object ScreenshotDepotReconciliation {
             profitLossPct = observations.firstNotNullOfOrNull { it.profitLossPct },
             shares = observations.firstNotNullOfOrNull { it.shares },
             derivedCostBasisEur = observations.firstNotNullOfOrNull { it.derivedCostBasisEur },
-            sourceIndex = observations.minOf { it.sourceIndex }
+            sourceIndex = observations.minOf { it.sourceIndex },
+            requiresConfirmation = observations.any { it.requiresConfirmation }
         )
     }
 
