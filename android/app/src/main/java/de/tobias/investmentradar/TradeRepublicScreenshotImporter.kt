@@ -42,8 +42,8 @@ object TradeRepublicScreenshotImporter {
     suspend fun import(
         images: List<ScreenshotImageRef>,
         recognizer: LocalScreenshotTextRecognizer,
-        onProgress: (completed: Int, total: Int) -> Unit = { _, _ -> },
-        trustedAssetNames: Set<String> = emptySet()
+        trustedAssetNames: Set<String> = emptySet(),
+        onProgress: (completed: Int, total: Int) -> Unit = { _, _ -> }
     ): ScreenshotImportBatch {
         if (images.isEmpty()) return ScreenshotImportBatch(emptyList())
 
