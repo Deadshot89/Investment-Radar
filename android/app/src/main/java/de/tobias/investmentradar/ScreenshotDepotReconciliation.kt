@@ -175,7 +175,9 @@ object ScreenshotDepotReconciliation {
             }
         }
 
-        val notFound = existing.entries
+        // A cropped or headerless image is not evidence of a complete depot.
+        // Never prompt for sells/deletes of holdings outside that partial view.
+        val notFound = (if (observations.any { it.requiresConfirmation }) emptyMap() else existing).entries
             .asSequence()
             .filter { (itemId, position) ->
                 itemId !in potentiallyObservedIds &&
