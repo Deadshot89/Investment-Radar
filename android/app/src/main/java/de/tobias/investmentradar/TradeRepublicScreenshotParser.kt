@@ -320,7 +320,7 @@ object TradeRepublicScreenshotParser {
 
     private fun normalizeName(value: String): String =
         Normalizer.normalize(value.trim(), Normalizer.Form.NFD)
-            .replace(Regex("""\\p{M}+"""), "")
+            .replace(Regex("""\p{M}+"""), "")
             .lowercase(Locale.ROOT)
             .replace(Regex("[^a-z0-9]+"), "")
 
@@ -330,7 +330,7 @@ object TradeRepublicScreenshotParser {
         if (text.isBlank() || lower in ignoredLabels) return false
         if (!text.any(Char::isLetter)) return false
         if (Regex("^\\([^)]{1,8}\\)$").matches(text)) {
-            return Regex("""^\\((?:A|B|ADR|GDR|Acc|Dist)\\)$""", RegexOption.IGNORE_CASE).matches(text)
+            return Regex("""^\((?:A|B|ADR|GDR|Acc|Dist)\)$""", RegexOption.IGNORE_CASE).matches(text)
         }
         if (euroCurrency.containsMatchIn(text) || text.contains('%') || isSharesText(text)) return false
         if (parseLocalizedNumber(text) != null && text.none(Char::isLetter)) return false
