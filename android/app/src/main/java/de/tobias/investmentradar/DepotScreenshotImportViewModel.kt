@@ -288,7 +288,38 @@ class DepotScreenshotImportViewModel(
                 .mapIndexed { index, item -> item.toCoordinatorRow(index + observedRows.size, source) }
         } else emptyList()
 
-        publishReview(observedRows + missing, reviewing.failedImages)
+        // A manually resolved ambiguous match may leave other candidate
+        // positions absent. Recompute these only in explicit full-coverage mode,
+        // even if the user enabled it after resolving the row.
+        val reservedByUnresolved = observedRows
+            .filter { it.itemId == null && it.observation != null }
+            .flatMap { it.candidateItemIds }
+            .toSet()
+        val missingIds = missing.mapNotNull { it.itemId }.toSet()
+        val ambiguousMissing = if (confirmed) observedRows.asSequence()
+            .filter { it.itemId != null && it.observation != null }
+            .flatMap { row -> row.candidateItemIds.asSequence().filter { it != row.itemId } }
+            .distinct()
+            .filter { candidateId ->
+                candidateId !in observedIds &&
+                    candidateId !in reservedByUnresolved &&
+                    candidateId !in missingIds &&
+                    shouldTrackMissingCandidate(candidateId, source)
+            }
+            .mapIndexed { index, candidateId ->
+                DepotScreenshotImportReviewRow(
+                    key = "confirmed-missing|$candidateId|$index",
+                    itemId = candidateId,
+                    observation = null,
+                    status = ScreenshotReviewStatus.NOT_FOUND,
+                    reason = "Nach manueller Zuordnung auf den vollständigen Screenshots nicht gefunden",
+                    kind = DepotScreenshotImportRowKind.MISSING,
+                    resolved = false
+                )
+            }
+            .toList() else emptyList()
+
+        publishReview(observedRows + missing + ambiguousMissing, reviewing.failedImages)
     }
 
     private fun canReviewFullCoverage(): Boolean =
