@@ -275,9 +275,9 @@ class DepotScreenshotImportViewModel(
         completeCoverageConfirmed = confirmed
 
         val observedRows = reviewing.rows.filterNot { it.kind == DepotScreenshotImportRowKind.MISSING }
+        val observedIds = observedRows.filter { it.observation != null }.mapNotNull { it.itemId }.toSet()
         val missing = if (confirmed) {
             val allObservations = imageResults.flatMap { it.parseResult?.observations.orEmpty() }
-            val observedIds = observedRows.filter { it.observation != null }.mapNotNull { it.itemId }.toSet()
             ScreenshotDepotReconciliation.reconcileTradeRepublic(
                 observations = allObservations,
                 builtInItems = source.builtInItems,
