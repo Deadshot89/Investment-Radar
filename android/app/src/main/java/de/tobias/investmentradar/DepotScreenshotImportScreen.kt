@@ -49,6 +49,7 @@ data class DepotScreenshotImportUiActions(
     val onConfirmCustomNew: (String, CustomAssetDraft) -> Unit = { _, _ -> },
     val onConfirmReactivation: (String) -> Unit = {},
     val onChooseMissing: (String, MissingPositionDecision) -> Unit = { _, _ -> },
+    val onSetCompleteCoverage: (Boolean) -> Unit = {},
     val onRetryFailedImage: (String) -> Unit = {},
     val onApply: () -> Unit = {},
     val onCancel: () -> Unit = {},
@@ -91,6 +92,7 @@ fun DepotScreenshotImportScreen(
             onConfirmCustomNew = coordinator::confirmCustomNewPosition,
             onConfirmReactivation = coordinator::confirmReactivation,
             onChooseMissing = coordinator::chooseMissingPosition,
+            onSetCompleteCoverage = coordinator::setCompleteCoverageConfirmed,
             onRetryFailedImage = { sourceId -> scope.launch { coordinator.retryFailedImage(sourceId) } },
             onApply = coordinator::apply,
             onCancel = coordinator::cancel,
@@ -133,7 +135,7 @@ fun DepotScreenshotImportContent(
                     val count = state.images.size
                     Text(if (count == 1) "1 Screenshot ausgewählt" else "$count Screenshots ausgewählt")
                     Text(
-                        "Wähle alle Screenshots aus, die zusammen dein aktuelles Trade-Republic-Depot abdecken.",
+                        "Du kannst auch nur einzelne Positionen aktualisieren. Andere Bestände bleiben dann unverändert.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodySmall
                     )
@@ -171,10 +173,31 @@ fun DepotScreenshotImportContent(
                             Text("Andere Screenshots auswählen")
                         }
                         Text(
-                            "Erst nach deiner Bestätigung werden Änderungen gespeichert. Fehlende Positionen werden niemals automatisch verkauft oder gelöscht.",
+                            "Erkannte Werte vor dem Speichern prüfen. Verkäufe oder Löschungen erfolgen nie automatisch.",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             style = MaterialTheme.typography.bodySmall
                         )
+                        if (state.canConfirmCompleteCoverage) {
+                            FilterChip(
+                                selected = state.completeCoverageConfirmed,
+                                onClick = { actions.onSetCompleteCoverage(!state.completeCoverageConfirmed) },
+                                label = { Text("Alle Depotpositionen abgebildet") }
+                            )
+                            Text(
+                                if (state.completeCoverageConfirmed)
+                                    "Vollständigkeit bestätigt: Nicht gefundene Positionen können einzeln geprüft werden."
+                                else
+                                    "Teilimport: Nicht abgebildete Positionen bleiben unverändert.",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        } else {
+                            Text(
+                                "Teilimport: Andere Positionen bleiben unverändert. Für eine Vollständigkeitsprüfung müssen alle Screenshots sicher erkannt sein.",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
                     }
                 }
 
@@ -211,7 +234,7 @@ fun DepotScreenshotImportContent(
                         ) { Text("Änderungen übernehmen") }
                         if (!state.canApply) {
                             Text(
-                                "Alle Konflikte, neuen Werte und fehlenden Positionen müssen zuerst eindeutig bestätigt werden.",
+                                "Bitte alle erkannten Werte und Entscheidungen bestätigen. Bei Fehlern im Screenshot ist das Speichern gesperrt.",
                                 color = MaterialTheme.colorScheme.error,
                                 style = MaterialTheme.typography.bodySmall
                             )
