@@ -198,6 +198,7 @@ class DepotScreenshotImportViewModelTest {
         )
         viewModel.selectImages(images)
         viewModel.analyze()
+        viewModel.setCompleteCoverageConfirmed(true)
 
         var reviewing = viewModel.state.value as DepotScreenshotImportState.Reviewing
         val apple = reviewing.rows.single { it.itemId == "apple" }
@@ -407,4 +408,135 @@ class DepotScreenshotImportViewModelTest {
         dataDelayed = false,
         dataError = null
     )
+    @Test
+    fun partialScreenshotImportPreservesNonVisiblePositionsWithoutExtraDecisions() = runBlocking {
+        val img = image("first-screen-only")
+        val positions = mapOf(
+            "meta" to position("meta", 95.0),
+            "apple" to position("apple", 65.0)
+        )
+        var committed: PortfolioImportResult? = null
+        val coordinator = viewModel(
+            loader = ScreenshotImportBatchLoader { _, onProgress ->
+                onProgress(1, 1)
+                ScreenshotImportBatch(listOf(success(img, observation("Meta Platforms", 110.0, 0))))
+            },
+            source = source(
+                listOf(item("meta", "Meta Platforms"), item("apple", "Apple")),
+                positions
+            ),
+            persist = { result, _ -> committed = result; true }
+        )
+
+        coordinator.selectImages(listOf(img))
+        coordinator.analyze()
+        val reviewing = coordinator.state.value as DepotScreenshotImportState.Reviewing
+        assertEquals(1, reviewing.rows.size)
+        assertEquals("meta", reviewing.rows.single().itemId)
+        assertFalse(reviewing.completeCoverageConfirmed)
+        assertTrue(reviewing.canConfirmCompleteCoverage)
+        assertTrue(reviewing.canApply)
+
+        // A hidden or stale UI action cannot mark an unseen holding as sold.
+        coordinator.chooseMissingPosition("apple", MissingPositionDecision.MARK_SOLD)
+        coordinator.apply()
+        assertEquals(65.0, committed!!.positions.getValue("apple").snapshotValueEur!!, 0.000001)
+        assertEquals(PortfolioLifecycleStatus.ACTIVE, committed!!.positions.getValue("apple").lifecycleStatus)
+        assertEquals(110.0, committed!!.positions.getValue("meta").snapshotValueEur!!, 0.000001)
+        assertEquals(0, committed!!.summary.soldCount)
+        assertEquals(0, committed!!.summary.deletedCount)
+    }
+
+    @Test
+    fun fullCoverageOptInAddsMissingRowsWithoutDiscardingConfirmedCorrections() = runBlocking {
+        val img = image("complete")
+        val existing = mapOf(
+            "meta" to position("meta", 95.0),
+            "apple" to position("apple", 65.0)
+        )
+        var committed: PortfolioImportResult? = null
+        val coordinator = viewModel(
+            loader = ScreenshotImportBatchLoader { _, onProgress ->
+                onProgress(1, 1)
+                ScreenshotImportBatch(listOf(success(img, observation("Meta Platforms", 110.0, 0))))
+            },
+            source = source(
+                listOf(item("meta", "Meta Platforms"), item("apple", "Apple")),
+                existing
+            ),
+            persist = { result, _ -> committed = result; true }
+        )
+        coordinator.selectImages(listOf(img))
+        coordinator.analyze()
+        val originalRow = (coordinator.state.value as DepotScreenshotImportState.Reviewing).rows.single()
+        coordinator.correctValues(originalRow.key, 115.0, 90.0, null)
+        coordinator.confirmReviewedRow(originalRow.key)
+
+        coordinator.setCompleteCoverageConfirmed(true)
+        val review = coordinator.state.value as DepotScreenshotImportState.Reviewing
+        assertTrue(review.completeCoverageConfirmed)
+        assertEquals(115.0, review.rows.single { it.itemId == "meta" }.observation!!.valueEur!!, 0.000001)
+        assertTrue(review.rows.single { it.itemId == "meta" }.resolved)
+        assertEquals(DepotScreenshotImportRowKind.MISSING, review.rows.single { it.itemId == "apple" }.kind)
+        assertFalse(review.canApply)
+
+        coordinator.chooseMissingPosition("apple", MissingPositionDecision.KEEP)
+        assertTrue((coordinator.state.value as DepotScreenshotImportState.Reviewing).canApply)
+        coordinator.apply()
+        assertEquals(115.0, committed!!.positions.getValue("meta").snapshotValueEur!!, 0.000001)
+        assertEquals(existing.getValue("apple"), committed!!.positions.getValue("apple"))
+    }
+
+    @Test
+    fun optingOutOfFullCoverageRemovesDestructiveChoicesAndPreservesCorrections() = runBlocking {
+        val img = image("complete")
+        val existing = mapOf("meta" to position("meta", 95.0), "apple" to position("apple", 65.0))
+        val coordinator = viewModel(
+            loader = ScreenshotImportBatchLoader { _, onProgress ->
+                onProgress(1, 1)
+                ScreenshotImportBatch(listOf(success(img, observation("Meta Platforms", 110.0, 0))))
+            },
+            source = source(
+                listOf(item("meta", "Meta Platforms"), item("apple", "Apple")),
+                existing
+            )
+        )
+        coordinator.selectImages(listOf(img))
+        coordinator.analyze()
+        coordinator.setCompleteCoverageConfirmed(true)
+        coordinator.chooseMissingPosition("apple", MissingPositionDecision.DELETE)
+        coordinator.setCompleteCoverageConfirmed(false)
+
+        val review = coordinator.state.value as DepotScreenshotImportState.Reviewing
+        assertFalse(review.completeCoverageConfirmed)
+        assertTrue(review.canApply)
+        assertEquals(listOf("meta"), review.rows.mapNotNull { it.itemId })
+        assertEquals(0, review.summary.deletedCount)
+    }
+
+    @Test
+    fun headerlessOrUnrecognizedScreenshotCannotEnableMissingPositionActions() = runBlocking {
+        val img = image("cropped")
+        val observation = observation("Meta Platforms", 120.0, 0).copy(requiresConfirmation = true)
+        val coordinator = viewModel(
+            loader = ScreenshotImportBatchLoader { _, onProgress ->
+                onProgress(1, 1)
+                ScreenshotImportBatch(listOf(success(img, observation)))
+            },
+            source = source(
+                listOf(item("meta", "Meta Platforms"), item("apple", "Apple")),
+                mapOf("meta" to position("meta", 100.0), "apple" to position("apple", 50.0))
+            )
+        )
+        coordinator.selectImages(listOf(img))
+        coordinator.analyze()
+        var review = coordinator.state.value as DepotScreenshotImportState.Reviewing
+        assertFalse(review.canConfirmCompleteCoverage)
+        coordinator.setCompleteCoverageConfirmed(true)
+        review = coordinator.state.value as DepotScreenshotImportState.Reviewing
+        assertFalse(review.completeCoverageConfirmed)
+        assertEquals(listOf("meta"), review.rows.mapNotNull { it.itemId })
+    }
+
+
 }

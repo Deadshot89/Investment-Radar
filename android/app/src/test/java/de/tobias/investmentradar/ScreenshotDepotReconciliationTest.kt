@@ -220,7 +220,8 @@ class ScreenshotDepotReconciliationTest {
             observations = listOf(observation("Meta Platforms", 101.0, 0)),
             builtInItems = builtIn,
             customItems = custom,
-            existing = positions
+            existing = positions,
+            includeMissingPositions = true
         )
 
         val notFoundIds = result
@@ -315,5 +316,47 @@ class ScreenshotDepotReconciliationTest {
         assertEquals("meta", reviewed.single().itemId)
         assertEquals(ScreenshotReviewStatus.NEEDS_REVIEW, reviewed.single().status)
     }
+
+    @Test
+    fun singleScreenshotWithPortfolioHeaderDoesNotInferOtherHoldingsAreSold() {
+        val allItems = listOf(
+            item("meta", "Meta Platforms", "META"),
+            item("apple", "Apple", "AAPL")
+        )
+        val existing = mapOf(
+            "meta" to PortfolioPosition("meta", snapshotValueEur = 90.0),
+            "apple" to PortfolioPosition("apple", snapshotValueEur = 50.0)
+        )
+        // A screenshot of the first visible row has the title but not the rest of the depot.
+        val result = ScreenshotDepotReconciliation.reconcileTradeRepublic(
+            observations = listOf(observation("Meta Platforms", 110.0, 0)),
+            builtInItems = allItems,
+            customItems = emptyList(),
+            existing = existing
+        )
+        assertEquals(listOf("meta"), result.mapNotNull { it.itemId })
+        assertTrue(result.none { it.status == ScreenshotReviewStatus.NOT_FOUND })
+    }
+
+    @Test
+    fun explicitFullCoverageNeverOverridesHeaderlessScreenshotSafety() {
+        val result = ScreenshotDepotReconciliation.reconcileTradeRepublic(
+            observations = listOf(
+                observation("Meta Platforms", 110.0, 0).copy(requiresConfirmation = true)
+            ),
+            builtInItems = listOf(
+                item("meta", "Meta Platforms", "META"),
+                item("apple", "Apple", "AAPL")
+            ),
+            customItems = emptyList(),
+            existing = mapOf(
+                "meta" to PortfolioPosition("meta", snapshotValueEur = 90.0),
+                "apple" to PortfolioPosition("apple", snapshotValueEur = 50.0)
+            ),
+            includeMissingPositions = true
+        )
+        assertTrue(result.none { it.status == ScreenshotReviewStatus.NOT_FOUND })
+    }
+
 
 }

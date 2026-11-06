@@ -89,7 +89,8 @@ object ScreenshotDepotReconciliation {
         observations: List<TradeRepublicScreenshotObservation>,
         builtInItems: List<InvestmentItem>,
         customItems: List<CustomInvestment>,
-        existing: Map<String, PortfolioPosition>
+        existing: Map<String, PortfolioPosition>,
+        includeMissingPositions: Boolean = false
     ): List<TradeRepublicScreenshotReviewItem> {
         val immediate = mutableListOf<TradeRepublicScreenshotReviewItem>()
         val exactGroups = linkedMapOf<String, MutableList<TradeRepublicScreenshotObservation>>()
@@ -175,9 +176,13 @@ object ScreenshotDepotReconciliation {
             }
         }
 
-        // A cropped or headerless image is not evidence of a complete depot.
-        // Never prompt for sells/deletes of holdings outside that partial view.
-        val notFound = (if (observations.any { it.requiresConfirmation }) emptyMap() else existing).entries
+        // An OCR screenshot is never proof that all holdings were photographed.
+        // Only an explicit user confirmation of full coverage may expose missing
+        // positions, and headerless/truncated rows always disable this mode.
+        val eligibleExisting = if (
+            includeMissingPositions && observations.none { it.requiresConfirmation }
+        ) existing else emptyMap<String, PortfolioPosition>()
+        val notFound = eligibleExisting.entries
             .asSequence()
             .filter { (itemId, position) ->
                 itemId !in potentiallyObservedIds &&

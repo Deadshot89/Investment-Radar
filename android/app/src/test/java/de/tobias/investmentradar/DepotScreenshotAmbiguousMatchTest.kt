@@ -65,7 +65,15 @@ class DepotScreenshotAmbiguousMatchTest {
 
         viewModel.assignMatch(ambiguous.key, "alpha-a")
 
+        val partialReview = viewModel.state.value as DepotScreenshotImportState.Reviewing
+        assertFalse(partialReview.completeCoverageConfirmed)
+        assertFalse(partialReview.rows.any { it.kind == DepotScreenshotImportRowKind.MISSING })
+
+        // Opt-in after an ambiguous candidate was manually assigned must
+        // recalculate the other candidate only in confirmed full-coverage mode.
+        viewModel.setCompleteCoverageConfirmed(true)
         val reviewing = viewModel.state.value as DepotScreenshotImportState.Reviewing
+        assertTrue(reviewing.completeCoverageConfirmed)
         assertTrue(reviewing.rows.any {
             it.itemId == "alpha-b" &&
                 it.kind == DepotScreenshotImportRowKind.MISSING &&
