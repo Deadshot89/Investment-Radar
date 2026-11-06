@@ -52,7 +52,9 @@ sealed interface DepotScreenshotImportState {
         val rows: List<DepotScreenshotImportReviewRow>,
         val failedImages: List<ScreenshotImportImageResult>,
         val summary: PortfolioImportSummary,
-        val canApply: Boolean
+        val canApply: Boolean,
+        val completeCoverageConfirmed: Boolean = false,
+        val canConfirmCompleteCoverage: Boolean = false
     ) : DepotScreenshotImportState
 
     data class Applying(
@@ -83,11 +85,13 @@ class DepotScreenshotImportViewModel(
     private var selectedImages: List<ScreenshotImageRef> = emptyList()
     private var imageResults: List<ScreenshotImportImageResult> = emptyList()
     private var sourceSnapshot: DepotImportSourceSnapshot? = null
+    private var completeCoverageConfirmed = false
 
     fun selectImages(images: List<ScreenshotImageRef>) {
         selectedImages = images.distinctBy { it.sourceId to it.uriString }
         imageResults = emptyList()
         sourceSnapshot = null
+        completeCoverageConfirmed = false
         _state.value = DepotScreenshotImportState.Selecting(selectedImages)
     }
 
@@ -96,6 +100,7 @@ class DepotScreenshotImportViewModel(
             _state.value = DepotScreenshotImportState.Failed("Bitte mindestens einen Trade-Republic-Screenshot auswählen.")
             return
         }
+        completeCoverageConfirmed = false
         val source = sourceProvider()
         sourceSnapshot = source
         _state.value = DepotScreenshotImportState.Recognizing(selectedImages, 0, selectedImages.size)
@@ -175,7 +180,7 @@ class DepotScreenshotImportViewModel(
         val derivedMissingRows = original.candidateItemIds
             .asSequence()
             .distinct()
-            .filter { candidateId -> candidateId != normalized }
+            .filter { candidateId -> completeCoverageConfirmed && candidateId != normalized }
             .filter { candidateId -> candidateId !in alreadyObservedIds }
             .filter { candidateId -> shouldTrackMissingCandidate(candidateId, source) }
             .map { candidateId ->
@@ -257,7 +262,45 @@ class DepotScreenshotImportViewModel(
         }
     }
 
+    /**
+     * In normal (partial) imports, unmatched existing positions remain untouched.
+     * Full-coverage mode is opt-in and can only be enabled after every selected
+     * screenshot has been parsed safely. Preserve all manually reviewed rows
+     * when the user toggles this option.
+     */
+    fun setCompleteCoverageConfirmed(confirmed: Boolean) {
+        val reviewing = _state.value as? DepotScreenshotImportState.Reviewing ?: return
+        val source = sourceSnapshot ?: return
+        if (confirmed && !reviewing.canConfirmCompleteCoverage) return
+        completeCoverageConfirmed = confirmed
+
+        val observedRows = reviewing.rows.filterNot { it.kind == DepotScreenshotImportRowKind.MISSING }
+        val missing = if (confirmed) {
+            val allObservations = imageResults.flatMap { it.parseResult?.observations.orEmpty() }
+            val observedIds = observedRows.filter { it.observation != null }.mapNotNull { it.itemId }.toSet()
+            ScreenshotDepotReconciliation.reconcileTradeRepublic(
+                observations = allObservations,
+                builtInItems = source.builtInItems,
+                customItems = source.customItems,
+                existing = source.positions,
+                includeMissingPositions = true
+            ).filter { it.status == ScreenshotReviewStatus.NOT_FOUND && it.itemId !in observedIds }
+                .mapIndexed { index, item -> item.toCoordinatorRow(index + observedRows.size, source) }
+        } else emptyList()
+
+        publishReview(observedRows + missing, reviewing.failedImages)
+    }
+
+    private fun canReviewFullCoverage(): Boolean =
+        imageResults.isNotEmpty() && imageResults.all { result ->
+            result.errorMessage == null &&
+                result.parseResult?.recognizedAsTradeRepublic == true &&
+                result.parseResult.observations.isNotEmpty() &&
+                result.parseResult.observations.none { it.requiresConfirmation }
+        }
+
     fun chooseMissingPosition(itemId: String, decision: MissingPositionDecision) {
+        if (!completeCoverageConfirmed) return
         val normalized = itemId.trim()
         mutateReviewRowByItemId(normalized) { row ->
             if (row.kind != DepotScreenshotImportRowKind.MISSING) return@mutateReviewRowByItemId row
@@ -270,6 +313,7 @@ class DepotScreenshotImportViewModel(
         val imageIndex = selectedImages.indexOfFirst { it.sourceId == sourceId }
         if (imageIndex < 0) return
         val image = selectedImages[imageIndex]
+        completeCoverageConfirmed = false
         _state.value = DepotScreenshotImportState.Recognizing(selectedImages, 0, 1)
         try {
             val retried = batchLoader.load(listOf(image)) { completed, total ->
@@ -297,6 +341,7 @@ class DepotScreenshotImportViewModel(
     fun apply() {
         val reviewing = _state.value as? DepotScreenshotImportState.Reviewing ?: return
         if (!reviewing.canApply) return
+        if (!completeCoverageConfirmed && reviewing.rows.any { it.kind == DepotScreenshotImportRowKind.MISSING }) return
         val source = sourceSnapshot ?: return
         val latest = runCatching { sourceProvider() }.getOrNull()
         if (latest == null || latest.positions != source.positions || latest.customItems != source.customItems) {
@@ -353,6 +398,7 @@ class DepotScreenshotImportViewModel(
         selectedImages = emptyList()
         imageResults = emptyList()
         sourceSnapshot = null
+        completeCoverageConfirmed = false
         _state.value = DepotScreenshotImportState.Selecting()
     }
 
@@ -384,7 +430,8 @@ class DepotScreenshotImportViewModel(
             observations = observations,
             builtInItems = source.builtInItems,
             customItems = source.customItems,
-            existing = source.positions
+            existing = source.positions,
+            includeMissingPositions = completeCoverageConfirmed && canReviewFullCoverage()
         )
         val rows = reconciled.mapIndexed { index, item -> item.toCoordinatorRow(index, source) }
         publishReview(rows, failed)
@@ -394,14 +441,19 @@ class DepotScreenshotImportViewModel(
         rows: List<DepotScreenshotImportReviewRow>,
         failed: List<ScreenshotImportImageResult>
     ) {
-        val summary = summaryOf(rows)
-        val canApply = failed.isEmpty() && rows.isNotEmpty() && rows.all { it.resolved && rowIsValidForApply(it) }
+        val fullCoverageAvailable = failed.isEmpty() && canReviewFullCoverage()
+        if (!fullCoverageAvailable) completeCoverageConfirmed = false
+        val safeRows = if (completeCoverageConfirmed) rows else rows.filterNot { it.kind == DepotScreenshotImportRowKind.MISSING }
+        val summary = summaryOf(safeRows)
+        val canApply = failed.isEmpty() && safeRows.isNotEmpty() && safeRows.all { it.resolved && rowIsValidForApply(it) }
         _state.value = DepotScreenshotImportState.Reviewing(
             images = selectedImages,
-            rows = rows,
+            rows = safeRows,
             failedImages = failed,
             summary = summary,
-            canApply = canApply
+            canApply = canApply,
+            completeCoverageConfirmed = completeCoverageConfirmed,
+            canConfirmCompleteCoverage = fullCoverageAvailable
         )
     }
 
