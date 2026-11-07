@@ -27,6 +27,50 @@ class TradeRepublicScreenshotParserTest {
     }
 
     @Test
+    fun parsesNarrowNoBreakThinAndFigureSpaceThousandsSeparatorsWithoutLosingMagnitude() {
+        assertEquals(1217.07, TradeRepublicScreenshotParser.parseLocalizedNumber("1\u202F217,07 €")!!, 0.000001)
+        assertEquals(1217.07, TradeRepublicScreenshotParser.parseLocalizedNumber("1\u2009217,07 €")!!, 0.000001)
+        assertEquals(1217.07, TradeRepublicScreenshotParser.parseLocalizedNumber("1\u2007217,07 €")!!, 0.000001)
+        assertEquals(1217.07, TradeRepublicScreenshotParser.parseLocalizedNumber("1\u00A0217,07 €")!!, 0.000001)
+        assertEquals(-1234.56, TradeRepublicScreenshotParser.parseLocalizedNumber("−1\u202F234,56 €")!!, 0.000001)
+    }
+
+    @Test
+    fun mergedOcrLineWithNarrowThousandsSpaceKeepsFullStockValue() {
+        val result = TradeRepublicScreenshotParser.parse(
+            blocks = listOf(
+                block("Portfolio", 10),
+                block("Apple 1\u202F217,07 € +34,40 € +2,91 %", 100, left = 20, right = 760)
+            ),
+            sourceIndex = 0
+        )
+        assertTrue(result.recognizedAsTradeRepublic)
+        val apple = result.observations.single()
+        assertEquals("Apple", apple.name)
+        assertEquals(1217.07, apple.valueEur!!, 0.000001)
+        assertEquals(34.40, apple.profitLossEur!!, 0.000001)
+        assertEquals(1182.67, apple.derivedCostBasisEur!!, 0.000001)
+    }
+
+    @Test
+    fun thinSpaceAmountAndCurrencyRecognizedAsSeparateOcrBlocksKeepsFullValue() {
+        val result = TradeRepublicScreenshotParser.parse(
+            blocks = listOf(
+                block("Portfolio", 10),
+                block("Microsoft", 100, left = 20, right = 270),
+                block("1\u2009217,07", 130, left = 610, right = 714),
+                block("€", 132, left = 719, right = 740)
+            ),
+            sourceIndex = 1
+        )
+        assertTrue(result.recognizedAsTradeRepublic)
+        val microsoft = result.observations.single()
+        assertEquals("Microsoft", microsoft.name)
+        assertEquals(1217.07, microsoft.valueEur!!, 0.000001)
+        assertEquals(1, microsoft.sourceIndex)
+    }
+
+    @Test
     fun parsesSingleTradeRepublicPositionAndDerivesSnapshotCostBasis() {
         val result = TradeRepublicScreenshotParser.parse(
             blocks = listOf(

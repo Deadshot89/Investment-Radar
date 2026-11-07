@@ -48,16 +48,25 @@ object TradeRepublicScreenshotParser {
     private val euroCurrency = Regex("""(?:€|\bEUR\b)""", RegexOption.IGNORE_CASE)
     // OCR can put the name, current value and P/L on the same line. Split each
     // explicit currency/percent token instead of dropping the entire name row.
-    private val monetaryToken = Regex("""[+−–-]?\s*\d[\d.,]*\s*(?:€|\bEUR\b)""", RegexOption.IGNORE_CASE)
+    private val monetaryToken = Regex("""[+−–-]?\s*\d(?:[\d.,\s]*\d)?\s*(?:€|\bEUR\b)""", RegexOption.IGNORE_CASE)
     private val percentToken = Regex("""[+−–-]?\s*\d[\d.,]*\s*%""")
 
     private val germanThousandsOnly = Regex("^[1-9]\\d{0,2}(\\.\\d{3})+$")
 
+    // ML Kit preserves several Unicode spacing characters used as thousands
+    // separators. Normalize them before token detection, so 1 217,07 € can
+    // never silently become 1 € or a rejected asset row.
+    private fun normalizeOcrWhitespace(text: String): String =
+        text.replace('\u00A0', ' ')
+            .replace('\u202F', ' ')
+            .replace('\u2009', ' ')
+            .replace('\u2007', ' ')
+            .replace('\u200A', ' ')
+
     fun parseLocalizedNumber(text: String): Double? {
-        var raw = text
+        var raw = normalizeOcrWhitespace(text)
             .replace('−', '-')
             .replace('–', '-')
-            .replace('\u00A0', ' ')
             .trim()
         val match = Regex("[+-]?\\s*\\d[\\d.,\\s]*").find(raw) ?: return null
         raw = match.value.replace(" ", "")
@@ -105,7 +114,10 @@ object TradeRepublicScreenshotParser {
         sourceIndex: Int,
         trustedAssetNames: Set<String> = emptySet()
     ): TradeRepublicParseResult {
-        val ordered = joinSplitEuroAmounts(blocks.flatMap(::splitNameAndValue))
+        val ordered = joinSplitEuroAmounts(
+            blocks.map { it.copy(text = normalizeOcrWhitespace(it.text)) }
+                .flatMap(::splitNameAndValue)
+        )
             .filter { it.text.isNotBlank() }
             .sortedWith(compareBy<RecognizedTextBlock>({ it.top }, { it.left }))
         val hasPortfolioHeader = ordered.any { block ->
