@@ -48,7 +48,7 @@ object TradeRepublicScreenshotParser {
     private val euroCurrency = Regex("""(?:€|\bEUR\b)""", RegexOption.IGNORE_CASE)
     // OCR can put the name, current value and P/L on the same line. Split each
     // explicit currency/percent token instead of dropping the entire name row.
-    private val monetaryToken = Regex("""[+−–-]?\s*\d[\d.,]*\s*(?:€|\bEUR\b)""", RegexOption.IGNORE_CASE)
+    private val monetaryToken = Regex("""[+−–-]?\s*\d(?:[\d.,\s]*\d)?\s*(?:€|\bEUR\b)""", RegexOption.IGNORE_CASE)
     private val percentToken = Regex("""[+−–-]?\s*\d[\d.,]*\s*%""")
 
     private val germanThousandsOnly = Regex("^[1-9]\\d{0,2}(\\.\\d{3})+$")
