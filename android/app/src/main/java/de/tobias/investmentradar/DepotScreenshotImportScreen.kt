@@ -226,6 +226,16 @@ fun DepotScreenshotImportContent(
 
                 item {
                     ImportCard("Vorschau") {
+                        val duplicateIds = state.rows.mapNotNull { it.itemId?.takeIf(String::isNotBlank) }
+                            .groupingBy { it }.eachCount().filterValues { it > 1 }.keys
+                        if (duplicateIds.isNotEmpty()) {
+                            Text(
+                                "Eine Depotposition wurde mehrfach zugeordnet (${duplicateIds.joinToString(", ")}). " +
+                                    "Bitte die Zuordnung der Screenshot-Zeilen korrigieren. Speichern ist gesperrt.",
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
                         ImportSummaryText(state.summary)
                         Button(
                             onClick = actions.onApply,
