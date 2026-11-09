@@ -8,6 +8,54 @@ import org.junit.Test
 
 class DepotScreenshotImportViewModelTest {
     @Test
+    fun manualDuplicateAssignmentBlocksCommitUntilHoldingIdsAreUnique() = runBlocking {
+        val screenshot = image("two-rows")
+        var persistenceCalls = 0
+        val coordinator = viewModel(
+            loader = ScreenshotImportBatchLoader { _, onProgress ->
+                onProgress(1, 1)
+                ScreenshotImportBatch(
+                    listOf(
+                        ScreenshotImportImageResult(
+                            screenshot,
+                            TradeRepublicParseResult(
+                                recognizedAsTradeRepublic = true,
+                                observations = listOf(
+                                    observation("Meta Platforms", 110.0, 0),
+                                    observation("Unknown Company", 75.0, 0)
+                                )
+                            )
+                        )
+                    )
+                )
+            },
+            source = source(
+                listOf(item("meta", "Meta Platforms"), item("apple", "Apple")),
+                mapOf("meta" to position("meta", 100.0), "apple" to position("apple", 65.0))
+            ),
+            persist = { _, _ -> persistenceCalls++; true }
+        )
+        coordinator.selectImages(listOf(screenshot))
+        coordinator.analyze()
+        val unknownRow = (coordinator.state.value as DepotScreenshotImportState.Reviewing)
+            .rows.single { it.observation?.name == "Unknown Company" }
+        coordinator.assignMatch(unknownRow.key, "meta")
+        coordinator.confirmReviewedRow(unknownRow.key)
+
+        val duplicate = coordinator.state.value as DepotScreenshotImportState.Reviewing
+        assertEquals(2, duplicate.rows.count { it.itemId == "meta" })
+        assertFalse(duplicate.canApply)
+        coordinator.apply()
+        assertEquals(0, persistenceCalls)
+
+        coordinator.assignMatch(unknownRow.key, "apple")
+        coordinator.confirmReviewedRow(unknownRow.key)
+        assertTrue((coordinator.state.value as DepotScreenshotImportState.Reviewing).canApply)
+        coordinator.apply()
+        assertEquals(1, persistenceCalls)
+    }
+
+    @Test
     fun multipleImagesAdvanceProgressAndEnterReview() = runBlocking {
         val images = listOf(image("one"), image("two"))
         val progress = mutableListOf<Pair<Int, Int>>()
