@@ -111,6 +111,10 @@ object PortfolioImportApplier {
         capturedAt: String
     ): PortfolioImportResult {
         require(capturedAt.isNotBlank()) { "Snapshot-Zeitpunkt fehlt." }
+        val affectedIds = changes.map { it.itemId.trim() }
+        require(affectedIds.size == affectedIds.toSet().size) {
+            "Eine Depotposition ist mehrfach im Screenshot-Abgleich zugeordnet. Bitte die Zuordnung korrigieren."
+        }
         val next = existingPositions.toMutableMap()
         val nextCustomAssets = existingCustomAssets.toMutableList()
         var summary = PortfolioImportSummary()
