@@ -24,6 +24,33 @@ class PortfolioImportApplierTest {
     private val existing = mapOf("meta" to meta, "apple" to apple)
 
     @Test
+    fun duplicateChangesForOneHoldingAreRejectedInsteadOfLastWriteWins() {
+        val conflictingBatches = listOf(
+            listOf(
+                PortfolioImportChange.UpdateSnapshot("meta", valueEur = 110.0),
+                PortfolioImportChange.UpdateSnapshot("meta", valueEur = 115.0)
+            ),
+            listOf(
+                PortfolioImportChange.UpdateSnapshot("meta", valueEur = 110.0),
+                PortfolioImportChange.MissingPosition("meta", MissingPositionDecision.MARK_SOLD)
+            )
+        )
+        conflictingBatches.forEach { changes ->
+            val failure = runCatching {
+                PortfolioImportApplier.preview(
+                    existing = existing,
+                    changes = changes,
+                    capturedAt = "2026-11-09T08:00:00Z"
+                )
+            }.exceptionOrNull()
+            assertTrue("Konflikt muss abgewiesen werden", failure is IllegalArgumentException)
+            assertTrue(failure?.message?.contains("mehrfach") == true)
+        }
+        assertEquals(100.0, existing.getValue("meta").snapshotValueEur!!, 0.001)
+        assertEquals(PortfolioLifecycleStatus.ACTIVE, existing.getValue("meta").lifecycleStatus)
+    }
+
+    @Test
     fun updateSnapshotChangesConfirmedSnapshotFieldsButPreservesLedger() {
         val result = PortfolioImportApplier.preview(
             existing = existing,

@@ -115,7 +115,7 @@ class PortfolioImportStoreInstrumentedTest {
                 existing = mapOf("meta" to initial),
                 changes = listOf(
                     PortfolioImportChange.UpdateSnapshot("meta", valueEur = 130.0),
-                    PortfolioImportChange.MissingPosition("meta", MissingPositionDecision.MARK_SOLD)
+                    PortfolioImportChange.AddPosition("apple", valueEur = 50.0)
                 ),
                 capturedAt = "2026-10-15T12:11:00Z"
             )
@@ -123,7 +123,7 @@ class PortfolioImportStoreInstrumentedTest {
             val committed = PortfolioStore.commitImport(
                 context = context,
                 result = result,
-                metadata = metadata(),
+                metadata = metadata().copy(updatedCount = 1, addedCount = 1, soldCount = 0),
                 commitEditor = { editor: SharedPreferences.Editor ->
                     editor.commit()
                     false
@@ -133,6 +133,7 @@ class PortfolioImportStoreInstrumentedTest {
             assertFalse(committed)
             assertEquals(before, prefs.all.toMap())
             assertEquals(PortfolioLifecycleStatus.ACTIVE, PortfolioStore.readPositions(context).getValue("meta").lifecycleStatus)
+            assertFalse(PortfolioStore.readPositions(context).containsKey("apple"))
         } finally {
             prefs.edit().clear().commit()
         }

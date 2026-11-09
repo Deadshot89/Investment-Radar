@@ -476,7 +476,12 @@ class DepotScreenshotImportViewModel(
         if (!fullCoverageAvailable) completeCoverageConfirmed = false
         val safeRows = if (completeCoverageConfirmed) rows else rows.filterNot { it.kind == DepotScreenshotImportRowKind.MISSING }
         val summary = summaryOf(safeRows)
-        val canApply = failed.isEmpty() && safeRows.isNotEmpty() && safeRows.all { it.resolved && rowIsValidForApply(it) }
+        // Manually assigned OCR rows can target the same holding. Never allow
+        // last-write-wins or a simultaneous UPDATE and MARK_SOLD/DELETE.
+        val assignedIds = safeRows.mapNotNull { it.itemId?.takeIf(String::isNotBlank) }
+        val hasDuplicateAssignments = assignedIds.size != assignedIds.toSet().size
+        val canApply = failed.isEmpty() && !hasDuplicateAssignments && safeRows.isNotEmpty() &&
+            safeRows.all { it.resolved && rowIsValidForApply(it) }
         _state.value = DepotScreenshotImportState.Reviewing(
             images = selectedImages,
             rows = safeRows,
